@@ -31,6 +31,8 @@ pub struct Config {
     pub iracing_api: IracingApiConfig,
     /// Only show iRating / SR estimates in official (ranked) sessions.
     pub ratings_official_only: bool,
+    /// Desktop app: look for a new version on start-up.
+    pub auto_check_updates: bool,
 }
 
 impl Default for Config {
@@ -60,6 +62,8 @@ impl Default for Config {
                 o("battle", "battle", 1200, 860, 360, 150),
                 o("session", "session", 510, 10, 900, 52),
                 o("tyres", "tyres", 1540, 680, 300, 150),
+                o("flags", "flags", 860, 70, 220, 110),
+                OverlayInstance { enabled: false, ..o("weather", "weather", 1240, 680, 300, 170) },
                 OverlayInstance { enabled: false, ..o("garage61", "garage61", 1540, 850, 300, 170) },
             ],
             hotkeys: Hotkeys::default(),
@@ -73,6 +77,7 @@ impl Default for Config {
             track_corners: Default::default(),
             iracing_api: IracingApiConfig::default(),
             ratings_official_only: true,
+            auto_check_updates: true,
         }
     }
 }
@@ -177,13 +182,11 @@ impl Default for TyreConfig {
 pub struct BattleConfig {
     /// Gaps above this (seconds) are not considered a battle.
     pub max_gap: f32,
-    /// Only consider cars in the player's class.
-    pub same_class_only: bool,
 }
 
 impl Default for BattleConfig {
     fn default() -> Self {
-        Self { max_gap: 3.0, same_class_only: true }
+        Self { max_gap: 3.0 }
     }
 }
 

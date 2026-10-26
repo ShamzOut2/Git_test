@@ -1,5 +1,5 @@
 import { h } from '../lib/dom';
-import { COMMON, merge, type SettingDef } from '../lib/settings';
+import { commonFor, merge, type SettingDef } from '../lib/settings';
 import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
 import type { OverlayInstance } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
@@ -122,12 +122,13 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
   preview.style.height = `${o.height * scale + 16}px`;
   preview.append(frame);
 
-  const values = merge([...COMMON, ...def.settings], o.settings);
+  const common = commonFor(def.commonDefaults);
+  const values = merge([...common, ...def.settings], o.settings);
   const transparencyKeys = ['opacity', 'bgOpacity'];
   const quick = h('div', 'quick');
   quick.append(
     form(
-      COMMON.filter((x) => transparencyKeys.includes(x.key)),
+      common.filter((x) => transparencyKeys.includes(x.key)),
       values,
       (k, v) => {
         o.settings = { ...o.settings, [k]: v };
@@ -140,7 +141,7 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
     }),
   );
   const settings = form(
-    [...def.settings, ...COMMON.filter((x) => !transparencyKeys.includes(x.key))],
+    [...def.settings, ...common.filter((x) => !transparencyKeys.includes(x.key))],
     values,
     (k, v) => {
       values[k] = v;
@@ -167,7 +168,7 @@ const overlaysPage: Page = {
       button(visible ? 'Hide all overlays' : 'Show overlays', () => client.send({ op: 'setVisible', value: !visible })),
     );
     const add = h('select');
-    add.append(h('option', '', 'Add overlay…'));
+    add.append(h('option', '', '＋ Add overlay…'));
     for (const d of OVERLAYS) {
       const opt = h('option', '', d.name);
       opt.value = d.kind;
@@ -182,7 +183,7 @@ const overlaysPage: Page = {
       save();
       rerender();
     };
-    bar.append(add);
+    bar.append(add, h('span', 'dim small', 'Add any overlay as many times as you like — each copy has its own settings, size and scale.'));
 
     const list = h('div', 'ov-list');
     for (const o of cfg.overlays) {
@@ -374,9 +375,8 @@ const strategyPage: Page = {
         cfg.battle,
         [
           { key: 'maxGap', label: 'Battle range', type: 'number', default: 3, min: 0.2, max: 20, step: 0.1, unit: 's' },
-          { key: 'sameClassOnly', label: 'Only cars in my class', type: 'bool', default: true },
         ],
-        'Cars within the battle range are highlighted and their gap trend is tracked.',
+        'Cars within the battle range are highlighted and their gap trend is tracked. Which cars the box shows (class, overall or on track) is set per Battle box overlay.',
       ),
     );
   },
@@ -422,6 +422,43 @@ const garage61Page: Page = {
     );
   },
 };
+
+/** In-app updates (desktop app only). */
+function updatesCard(): HTMLElement {
+  const cfg = state.config!;
+  const u = state.update;
+  const c = card('Updates');
+  const current = u?.current ? `You have version ${u.current}.` : '';
+  const line: Record<string, string> = {
+    unsupported: u?.message ?? 'Updates are installed by the Apex Overlays desktop app.',
+    idle: 'Not checked yet.',
+    checking: 'Checking for updates…',
+    none: 'You are on the latest version.',
+    available: `Version ${u?.version} is available.`,
+    downloading: `Downloading version ${u?.version}… ${u?.progress ?? 0}%`,
+    installing: 'Installing — Apex Overlays will restart.',
+    error: `Update check failed: ${u?.message ?? 'unknown error'}`,
+  };
+  const status = h('div', `notice${u?.status === 'available' ? ' good' : ''}`, `${current} ${line[u?.status ?? 'idle'] ?? ''}`);
+  const bar = h('div', 'toolbar');
+  if (u?.status !== 'unsupported') {
+    bar.append(button('Check for updates', () => client.send({ op: 'checkUpdate' })));
+    if (u?.status === 'available') bar.append(button(`Install ${u.version} and restart`, () => client.send({ op: 'installUpdate' }), 'primary'));
+  }
+  const auto = h('label', 'inline');
+  const cb = h('input');
+  cb.type = 'checkbox';
+  cb.className = 'switch';
+  cb.checked = cfg.autoCheckUpdates ?? true;
+  cb.onchange = () => {
+    cfg.autoCheckUpdates = cb.checked;
+    save();
+  };
+  auto.append(cb, ' Check for updates when the app starts');
+  c.append(status, bar, auto);
+  if (u?.status === 'available' && u.notes) c.append(h('p', 'dim small', u.notes));
+  return c;
+}
 
 /** Track outline + corner list editor for the current track. */
 function cornersCard(rerender: () => void): HTMLElement {
@@ -584,6 +621,7 @@ const generalPage: Page = {
           },
         ),
       ),
+      updatesCard(),
       cornersCard(() => this.render(el)),
       card(
         'Backup',

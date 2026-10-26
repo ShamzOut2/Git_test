@@ -11,11 +11,27 @@ use tokio::sync::broadcast;
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum HostEvent {
-    Drag { id: String },
-    Resize { id: String, dir: String },
-    EditMode { value: bool },
-    Visible { value: bool },
+    Drag {
+        id: String,
+    },
+    Resize {
+        id: String,
+        dir: String,
+    },
+    EditMode {
+        value: bool,
+    },
+    Visible {
+        value: bool,
+    },
     OpenSettings,
+    /// Fit an overlay window's height to its content (CSS pixels).
+    AutoSize {
+        id: String,
+        height: f64,
+    },
+    CheckUpdate,
+    InstallUpdate,
 }
 
 /// Commands for the telemetry thread.
@@ -36,6 +52,8 @@ pub struct Hub {
     pub connected: AtomicBool,
     pub clients: AtomicUsize,
     pub source: Mutex<&'static str>,
+    /// Set by the desktop app, which can install updates; the headless server cannot.
+    pub updates_supported: AtomicBool,
 }
 
 impl Default for Hub {
@@ -51,6 +69,7 @@ impl Default for Hub {
             connected: AtomicBool::new(false),
             clients: AtomicUsize::new(0),
             source: Mutex::new("none"),
+            updates_supported: AtomicBool::new(false),
         }
     }
 }

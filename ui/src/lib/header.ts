@@ -28,6 +28,17 @@ export function headerSettings(on: string[]): SettingDef[] {
     { key: 'sessionBadge', label: 'Session type badge (Practice, Qualifying, Race…)', type: 'bool', default: true, group: 'Header' },
     { key: 'headerFields', label: 'Session details in the header', type: 'columns', ...headerFields(on), group: 'Header' },
     { key: 'headerSeparator', label: 'Separator', type: 'text', default: '  ·  ', group: 'Header' },
+    {
+      key: 'timedLaps',
+      label: 'Lap count in timed races',
+      type: 'select',
+      default: 'infinity',
+      options: [
+        ['infinity', 'Lap 12/∞'],
+        ['count', 'Lap 12'],
+      ],
+      group: 'Header',
+    },
   ];
 }
 
@@ -53,7 +64,7 @@ export function sessionHeader(s: Values, fallbackTitle: string, units: () => Uni
       text(badge, type);
       badge.dataset.type = type.toLowerCase();
       show(badge, (s.sessionBadge as boolean) && !!type);
-      const parts = fields.map((id) => fieldValue(id, d, units(), { compact: true })).filter(Boolean);
+      const parts = fields.map((id) => fieldValue(id, d, units(), { compact: true, timedLaps: s.timedLaps as 'infinity' | 'count' })).filter(Boolean);
       text(info, parts.join(s.headerSeparator as string));
       info.dataset.flag = fields.includes('flags') ? flagKind(d) : '';
     },

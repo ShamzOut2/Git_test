@@ -1,7 +1,7 @@
 // Contract between the overlay host page and individual overlays.
 
 import type { Units } from './format';
-import type { SettingDef, Values } from './settings';
+import { commonFor, type SettingDef, type Values } from './settings';
 import type { TopicMap, TopicName } from './types';
 
 export interface Ctx {
@@ -28,5 +28,12 @@ export interface OverlayDef {
   /** Default window size in CSS pixels. */
   size: [number, number];
   settings: SettingDef[];
+  /** Overrides for the defaults of the common options (scale, autoHeight, ...). */
+  commonDefaults?: Values;
   create(root: HTMLElement, ctx: Ctx): View;
+}
+
+/** Full settings schema of an overlay: its own options plus the common ones. */
+export function schemaOf(def: OverlayDef): SettingDef[] {
+  return [...def.settings, ...commonFor(def.commonDefaults)];
 }

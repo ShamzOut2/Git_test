@@ -101,6 +101,7 @@ pub fn start(opts: Options) -> std::io::Result<App> {
     let source: Box<dyn Source> = if opts.mock { Box::new(source::mock::Mock::new()) } else { Box::new(source::iracing::IRacing::new()) };
     *hub.source.lock().unwrap() = source.name();
     hub.publish_status();
+    hub.publish("update", &serde_json::json!({ "status": "unsupported", "current": env!("CARGO_PKG_VERSION") }).to_string());
     let (h, c, d) = (hub.clone(), config.clone(), opts.data_dir.clone());
     std::thread::Builder::new().name("telemetry".into()).spawn(move || run(source, h, c, combo, track, cmd_rx, d))?;
 

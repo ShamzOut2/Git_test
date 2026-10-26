@@ -12,6 +12,19 @@ export const battle: OverlayDef = {
   topics: ['battle'],
   size: [360, 150],
   settings: [
+    {
+      key: 'mode',
+      label: 'Battle against',
+      type: 'select',
+      default: 'overall',
+      options: [
+        ['overall', 'Car ahead/behind in the race, any class'],
+        ['class', 'Car ahead/behind in my class'],
+        ['track', 'Nearest car on track (any class, incl. lapped cars)'],
+      ],
+      group: 'Cars',
+    },
+    { key: 'showClass', label: 'Show the other car’s class', type: 'bool', default: true, group: 'Elements' },
     { key: 'showAhead', label: 'Car ahead', type: 'bool', default: true, group: 'Elements' },
     { key: 'showBehind', label: 'Car behind', type: 'bool', default: true, group: 'Elements' },
     { key: 'showTrend', label: 'Gap trend per lap', type: 'bool', default: true, group: 'Elements' },
@@ -32,10 +45,12 @@ export const battle: OverlayDef = {
       const tag = h('span', 'tag', label);
       const num = h('span', 'num');
       const name = h('span', 'name');
+      const cls = h('span', 'cls');
+      show(cls, s.showClass as boolean);
       const ir = h('span', 'ir dim');
       show(ir, s.showIRating as boolean);
       const gap = h('span', 'big');
-      top.append(tag, num, name, ir, gap);
+      top.append(tag, num, name, cls, ir, gap);
       const bar = h('div', 'gapbar');
       const fill = h('div', 'fill');
       bar.append(fill);
@@ -49,7 +64,7 @@ export const battle: OverlayDef = {
       show(laps, s.showLaps as boolean);
       bottom.append(trend, caught, laps);
       el.append(top, bar, bottom);
-      return { el, num, name, ir, gap, fill, trend, caught, laps };
+      return { el, num, name, cls, ir, gap, fill, trend, caught, laps };
     };
     const ahead = card('AHEAD');
     const behind = card('BEHIND');
@@ -65,10 +80,12 @@ export const battle: OverlayDef = {
         text(c.caught, '');
         text(c.laps, '');
         c.num.replaceChildren();
+        c.cls.replaceChildren();
         c.fill.style.transform = 'scaleX(0)';
         return;
       }
       chip(c.num, b.number, b.classColor);
+      if (s.showClass) chip(c.cls, b.className, b.classColor);
       text(c.name, f.name(b.name, s.nameStyle as string));
       text(c.ir, b.irating ? f.iRating(b.irating) : '');
       text(c.gap, b.gapLaps ? `${b.gapLaps}L` : (b.gap ?? 0).toFixed(s.gapDecimals as number));
@@ -95,8 +112,9 @@ export const battle: OverlayDef = {
       update(topic, data) {
         if (topic !== 'battle') return;
         const d = data as Battle;
-        fill(ahead, d.ahead, true, d);
-        fill(behind, d.behind, false, d);
+        const pair = d[(s.mode as 'overall' | 'class' | 'track') ?? 'overall'] ?? d.overall;
+        fill(ahead, pair.ahead, true, d);
+        fill(behind, pair.behind, false, d);
       },
     };
   },

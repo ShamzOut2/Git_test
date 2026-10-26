@@ -3,6 +3,8 @@
 
 import type { OverlayDef } from '../lib/overlay';
 import { battle } from './battle';
+import { databox } from './databox';
+import { flags } from './flags';
 import { fuel } from './fuel';
 import { garage61 } from './garage61';
 import { inputs } from './inputs';
@@ -11,7 +13,8 @@ import { session } from './session';
 import { standings } from './standings';
 import { trackmap } from './trackmap';
 import { tyres } from './tyres';
+import { weather } from './weather';
 
-export const OVERLAYS: OverlayDef[] = [relative, standings, trackmap, inputs, fuel, battle, session, tyres, garage61];
+export const OVERLAYS: OverlayDef[] = [relative, standings, trackmap, inputs, fuel, battle, session, flags, weather, tyres, databox, garage61];
 
 export const byKind = (kind: string) => OVERLAYS.find((o) => o.kind === kind);

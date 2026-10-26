@@ -20,12 +20,17 @@ Done in 0.3:
 - [x] Relative gap modes (on track / to class leader / to car ahead), best & last lap colouring
 - [x] Manual league setup with a driver roster pulled from the session, pole / laps-led / most-laps-led / finish bonuses
 
+Done in 0.4:
+- [x] Flags overlay (every iRacing flag, LED style, start lights), Weather overlay with car-relative wind compass
+- [x] Data box overlay, auto-fit window height, battle box modes (overall / class / on track), lap x/∞ in timed races
+- [x] In-app updates (signed, from GitHub Releases)
+
 Next:
 - [ ] **Stream chat overlay**: Twitch chat over the anonymous IRC WebSocket (no login needed) and YouTube live chat,
       as an in-game overlay and an OBS source
 - [ ] **VR support**: render overlays into OpenXR/OpenVR overlay layers. Overlays are already plain pages with no host
       assumptions, so a VR host only needs off-screen web rendering and a texture upload
-- [ ] Code-signed installer (removes the SmartScreen warning) and auto-update
+- [ ] Code-signed installer (removes the SmartScreen warning)
 - [ ] Delta bar (to session best, personal best and Garage 61 reference lap)
 - [ ] Pit strategy: tyre-change timing, fuel to add pre-filled to the pit service, undercut/overcut estimates
 - [ ] Flags / race control overlay, blind-spot (car left/right) indicator, radar

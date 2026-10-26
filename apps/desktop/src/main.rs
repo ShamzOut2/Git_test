@@ -29,6 +29,10 @@ struct Core {
     port: u16,
     /// Window geometry changes waiting to be written to the config (debounced).
     pending: Mutex<HashMap<String, Geometry>>,
+    /// Overlays that size their height to their content (label -> height).
+    auto_height: Mutex<HashMap<String, f64>>,
+    /// Update found by the last check, ready to install.
+    update: tokio::sync::Mutex<Option<tauri_plugin_updater::Update>>,
 }
 
 fn label_for(id: &str) -> String {
@@ -68,7 +72,9 @@ fn reconcile(app: &AppHandle) {
         wanted.push(label.clone());
         let win = match app.get_webview_window(&label) {
             Some(w) => {
-                sync_geometry(&w, o.x, o.y, o.width, o.height);
+                // Auto-height overlays keep the height their content asked for.
+                let auto = core.auto_height.lock().unwrap().get(&label).copied();
+                sync_geometry(&w, o.x, o.y, o.width, auto.map(|h| h.round() as u32).unwrap_or(o.height));
                 w
             }
             None => {
@@ -144,6 +150,88 @@ fn handle_host_event(app: &AppHandle, ev: HostEvent) {
         }
         HostEvent::EditMode { .. } | HostEvent::Visible { .. } => reconcile(app),
         HostEvent::OpenSettings => show_settings(app),
+        HostEvent::AutoSize { id, height } => {
+            let label = label_for(&id);
+            let core = app.state::<Core>();
+            if height <= 0.0 {
+                core.auto_height.lock().unwrap().remove(&label);
+                return;
+            }
+            core.auto_height.lock().unwrap().insert(label.clone(), height);
+            if let Some(w) = app.get_webview_window(&label) {
+                let scale = w.scale_factor().unwrap_or(1.0);
+                if let Ok(size) = w.inner_size() {
+                    let size: LogicalSize<f64> = size.to_logical(scale);
+                    if (size.height - height).abs() > 1.0 {
+                        let _ = w.set_size(LogicalSize::new(size.width, height.max(20.0)));
+                    }
+                }
+            }
+        }
+        HostEvent::CheckUpdate => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move { check_update(app).await });
+        }
+        HostEvent::InstallUpdate => {
+            let app = app.clone();
+            tauri::async_runtime::spawn(async move { install_update(app).await });
+        }
+    }
+}
+
+fn publish_update(app: &AppHandle, v: serde_json::Value) {
+    let mut v = v;
+    v["current"] = env!("CARGO_PKG_VERSION").into();
+    app.state::<Core>().hub.publish("update", &v.to_string());
+}
+
+/// Ask GitHub Releases (via the signed `latest.json`) whether a newer version exists.
+async fn check_update(app: AppHandle) {
+    use tauri_plugin_updater::UpdaterExt;
+    publish_update(&app, serde_json::json!({ "status": "checking" }));
+    let result = match app.updater() {
+        Ok(u) => u.check().await.map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    };
+    match result {
+        Ok(Some(update)) => {
+            publish_update(&app, serde_json::json!({ "status": "available", "version": update.version, "notes": update.body.clone().unwrap_or_default() }));
+            *app.state::<Core>().update.lock().await = Some(update);
+        }
+        Ok(None) => publish_update(&app, serde_json::json!({ "status": "none" })),
+        Err(e) => publish_update(&app, serde_json::json!({ "status": "error", "message": e })),
+    }
+}
+
+/// Download the update, verify its signature and run the installer (the app closes and restarts).
+async fn install_update(app: AppHandle) {
+    let Some(update) = app.state::<Core>().update.lock().await.take() else {
+        return check_update(app).await;
+    };
+    let version = update.version.clone();
+    let mut done: usize = 0;
+    let progress_app = app.clone();
+    let mut last = 0u64;
+    let result = update
+        .download_and_install(
+            move |chunk, total| {
+                done += chunk;
+                let pct = total.map(|t| done as f64 / t as f64 * 100.0).unwrap_or(0.0);
+                if pct as u64 != last {
+                    last = pct as u64;
+                    publish_update(&progress_app, serde_json::json!({ "status": "downloading", "version": version, "progress": pct.round() }));
+                }
+            },
+            || {},
+        )
+        .await;
+    match result {
+        Ok(()) => {
+            publish_update(&app, serde_json::json!({ "status": "installing" }));
+            flush_geometry(&app);
+            app.restart();
+        }
+        Err(e) => publish_update(&app, serde_json::json!({ "status": "error", "message": e.to_string() })),
     }
 }
 
@@ -241,11 +329,29 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show_settings(app)))
         .plugin(tauri_plugin_global_shortcut::Builder::new().build())
-        .manage(Core { hub: core.hub.clone(), config: core.config.clone(), url: core.url(), port: core.addr.port(), pending: Mutex::new(HashMap::new()) })
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(Core {
+            hub: core.hub.clone(),
+            config: core.config.clone(),
+            url: core.url(),
+            port: core.addr.port(),
+            pending: Mutex::new(HashMap::new()),
+            auto_height: Mutex::new(HashMap::new()),
+            update: tokio::sync::Mutex::new(None),
+        })
         .setup(|app| {
             let handle = app.handle().clone();
             tray(&handle)?;
             register_hotkeys(&handle);
+            handle.state::<Core>().hub.updates_supported.store(true, Ordering::Relaxed);
+            publish_update(&handle, serde_json::json!({ "status": "idle" }));
+            if handle.state::<Core>().config.read(|c| c.auto_check_updates) {
+                let h = handle.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(Duration::from_secs(8)).await;
+                    check_update(h).await;
+                });
+            }
             reconcile(&handle);
             // Start with the settings window unless launched to the tray (e.g. at Windows start-up).
             if !std::env::args().any(|a| a == "--tray") {
@@ -295,7 +401,17 @@ fn main() {
                 WindowEvent::Resized(sz) if label.starts_with(PREFIX) => {
                     let s = window.scale_factor().unwrap_or(1.0);
                     let l: LogicalSize<f64> = sz.to_logical(s);
-                    record_geometry(app, &label, None, Some((l.width.round() as u32, l.height.round() as u32)));
+                    // Auto-height overlays only remember the width the user chose.
+                    let auto = app.state::<Core>().auto_height.lock().unwrap().contains_key(&label);
+                    let h = if auto {
+                        app.state::<Core>()
+                            .config
+                            .read(|c| id_for(c, &label).and_then(|id| c.overlays.iter().find(|o| o.id == id).map(|o| o.height)))
+                            .unwrap_or(0)
+                    } else {
+                        l.height.round() as u32
+                    };
+                    record_geometry(app, &label, None, Some((l.width.round() as u32, h)));
                 }
                 _ => {}
             }

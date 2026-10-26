@@ -79,12 +79,26 @@ export const COMMON: SettingDef[] = [
   { key: 'opacity', label: 'Overlay opacity', type: 'number', default: 100, min: 10, max: 100, step: 1, unit: '%', help: 'Fades the whole overlay, text included', group: 'Transparency' },
   { key: 'bgOpacity', label: 'Background opacity', type: 'number', default: -1, min: -1, max: 100, step: 1, unit: '%', help: '-1 follows the theme; 0 = fully see-through background', group: 'Transparency' },
   { key: 'scale', label: 'Scale', type: 'number', default: 100, min: 40, max: 300, step: 5, unit: '%', group: 'General' },
+  {
+    key: 'autoHeight',
+    label: 'Grow/shrink the window to fit the content',
+    type: 'bool',
+    default: false,
+    help: 'The height follows the number of rows; you only set the width',
+    group: 'General',
+  },
   { key: 'hideWhenDisconnected', label: 'Hide when iRacing is not running', type: 'bool', default: true, group: 'Visibility' },
   { key: 'hideWhenNotDriving', label: 'Hide unless I am in the car', type: 'bool', default: false, group: 'Visibility' },
   { key: 'hideInPits', label: 'Hide while on pit road', type: 'bool', default: false, group: 'Visibility' },
   { key: 'raceOnly', label: 'Only show in race sessions', type: 'bool', default: false, group: 'Visibility' },
   { key: 'customCss', label: 'Custom CSS', type: 'text', multiline: true, default: '', placeholder: '.row.player { outline: 1px solid gold; }', group: 'Advanced' },
 ];
+
+/** Common options with an overlay's own defaults applied (e.g. standings auto-fits by default). */
+export function commonFor(defaults?: Values): SettingDef[] {
+  if (!defaults) return COMMON;
+  return COMMON.map((s) => (s.key in defaults ? ({ ...s, default: defaults[s.key] } as SettingDef) : s));
+}
 
 export const NAME_STYLES: [string, string][] = [
   ['full', 'Full name'],

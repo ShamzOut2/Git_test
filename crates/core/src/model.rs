@@ -23,31 +23,55 @@ pub mod flags {
     pub const RED: u32 = 0x0010;
     pub const BLUE: u32 = 0x0020;
     pub const DEBRIS: u32 = 0x0040;
+    pub const CROSSED: u32 = 0x0080;
     pub const YELLOW_WAVING: u32 = 0x0100;
     pub const ONE_LAP_TO_GREEN: u32 = 0x0200;
+    pub const GREEN_HELD: u32 = 0x0400;
+    pub const TEN_TO_GO: u32 = 0x0800;
+    pub const FIVE_TO_GO: u32 = 0x1000;
+    pub const RANDOM_WAVING: u32 = 0x2000;
     pub const CAUTION: u32 = 0x4000;
     pub const CAUTION_WAVING: u32 = 0x8000;
     pub const BLACK: u32 = 0x10000;
     pub const DISQUALIFY: u32 = 0x20000;
+    pub const SERVICIBLE: u32 = 0x40000;
+    pub const FURLED: u32 = 0x80000;
     pub const REPAIR: u32 = 0x100000;
+    pub const START_HIDDEN: u32 = 0x1000_0000;
+    pub const START_READY: u32 = 0x2000_0000;
+    pub const START_SET: u32 = 0x4000_0000;
+    pub const START_GO: u32 = 0x8000_0000;
+
+    /// Every irsdk_Flags bit, by name (all of these are shown by the Flags overlay).
+    pub const ALL: &[(u32, &str)] = &[
+        (CHECKERED, "checkered"),
+        (WHITE, "white"),
+        (GREEN, "green"),
+        (YELLOW, "yellow"),
+        (RED, "red"),
+        (BLUE, "blue"),
+        (DEBRIS, "debris"),
+        (CROSSED, "crossed"),
+        (YELLOW_WAVING, "yellowWaving"),
+        (ONE_LAP_TO_GREEN, "oneLapToGreen"),
+        (GREEN_HELD, "greenHeld"),
+        (TEN_TO_GO, "tenToGo"),
+        (FIVE_TO_GO, "fiveToGo"),
+        (RANDOM_WAVING, "randomWaving"),
+        (CAUTION, "caution"),
+        (CAUTION_WAVING, "cautionWaving"),
+        (BLACK, "black"),
+        (DISQUALIFY, "disqualify"),
+        (SERVICIBLE, "servicible"),
+        (FURLED, "furled"),
+        (REPAIR, "repair"),
+        (START_HIDDEN, "startHidden"),
+        (START_READY, "startReady"),
+        (START_SET, "startSet"),
+        (START_GO, "startGo"),
+    ];
 
     pub fn names(f: u32) -> Vec<&'static str> {
-        const ALL: &[(u32, &str)] = &[
-            (CHECKERED, "checkered"),
-            (WHITE, "white"),
-            (GREEN, "green"),
-            (YELLOW, "yellow"),
-            (YELLOW_WAVING, "yellowWaving"),
-            (CAUTION, "caution"),
-            (CAUTION_WAVING, "cautionWaving"),
-            (RED, "red"),
-            (BLUE, "blue"),
-            (DEBRIS, "debris"),
-            (ONE_LAP_TO_GREEN, "oneLapToGreen"),
-            (BLACK, "black"),
-            (DISQUALIFY, "disqualify"),
-            (REPAIR, "repair"),
-        ];
         ALL.iter().filter(|(b, _)| f & b != 0).map(|(_, n)| *n).collect()
     }
 }

@@ -69,6 +69,8 @@ export interface FieldOpts {
   tempTrend?: boolean;
   /** Short forms suit compact headers ("42:10", "SOF 2.3k"). */
   compact?: boolean;
+  /** Timed races: show the lap as "12/∞" or just "12" (iRacing may report a lap cap like 50). */
+  timedLaps?: 'infinity' | 'count';
 }
 
 /** Display value of a field; '' when there is nothing to show. */
@@ -82,8 +84,12 @@ export function fieldValue(id: string, d: Session, u: f.Units, o: FieldOpts = {}
       return d.trackName + (d.trackConfig && !o.compact ? ` – ${d.trackConfig}` : '');
     case 'time':
       return d.timeRemain != null ? f.duration(d.timeRemain) : d.lapsRemain != null ? `${d.lapsRemain} laps` : '';
-    case 'lap':
-      return d.leaderLap ? `${o.compact ? 'Lap ' : ''}${d.leaderLap}${d.lapsTotal ? '/' + d.lapsTotal : ''}` : '';
+    case 'lap': {
+      if (!d.leaderLap) return '';
+      // In a timed race the lap count is open-ended even if iRacing reports a lap cap.
+      const total = d.timeTotal != null ? ((o.timedLaps ?? 'infinity') === 'infinity' ? '/∞' : '') : d.lapsTotal ? `/${d.lapsTotal}` : '';
+      return `${o.compact ? 'Lap ' : ''}${d.leaderLap}${total}`;
+    }
     case 'clock':
       return f.clock(d.timeOfDay, o.clock24 ?? true);
     case 'trackTemp': {

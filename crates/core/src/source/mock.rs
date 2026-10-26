@@ -417,7 +417,28 @@ impl Mock {
         t.session_time = self.time;
         t.session_num = 0;
         t.session_state = if self.checkered { 5 } else { 4 };
-        t.session_flags = crate::model::flags::GREEN;
+        // A local yellow every few minutes, a blue flag when a faster class is right behind, then the chequered flag.
+        use crate::model::flags as fl;
+        let cycle = self.time.rem_euclid(180.0);
+        let mut f = if cycle < 8.0 { fl::GREEN } else { 0 };
+        if (60.0..70.0).contains(&cycle) {
+            f |= fl::YELLOW_WAVING | fl::YELLOW;
+        }
+        let me = &self.cars[PLAYER];
+        let faster_behind = self.cars.iter().enumerate().skip(1).any(|(i, c)| {
+            let d = (me.dist - c.dist).rem_euclid(len);
+            i != PLAYER && c.class < me.class && d > 0.0 && d < 60.0
+        });
+        if faster_behind {
+            f |= fl::BLUE;
+        }
+        if self.time >= self.race_seconds && !self.checkered {
+            f |= fl::WHITE;
+        }
+        if self.checkered {
+            f = fl::CHECKERED;
+        }
+        t.session_flags = f;
         t.session_time_remain = (self.race_seconds - self.time).max(0.0);
         t.session_laps_remain = 32767;
         t.time_of_day = (14.0 * 3600.0 + self.time) as f32;
@@ -506,7 +527,8 @@ impl Mock {
         t.on_pit_road = t.cars[PLAYER].on_pit_road;
         t.is_on_track = true;
         t.incidents = self.incidents;
-        t.yaw_north = self.track.heading[ti] as f32;
+        // iRacing's YawNorth is a compass heading (0 = north, clockwise); the circuit uses maths angles.
+        t.yaw_north = (std::f64::consts::FRAC_PI_2 - self.track.heading[ti]).rem_euclid(std::f64::consts::TAU) as f32;
         t.lat_accel = (me.speed * me.speed * self.track.curv[ti]) as f32;
         t.long_accel = accel as f32;
         t.tire_compound = me.wets as i32;
@@ -606,7 +628,8 @@ mod tests {
         let f = crate::topics::fuel_out(&e);
         assert!(f.laps_remaining.unwrap() > 1.0);
         let b = crate::topics::battle_out(&e);
-        assert!(b.ahead.is_some() || b.behind.is_some());
+        assert!(b.overall.ahead.is_some() || b.overall.behind.is_some());
+        assert!(b.track.ahead.is_some() && b.track.behind.is_some());
         // Ten minutes in, it is raining (weather cycle) and the advisor reacts.
         assert!(e.tel.track_wetness >= 3, "{}", e.tel.track_wetness);
     }

@@ -56,5 +56,6 @@ listen((t) => {
   if (t === 'garage61' && current().id === 'garage61') render();
   if (t === 'leagueImport' && current().id === 'leagues') render();
   if (t === 'trackmap' && current().id === 'general') render();
+  if (t === 'update' && current().id === 'general') render();
 });
 render();

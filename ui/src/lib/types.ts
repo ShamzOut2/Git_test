@@ -80,6 +80,8 @@ export interface Player {
   incidents: number;
   latG: number;
   longG: number;
+  /** Compass heading of the car, degrees (0 = north, clockwise). */
+  heading: number;
 }
 
 export interface CarDot {
@@ -231,9 +233,16 @@ export interface BattleCar extends Driver {
   inBattle: boolean;
 }
 
-export interface Battle {
+export interface BattlePair {
   ahead: BattleCar | null;
   behind: BattleCar | null;
+}
+
+export interface Battle {
+  /** Same class position battle, overall running order, nearest cars on track. */
+  class: BattlePair;
+  overall: BattlePair;
+  track: BattlePair;
   myLastLap: number | null;
   myBestLap: number | null;
   maxGap: number;
@@ -402,7 +411,7 @@ export interface Config {
   hotkeys: { toggleEdit: string; toggleVisibility: string };
   fuel: { avgLaps: number; marginLaps: number; includeCautionLaps: boolean; includePitLaps: boolean };
   tyres: { wetThreshold: number; dryThreshold: number; useField: boolean; useCrossover: boolean; crossoverMargin: number };
-  battle: { maxGap: number; sameClassOnly: boolean };
+  battle: { maxGap: number };
   leagues: League[];
   activeLeague: string | null;
   garage61: { enabled: boolean; token: string; includeTeam: boolean; refreshMinutes: number };
@@ -410,6 +419,16 @@ export interface Config {
   trackCorners: Record<string, Corner[]>;
   iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
   ratingsOfficialOnly: boolean;
+  autoCheckUpdates: boolean;
+}
+
+export interface UpdateState {
+  status: 'unsupported' | 'idle' | 'checking' | 'none' | 'available' | 'downloading' | 'installing' | 'error';
+  current?: string;
+  version?: string;
+  notes?: string;
+  progress?: number;
+  message?: string;
 }
 
 export interface TopicMap {
@@ -426,6 +445,7 @@ export interface TopicMap {
   status: Status;
   config: Config;
   leagueImport: LeagueImport;
+  update: UpdateState;
 }
 
 export type TopicName = keyof TopicMap;

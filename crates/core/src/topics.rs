@@ -232,6 +232,8 @@ pub struct PlayerOut {
     pub incidents: i32,
     pub lat_g: f32,
     pub long_g: f32,
+    /// Compass heading of the car in degrees (0 = north, clockwise).
+    pub heading: f32,
 }
 
 pub fn player(e: &Engine) -> PlayerOut {
@@ -263,6 +265,7 @@ pub fn player(e: &Engine) -> PlayerOut {
         incidents: t.incidents,
         lat_g: round(t.lat_accel / 9.81, 2),
         long_g: round(t.long_accel / 9.81, 2),
+        heading: round(t.yaw_north.to_degrees().rem_euclid(360.0), 1),
     }
 }
 
@@ -691,11 +694,19 @@ pub struct BattleCar<'a> {
     pub in_battle: bool,
 }
 
+#[derive(Serialize, Default)]
+pub struct BattlePair<'a> {
+    pub ahead: Option<BattleCar<'a>>,
+    pub behind: Option<BattleCar<'a>>,
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BattleOut<'a> {
-    pub ahead: Option<BattleCar<'a>>,
-    pub behind: Option<BattleCar<'a>>,
+    /// Same class (position battle), overall order, and nearest on track.
+    pub class: BattlePair<'a>,
+    pub overall: BattlePair<'a>,
+    pub track: BattlePair<'a>,
     pub my_last_lap: Option<f32>,
     pub my_best_lap: Option<f32>,
     pub max_gap: f32,
@@ -703,18 +714,24 @@ pub struct BattleOut<'a> {
 
 pub fn battle_out(e: &Engine) -> BattleOut<'_> {
     let t = &e.tel;
-    let mut out = BattleOut { ahead: None, behind: None, my_last_lap: None, my_best_lap: None, max_gap: e.cfg.battle.max_gap };
+    let mut out = BattleOut {
+        class: Default::default(),
+        overall: Default::default(),
+        track: Default::default(),
+        my_last_lap: None,
+        my_best_lap: None,
+        max_gap: e.cfg.battle.max_gap,
+    };
     let Some(focus) = t.focus_idx() else { return out };
-    out.my_last_lap = opt_time(t.cars[focus].last_lap);
-    out.my_best_lap = opt_time(t.cars[focus].best_lap);
+    out.my_last_lap = e.last_lap(focus).map(r3);
+    out.my_best_lap = e.best_lap(focus).map(r3);
     let lap = e.ref_lap(focus);
-    let (ahead, behind) = battle::neighbours(e, focus);
-    let mk = |idx: usize, is_ahead: bool| -> Option<BattleCar> {
+    let mk = |idx: usize, is_ahead: bool, mode: battle::Mode| -> Option<BattleCar> {
         let s = e.static_of(idx)?;
         let r = e.row(idx)?;
         let c = &t.cars[idx];
-        let (gap, gap_laps) = battle::gap(e, focus, idx, is_ahead);
-        let hist = if is_ahead { &e.battle.ahead } else { &e.battle.behind };
+        let (gap, gap_laps) = battle::gap(e, focus, idx, is_ahead, mode);
+        let hist = e.battle.get(mode, is_ahead);
         let trend = (hist.idx == Some(idx)).then(|| hist.slope()).flatten().map(|s| r3(s * lap));
         Some(BattleCar {
             d: driver(e, s),
@@ -727,15 +744,20 @@ pub fn battle_out(e: &Engine) -> BattleOut<'_> {
                 (Some(g), Some(tr)) if tr < -0.01 && gap_laps == 0 => Some(round(g / -tr, 1)),
                 _ => None,
             },
-            last_lap: opt_time(c.last_lap),
-            best_lap: opt_time(c.best_lap),
+            last_lap: e.last_lap(idx).map(r3),
+            best_lap: e.best_lap(idx).map(r3),
             on_pit_road: c.on_pit_road,
             tire_wet: e.info.tire_is_wet(c.tire_compound),
             in_battle: gap_laps == 0 && gap.is_some_and(|g| g <= e.cfg.battle.max_gap),
         })
     };
-    out.ahead = ahead.and_then(|a| mk(a, true));
-    out.behind = behind.and_then(|b| mk(b, false));
+    let pair = |mode| {
+        let (a, b) = battle::neighbours(e, focus, mode);
+        BattlePair { ahead: a.and_then(|a| mk(a, true, mode)), behind: b.and_then(|b| mk(b, false, mode)) }
+    };
+    out.class = pair(battle::Mode::Class);
+    out.overall = pair(battle::Mode::Overall);
+    out.track = pair(battle::Mode::Track);
     out
 }
 
