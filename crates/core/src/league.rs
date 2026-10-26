@@ -1,0 +1,165 @@
+//! League builder: user-defined classes that override iRacing's car classes,
+//! plus per-driver display overrides.
+
+use crate::config::{League, LeagueClass};
+use crate::model::Driver;
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct ClassKey {
+    pub id: String,
+    pub name: String,
+    pub color: u32,
+    /// Lower sorts first (faster classes first for iRacing classes).
+    pub order: f32,
+}
+
+#[derive(Default, Clone)]
+pub struct Resolver {
+    league: Option<League>,
+}
+
+impl Resolver {
+    pub fn new(league: Option<League>) -> Self {
+        Self { league }
+    }
+
+    pub fn league_name(&self) -> Option<&str> {
+        self.league.as_ref().map(|l| l.name.as_str())
+    }
+
+    pub fn class_of(&self, d: &Driver) -> ClassKey {
+        let iracing = || ClassKey {
+            id: format!("ir{}", d.class_id),
+            name: if d.class_name.is_empty() { d.car_short.clone() } else { d.class_name.clone() },
+            color: d.class_color,
+            order: 1000.0 + if d.class_est_lap > 0.0 { d.class_est_lap } else { 999.0 },
+        };
+        let Some(league) = &self.league else { return iracing() };
+        for (i, c) in league.classes.iter().enumerate() {
+            if matches(c, d) {
+                return ClassKey { id: format!("lg{}", c.id), name: c.name.clone(), color: parse_color(&c.color).unwrap_or(0xffffff), order: i as f32 };
+            }
+        }
+        if league.fallback == "other" {
+            ClassKey { id: "other".into(), name: "Other".into(), color: 0x888888, order: 900.0 }
+        } else {
+            iracing()
+        }
+    }
+
+    /// (display name, team name, hidden)
+    pub fn display(&self, d: &Driver) -> (String, String, bool) {
+        if let Some(o) = self.league.as_ref().and_then(|l| l.driver_overrides.iter().find(|o| o.customer_id == d.user_id)) {
+            let name = if o.display_name.is_empty() { d.name.clone() } else { o.display_name.clone() };
+            let team = if o.team_name.is_empty() { d.team_name.clone() } else { o.team_name.clone() };
+            return (name, team, o.hidden);
+        }
+        (d.name.clone(), d.team_name.clone(), false)
+    }
+}
+
+fn matches(c: &LeagueClass, d: &Driver) -> bool {
+    let r = &c.rules;
+    r.car_ids.contains(&d.car_id)
+        || r.customer_ids.contains(&d.user_id)
+        || r.iracing_class_ids.contains(&d.class_id)
+        || r.car_numbers.iter().any(|n| n.trim() == d.car_number)
+        || r.car_names.iter().any(|p| glob(p, &d.car_name) || glob(p, &d.car_short) || glob(p, &d.car_path))
+        || r.team_names.iter().any(|p| glob(p, &d.team_name))
+        || r.driver_names.iter().any(|p| glob(p, &d.name))
+}
+
+pub fn parse_color(s: &str) -> Option<u32> {
+    let h = s.trim().trim_start_matches('#').trim_start_matches("0x");
+    match h.len() {
+        6 => u32::from_str_radix(h, 16).ok(),
+        3 => {
+            let v = u32::from_str_radix(h, 16).ok()?;
+            let (r, g, b) = ((v >> 8) & 0xf, (v >> 4) & 0xf, v & 0xf);
+            Some(((r * 17) << 16) | ((g * 17) << 8) | (b * 17))
+        }
+        _ => None,
+    }
+}
+
+/// Case-insensitive glob with `*` and `?`. A pattern without wildcards matches as a substring.
+pub fn glob(pattern: &str, text: &str) -> bool {
+    let p: Vec<char> = pattern.trim().to_lowercase().chars().collect();
+    if p.is_empty() {
+        return false;
+    }
+    let t: Vec<char> = text.to_lowercase().chars().collect();
+    if !p.iter().any(|&c| c == '*' || c == '?') {
+        let ps: String = p.iter().collect();
+        return text.to_lowercase().contains(&ps);
+    }
+    let (mut pi, mut ti, mut star, mut mark) = (0, 0, None, 0);
+    while ti < t.len() {
+        if pi < p.len() && (p[pi] == '?' || p[pi] == t[ti]) {
+            pi += 1;
+            ti += 1;
+        } else if pi < p.len() && p[pi] == '*' {
+            star = Some(pi);
+            mark = ti;
+            pi += 1;
+        } else if let Some(s) = star {
+            pi = s + 1;
+            mark += 1;
+            ti = mark;
+        } else {
+            return false;
+        }
+    }
+    while pi < p.len() && p[pi] == '*' {
+        pi += 1;
+    }
+    pi == p.len()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::{ClassRules, DriverOverride};
+
+    #[test]
+    fn globbing() {
+        assert!(glob("porsche*", "Porsche 911 GT3 R"));
+        assert!(glob("*gt3*", "BMW M4 GT3"));
+        assert!(glob("gt3", "BMW M4 GT3"));
+        assert!(!glob("gt4*", "BMW M4 GT3"));
+        assert!(glob("car ?", "Car 7"));
+    }
+
+    #[test]
+    fn league_classes_override_iracing() {
+        let league = League {
+            id: "l".into(),
+            name: "Endurance".into(),
+            classes: vec![
+                LeagueClass {
+                    id: "pro".into(),
+                    name: "Pro".into(),
+                    color: "#f00".into(),
+                    rules: ClassRules { car_numbers: vec!["1".into()], ..Default::default() },
+                },
+                LeagueClass {
+                    id: "am".into(),
+                    name: "Am".into(),
+                    color: "#00ff00".into(),
+                    rules: ClassRules { team_names: vec!["*amateur*".into()], ..Default::default() },
+                },
+            ],
+            driver_overrides: vec![DriverOverride { customer_id: 42, display_name: "Ace".into(), ..Default::default() }],
+            fallback: "other".into(),
+        };
+        let r = Resolver::new(Some(league));
+        let d = |num: &str, team: &str| Driver { car_number: num.into(), team_name: team.into(), class_id: 7, ..Default::default() };
+        assert_eq!(r.class_of(&d("1", "x")).name, "Pro");
+        assert_eq!(r.class_of(&d("1", "x")).color, 0xff0000);
+        assert_eq!(r.class_of(&d("5", "Amateur Hour")).name, "Am");
+        assert_eq!(r.class_of(&d("5", "x")).id, "other");
+        let me = Driver { user_id: 42, name: "Real".into(), ..Default::default() };
+        assert_eq!(r.display(&me).0, "Ace");
+        assert_eq!(Resolver::default().class_of(&d("1", "x")).id, "ir7");
+    }
+}

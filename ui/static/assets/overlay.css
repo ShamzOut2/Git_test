@@ -1,0 +1,250 @@
+/* Overlay styling. Everything is driven by CSS variables set from the theme
+   (see src/lib/theme.ts) so users can restyle without touching this file. */
+
+:root {
+  --font: 'Segoe UI', system-ui, sans-serif;
+  --font-size: 13px;
+  --text: #f2f4f8;
+  --dim: #98a2b3;
+  --bg: rgba(11, 14, 19, 0.8);
+  --header: rgba(22, 27, 36, 0.9);
+  --accent: #ff3d57;
+  --player: #ffd84d;
+  --player-bg: rgba(255, 216, 77, 0.16);
+  --radius: 6px;
+  --row-pad: 0.22em;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--font-size);
+  font-weight: var(--weight, 500);
+  font-variant-numeric: tabular-nums;
+  text-shadow: var(--shadow);
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.hidden .panel { opacity: 0; }
+body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f38 0 50%) 0 0 / 24px 24px; }
+
+.panel {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  transition: opacity 0.25s;
+}
+.panel.transparent { background: transparent; border: none; }
+.panel .auto-hidden, .panel.auto-hidden { opacity: 0; }
+.missing { padding: 1em; color: var(--dim); }
+.dim { color: var(--dim); }
+.good { color: var(--good) !important; }
+.bad { color: var(--bad) !important; }
+.best { color: var(--best) !important; }
+
+/* Edit mode chrome */
+.edit-frame {
+  position: absolute;
+  inset: 0;
+  border: 2px dashed var(--accent);
+  border-radius: var(--radius);
+  background: rgba(255, 61, 87, 0.08);
+  cursor: move;
+  z-index: 10;
+}
+.edit-label {
+  position: absolute;
+  top: 4px;
+  left: 6px;
+  padding: 2px 6px;
+  font-size: 11px;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 3px;
+  pointer-events: none;
+}
+.edit-grip {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 18px;
+  height: 18px;
+  cursor: nwse-resize;
+  background: linear-gradient(135deg, transparent 50%, var(--accent) 50%);
+}
+
+/* Header strip */
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1em;
+  padding: 0.3em 0.6em;
+  background: var(--header);
+  border-bottom: 2px solid var(--accent);
+  white-space: nowrap;
+}
+.header .title { font-weight: 700; text-transform: uppercase; letter-spacing: 0.04em; }
+.header .info { color: var(--dim); font-size: 0.9em; overflow: hidden; text-overflow: ellipsis; }
+
+/* Tables */
+.table { display: flex; flex-direction: column; min-height: 0; }
+.row {
+  display: grid;
+  grid-template-columns: var(--cols);
+  align-items: center;
+  column-gap: 0.4em;
+  padding: var(--row-pad) 0.5em var(--row-pad) 0.6em;
+  position: relative;
+  white-space: nowrap;
+}
+.body .row:nth-child(even) { background: var(--row-alt); }
+.row.head { color: var(--dim); font-size: 0.8em; text-transform: uppercase; }
+.cell { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.cell.right { text-align: right; }
+.cell.center { text-align: center; }
+.row.empty { visibility: hidden; }
+.stripe .row:not(.head)::before, .section .row:not(.head)::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 15%;
+  bottom: 15%;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--class, transparent);
+}
+.row.player { background: var(--player-bg) !important; color: var(--player); }
+.row.lap-ahead { color: var(--lap-ahead); }
+.row.lap-behind { color: var(--lap-behind); }
+.row.pit, .row.out { opacity: 0.55; }
+.row.off .c-name { color: var(--warn); }
+.c-pit { color: var(--pit); font-size: 0.8em; font-weight: 700; }
+.c-gap, .c-interval, .c-lastLap, .c-bestLap { font-variant-numeric: tabular-nums; }
+.c-tire.wet { color: var(--lap-behind); font-weight: 700; }
+.chip {
+  display: inline-block;
+  min-width: 2.2em;
+  padding: 0 0.3em;
+  border-radius: 3px;
+  font-size: 0.85em;
+  font-weight: 700;
+  line-height: 1.45;
+  text-align: center;
+  text-shadow: none;
+}
+
+.sections { display: flex; flex-direction: column; overflow: hidden; }
+.class-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  padding: 0.25em 0.6em;
+  border-left: 4px solid var(--class, var(--accent));
+  background: rgba(255, 255, 255, 0.04);
+  margin-top: 1px;
+}
+.class-name { font-weight: 700; }
+.class-head .info { color: var(--dim); font-size: 0.85em; }
+
+/* Key/value grids (fuel, garage61) */
+.kv { display: grid; grid-template-columns: 1fr auto; gap: 0.18em 1em; padding: 0.45em 0.7em; }
+.kv .k { color: var(--dim); }
+.kv .v { text-align: right; font-weight: 700; }
+.gauge { height: 0.5em; margin: 0.5em 0.7em 0; background: rgba(255, 255, 255, 0.1); border-radius: 0.25em; overflow: hidden; }
+.gauge .fill { height: 100%; background: var(--good); transform-origin: left; transition: transform 0.2s linear; }
+.gauge.low .fill { background: var(--bad); }
+.history { display: flex; align-items: flex-end; gap: 2px; height: 2.2em; margin: 0 0.7em 0.5em; }
+.hbar { flex: 1; background: var(--dim); opacity: 0.45; border-radius: 2px 2px 0 0; min-height: 2px; }
+.hbar:last-child { background: var(--accent); opacity: 0.85; }
+
+/* Driver inputs */
+.panel.inputs { flex-direction: row; gap: 0.5em; padding: 0.4em; align-items: stretch; }
+.inputs .trace { flex: 1; min-width: 0; height: 100%; background: rgba(0, 0, 0, 0.25); border-radius: calc(var(--radius) - 2px); }
+.inputs .bars { display: flex; gap: 0.3em; }
+.inputs .bar { position: relative; width: 1.1em; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; }
+.inputs .bar .fill { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); }
+.inputs .bar.abs .fill { filter: brightness(1.4) saturate(0.4); }
+.inputs .bar .val { position: absolute; bottom: 2px; width: 100%; text-align: center; font-size: 0.65em; }
+.inputs .side { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 4.6em; }
+.inputs .wheel { width: 3.2em; height: 3.2em; }
+.inputs .wheel svg { width: 100%; height: 100%; display: block; }
+.inputs .gear { font-size: 1.6em; font-weight: 800; line-height: 1.1; }
+.inputs .speed { font-size: 0.95em; color: var(--dim); }
+.inputs .speed::after { content: ' ' attr(data-unit); font-size: 0.8em; }
+
+/* Battle box */
+.panel.battle { padding: 0.35em; gap: 0.35em; }
+.battle .card { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.2em; padding: 0.3em 0.55em; background: rgba(255, 255, 255, 0.04); border-radius: calc(var(--radius) - 2px); border-left: 3px solid transparent; }
+.battle .card.close { border-left-color: var(--warn); }
+.battle .card.empty { opacity: 0.5; }
+.battle .card.pit { opacity: 0.6; }
+.battle .top { display: flex; align-items: center; gap: 0.5em; white-space: nowrap; }
+.battle .tag { font-size: 0.7em; color: var(--dim); letter-spacing: 0.08em; width: 4.4em; }
+.battle .name { flex: 1; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
+.battle .big { font-size: 1.35em; font-weight: 800; }
+.battle .bottom { display: flex; gap: 0.9em; font-size: 0.85em; white-space: nowrap; }
+.battle .gapbar { height: 3px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; }
+.battle .gapbar .fill { height: 100%; background: var(--warn); transform-origin: left; }
+
+/* Session info */
+.panel.session-info.layout-bar { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-around; gap: 0.2em 1.1em; padding: 0.35em 0.8em; }
+.panel.session-info.layout-stack { padding: 0.4em 0.7em; gap: 0.15em; }
+.layout-stack .item { display: flex; justify-content: space-between; gap: 1em; }
+.session-info .item { white-space: nowrap; }
+.session-info .label { font-size: 0.7em; color: var(--dim); letter-spacing: 0.08em; }
+.session-info .value { font-weight: 700; }
+.layout-bar .item { text-align: center; }
+.session-info .value.wet { color: var(--lap-behind); }
+.session-info .value.damp { color: var(--warn); }
+.value[data-flag='green'] { color: var(--good); }
+.value[data-flag='yellow'] { color: #ffd400; }
+.value[data-flag='red'] { color: var(--bad); }
+.value[data-flag='blue'] { color: var(--lap-behind); }
+
+/* Tyre advisor */
+.panel.tyres { padding: 0.45em 0.6em; gap: 0.35em; }
+.tyres .banner { display: flex; justify-content: space-between; align-items: center; padding: 0.35em 0.6em; border-radius: calc(var(--radius) - 2px); font-weight: 800; letter-spacing: 0.04em; }
+.tyres .banner .current { font-size: 0.75em; font-weight: 600; opacity: 0.85; }
+.tyres .banner.ok { background: rgba(61, 220, 132, 0.18); color: var(--good); }
+.tyres .banner.warn { background: rgba(255, 176, 32, 0.2); color: var(--warn); }
+.tyres .banner.box { background: var(--bad); color: #fff; }
+.tyres .banner.flash { animation: flash 0.9s steps(2, start) infinite; }
+@keyframes flash { to { background: rgba(255, 92, 92, 0.35); } }
+.wet-gauge { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.wet-gauge .seg { height: 0.45em; background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+.wet-gauge .seg.on.s1 { background: #d9c27a; }
+.wet-gauge .seg.on.s2 { background: #b9c48a; }
+.wet-gauge .seg.on.s3 { background: #8fc0a8; }
+.wet-gauge .seg.on.s4 { background: #6fb3cf; }
+.wet-gauge .seg.on.s5 { background: #4f9de6; }
+.wet-gauge .seg.on.s6 { background: #3a7fe8; }
+.wet-gauge .seg.on.s7 { background: #2c5fe0; }
+.wet-label { font-size: 0.9em; }
+.tyres .stats { font-size: 0.85em; }
+.tyres .reasons { margin: 0; padding-left: 1.1em; font-size: 0.82em; color: var(--dim); }
+
+/* Track map */
+canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
+.map-note { position: absolute; left: 0; right: 0; bottom: 0.4em; text-align: center; font-size: 0.8em; color: var(--dim); }
+
+/* Garage 61 */
+.g61-status { padding: 0.6em 0.7em; }
+.g61-list { padding: 0 0.7em 0.45em; }
+.g61-row { display: grid; grid-template-columns: 1.6em 1fr auto; gap: 0.5em; padding: 0.08em 0; }
+.g61-row .p { color: var(--dim); }
+.g61-row.me { color: var(--player); }
+.g61-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
