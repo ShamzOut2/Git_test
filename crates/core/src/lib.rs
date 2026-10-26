@@ -157,6 +157,7 @@ fn run(
                 }
                 if let Some(y) = session_yaml {
                     e.set_session(SessionInfo::parse(&y));
+                    *hub.session_yaml.lock().unwrap() = y;
                     if e.map.map.is_none() {
                         if let Some(m) = source.track_map(e.info.track_id) {
                             e.map.set(m);

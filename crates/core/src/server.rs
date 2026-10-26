@@ -40,6 +40,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/status", get(|s: State<AppState>| async move { s.hub.latest("status").map(|m| m.to_string()).unwrap_or_default() }))
         .route("/ws", get(ws))
         .route("/logos/{file}", get(logo))
+        .route("/api/session-info", get(session_info))
         .fallback(|s: State<AppState>, uri: Uri| async move { asset(&s, uri.path().trim_start_matches('/')) })
         .with_state(state)
 }
@@ -60,6 +61,15 @@ fn asset(s: &AppState, path: &str) -> Response {
         None if path.ends_with(".html") => (StatusCode::NOT_FOUND, "UI not built: run `npm run build` in ui/").into_response(),
         None => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+/// The raw session string from iRacing, for troubleshooting (e.g. which flair fields it sends).
+async fn session_info(State(s): State<AppState>) -> Response {
+    let y = s.hub.session_yaml.lock().unwrap().clone();
+    if y.is_empty() {
+        return (StatusCode::NOT_FOUND, "No session yet - join a session in iRacing first").into_response();
+    }
+    ([(header::CONTENT_TYPE, "text/yaml; charset=utf-8"), (header::CONTENT_DISPOSITION, "attachment; filename=\"apex-session-info.yaml\"")], y).into_response()
 }
 
 /// User-supplied manufacturer logos: `<data dir>/logos/<make>.svg|png|webp`.

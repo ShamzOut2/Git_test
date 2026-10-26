@@ -35,7 +35,7 @@ p { margin: 6px 0 12px; }
 .dim { color: var(--dim); }
 .small { font-size: 12px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; max-width: 980px; }
-button, select, input, textarea {
+button, a.button, select, input, textarea {
   font: inherit;
   color: var(--text);
   background: var(--panel-2);
@@ -43,13 +43,14 @@ button, select, input, textarea {
   border-radius: 6px;
   padding: 6px 10px;
 }
-button { cursor: pointer; }
+button, a.button { cursor: pointer; }
+a.button { display: inline-block; text-decoration: none; color: inherit; }
 button:hover { border-color: #3a4352; }
 button:disabled { opacity: 0.35; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text, #fff); font-weight: 600; }
 button.primary.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 button.danger { color: var(--bad); }
-button.mini { padding: 2px 7px; font-size: 12px; }
+button.mini, a.button.mini { padding: 2px 7px; font-size: 12px; }
 button.tab.sel { border-color: var(--accent); }
 input[type='color'] { padding: 0; width: 34px; height: 30px; }
 input[type='range'] { padding: 0; width: 140px; accent-color: var(--accent); }

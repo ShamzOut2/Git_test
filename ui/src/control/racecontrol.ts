@@ -80,6 +80,13 @@ export const raceControlPage: Page = {
 
     const drivers = h('section', 'card');
     drivers.append(h('h2', '', 'Drivers in this session'));
+    const dl = h('a', 'button mini', 'Download session info');
+    dl.setAttribute('href', '/api/session-info');
+    dl.setAttribute('download', 'apex-session-info.yaml');
+    drivers.append(
+      h('p', 'dim small', 'The Flag column shows the flair iRacing sends for each driver. If a flag is missing, download the session info and attach it to a bug report so the field can be matched.'),
+      dl,
+    );
     const rows = (state.standings?.classes.flatMap((c) => c.rows) ?? []).sort((a, b) => a.position - b.position);
     if (!rows.length) drivers.append(h('p', 'dim', 'Join a session to see the drivers.'));
     else {

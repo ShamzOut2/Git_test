@@ -54,6 +54,8 @@ pub struct Hub {
     pub source: Mutex<&'static str>,
     /// Set by the desktop app, which can install updates; the headless server cannot.
     pub updates_supported: AtomicBool,
+    /// Latest raw session info string from the sim (downloadable for troubleshooting).
+    pub session_yaml: Mutex<String>,
 }
 
 impl Default for Hub {
@@ -70,6 +72,7 @@ impl Default for Hub {
             clients: AtomicUsize::new(0),
             source: Mutex::new("none"),
             updates_supported: AtomicBool::new(false),
+            session_yaml: Mutex::new(String::new()),
         }
     }
 }

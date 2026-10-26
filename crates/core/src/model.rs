@@ -405,8 +405,20 @@ impl SessionInfo {
                 lic_string: d.get("LicString").string(),
                 lic_color: d.get("LicColor").i64().unwrap_or(0xffffff) as u32,
                 club: d.get("ClubName").string(),
-                flair: d.get("FlairName").string(),
-                country: crate::lookup::country_code(&d.get("FlairName").string()).to_string(),
+                flair: match (d.get("FlairName").str(), d.get("FlairID").i64()) {
+                    (Some(n), Some(id)) => format!("{n} (#{id})"),
+                    (Some(n), None) => n.to_string(),
+                    (None, Some(id)) => format!("flair #{id}"),
+                    (None, None) => String::new(),
+                },
+                // iRacing has used several flair fields; take the first one that names a country.
+                country: crate::lookup::driver_country(
+                    d.get("FlairCountryCode").str().or(d.get("CountryCode").str()).unwrap_or(""),
+                    &d.get("FlairShortName").string(),
+                    d.get("FlairName").str().or(d.get("Country").str()).unwrap_or(""),
+                    d.get("FlairID").i64().unwrap_or(0),
+                )
+                .to_string(),
                 make: crate::lookup::make(&d.get("CarScreenName").string(), &d.get("CarPath").string()),
                 is_spectator: d.get("IsSpectator").i32_or(0) != 0,
                 is_pace_car: d.get("CarIsPaceCar").i32_or(0) != 0,

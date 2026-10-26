@@ -64,6 +64,22 @@ fn entries() -> impl Iterator<Item = (&'static str, &'static str)> {
     COUNTRIES.split(';').chain(ALIASES.split(';')).filter_map(|e| e.trim().rsplit_once(':'))
 }
 
+/// iRacing flair IDs seen in real Data API responses (flair_id → ISO code).
+const FLAIR_IDS: &[(i64, &str)] =
+    &[(13, "AR"), (16, "AU"), (31, "BR"), (39, "CA"), (71, "FR"), (77, "DE"), (79, "GI"), (104, "JP"), (168, "PT"), (222, "GB"), (223, "US")];
+
+/// Best country for a driver from every flair field iRacing may send: an ISO country code,
+/// a three-letter short name, the flair name, or a known flair ID.
+pub fn driver_country(iso: &str, short_name: &str, name: &str, flair_id: i64) -> &'static str {
+    for candidate in [iso, short_name, name] {
+        let c = country_code(candidate);
+        if !c.is_empty() {
+            return c;
+        }
+    }
+    FLAIR_IDS.iter().find(|(id, _)| *id == flair_id).map(|(_, c)| *c).unwrap_or("")
+}
+
 /// ISO country code (e.g. "GB", or "GB-SCT" for UK nations) for the flair a driver picked on
 /// their iRacing account. Returns "" when the flair is not a country, so no wrong flag is shown.
 pub fn country_code(flair: &str) -> &'static str {
@@ -163,6 +179,10 @@ mod tests {
         assert_eq!(country_code("Côte d'Ivoire"), "CI");
         assert_eq!(country_code("None"), "");
         assert_eq!(country_code("iRacing"), "");
+        assert_eq!(driver_country("", "", "", 223), "US");
+        assert_eq!(driver_country("AU", "AUS", "Australia", 16), "AU");
+        assert_eq!(driver_country("", "DEU", "", 0), "DE");
+        assert_eq!(driver_country("", "", "", 0), "");
     }
 
     #[test]
