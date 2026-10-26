@@ -1,11 +1,16 @@
 name: Release
 
-# Push a tag like v0.2.0 (or run this workflow by hand) to publish a GitHub
-# Release with the Windows installer and portable executables attached.
+# Push a tag like v0.3.0, or run this workflow by hand with a version, to
+# publish a GitHub Release with the Windows installer and executables attached.
 on:
   push:
     tags: ['v*']
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Version to publish (e.g. v0.3.0). The tag is created on the selected branch.
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -42,9 +47,10 @@ jobs:
           Copy-Item target/release/apex-overlays-server.exe dist/
       - uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || format('build-{0}', github.run_number) }}
-          name: Apex Overlays ${{ github.ref_type == 'tag' && github.ref_name || format('build {0}', github.run_number) }}
-          prerelease: ${{ github.ref_type != 'tag' }}
+          tag_name: ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag || format('build-{0}', github.run_number) }}
+          name: Apex Overlays ${{ github.ref_type == 'tag' && github.ref_name || inputs.tag || format('build {0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          prerelease: ${{ github.ref_type != 'tag' && inputs.tag == '' }}
           files: dist/*
           body: |
             **Install:** download `Apex Overlays_*_x64-setup.exe` and run it. Windows SmartScreen may warn because the app is not code-signed yet — click *More info → Run anyway*.
