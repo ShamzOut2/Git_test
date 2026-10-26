@@ -33,6 +33,8 @@ pub enum HostEvent {
     },
     CheckUpdate,
     InstallUpdate,
+    /// Close the update pop-up window.
+    ClosePrompt,
 }
 
 /// Commands for the telemetry thread.

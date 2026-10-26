@@ -64,10 +64,22 @@ jobs:
           if (Test-Path 'target/release/Apex Overlays.exe') { Copy-Item 'target/release/Apex Overlays.exe' 'dist/Apex-Overlays-portable.exe' } else { Copy-Item target/release/apex-overlays.exe dist/Apex-Overlays-portable.exe }
           Copy-Item target/release/apex-overlays-server.exe dist/
           $sig = "$($setup.FullName).sig"
+          # What's new: this version's section of CHANGELOG.md (shown in the app's update pop-up).
+          $notes = "Apex Overlays $env:TAG"
+          if (Test-Path CHANGELOG.md) {
+            $m = [regex]::Match((Get-Content CHANGELOG.md -Raw), "(?ms)^## \[?v?$([regex]::Escape($version))\]?[^\r\n]*\r?\n(.*?)(?=^## |\z)")
+            if ($m.Success -and $m.Groups[1].Value.Trim()) { $notes = $m.Groups[1].Value.Trim() }
+          }
+          $install = @(
+            '**Install:** download `Apex-Overlays_*_x64-setup.exe` and run it. Already installed? The app offers the update itself. Windows SmartScreen may warn because the app is not code-signed yet — click *More info → Run anyway*.',
+            '**Portable:** `Apex-Overlays-portable.exe` runs without installing (needs WebView2, included with Windows 10/11).',
+            '**Streaming PC / OBS only:** `apex-overlays-server.exe`.'
+          ) -join "`n"
+          "## What's new`n`n$notes`n`n$install" | Set-Content -Encoding utf8NoBOM release-notes.md
           if ((Test-Path $sig) -and $env:TAG) {
             $manifest = @{
               version = $version
-              notes = "Apex Overlays $env:TAG"
+              notes = $notes
               pub_date = (Get-Date).ToUniversalTime().ToString("yyyy-MM-ddTHH:mm:ssZ")
               platforms = @{
                 "windows-x86_64" = @{
@@ -85,7 +97,4 @@ jobs:
           target_commitish: ${{ github.sha }}
           prerelease: ${{ github.ref_type != 'tag' && inputs.tag == '' }}
           files: dist/*
-          body: |
-            **Install:** download `Apex-Overlays_*_x64-setup.exe` and run it. Already installed? The app offers the update itself (Settings → General → Updates). Windows SmartScreen may warn because the app is not code-signed yet — click *More info → Run anyway*.
-            **Portable:** `Apex-Overlays-portable.exe` runs without installing (needs WebView2, included with Windows 10/11).
-            **Streaming PC / OBS only:** `apex-overlays-server.exe`.
+          body_path: release-notes.md

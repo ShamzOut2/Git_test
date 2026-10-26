@@ -470,6 +470,8 @@ export interface Config {
   iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
   ratingsOfficialOnly: boolean;
   autoCheckUpdates: boolean;
+  /** "Remind me later" / "skip this version" from the update pop-up (until: unix seconds, null = skip). */
+  updatePostpone: { version: string; until: number | null } | null;
   penalties: Penalty[];
   moveAllTogether: boolean;
   shortClassNames: boolean;

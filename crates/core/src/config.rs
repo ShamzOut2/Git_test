@@ -42,6 +42,8 @@ pub struct Config {
     pub move_all_together: bool,
     /// Short class names (GT3, TCR, LMP2...) from Lovely Car Classes / Car Data.
     pub short_class_names: bool,
+    /// "Remind me later" / "skip this version" for the update pop-up.
+    pub update_postpone: Option<UpdatePostpone>,
 }
 
 /// A penalty given by hand (iRacing does not say which penalty a black flag means).
@@ -123,6 +125,7 @@ impl Default for Config {
             penalties: vec![],
             move_all_together: false,
             short_class_names: true,
+            update_postpone: None,
         }
     }
 }
@@ -294,6 +297,21 @@ pub struct Corner {
     pub end: f32,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdatePostpone {
+    pub version: String,
+    /// Unix time (seconds) until which the pop-up stays away; `None` = skip this version.
+    pub until: Option<i64>,
+}
+
+impl UpdatePostpone {
+    /// The start-up pop-up should stay away for `version` at `now` (unix seconds).
+    pub fn holds(&self, version: &str, now: i64) -> bool {
+        self.version == version && self.until.is_none_or(|u| now < u)
+    }
+}
+
 /// Credentials for the iRacing Data API (OAuth "password limited" grant). Secrets are stored
 /// masked (base64 SHA-256, as iRacing's token endpoint expects), never in plain text.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -451,6 +469,17 @@ impl ConfigStore {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn update_postpone() {
+        let later = UpdatePostpone { version: "0.6.0".into(), until: Some(1_000) };
+        assert!(later.holds("0.6.0", 999));
+        assert!(!later.holds("0.6.0", 1_000), "reminder time reached");
+        assert!(!later.holds("0.7.0", 0), "a newer version always pops up");
+        let skip = UpdatePostpone { version: "0.6.0".into(), until: None };
+        assert!(skip.holds("0.6.0", i64::MAX));
+        assert!(!skip.holds("0.6.1", 0));
+    }
+
     use super::*;
 
     #[test]

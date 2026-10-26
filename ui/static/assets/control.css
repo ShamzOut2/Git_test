@@ -124,3 +124,14 @@ h3 { margin: 14px 0 8px; font-size: 13px; color: var(--dim); text-transform: upp
   unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
   src: url('/assets/fonts/TwemojiCountryFlags.woff2') format('woff2');
 }
+
+/* "Update available" pop-up window */
+body.prompt { grid-template-columns: 1fr; }
+body.prompt nav { display: none; }
+body.prompt main { padding: 14px; }
+.update-prompt { margin: 0; }
+.update-prompt h2 { margin-top: 0; }
+.update-prompt .notes { max-height: 110px; overflow: auto; white-space: pre-wrap; padding: 8px 10px; margin-bottom: 12px; border-radius: 6px; background: var(--panel-2); }
+.update-prompt .bad { color: var(--bad); }
+.update-prompt .toolbar { margin-bottom: 0; }
+button.subtle { background: transparent; border-color: transparent; color: var(--dim); }

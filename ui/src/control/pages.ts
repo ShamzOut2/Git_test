@@ -589,8 +589,21 @@ function updatesCard(): HTMLElement {
     cfg.autoCheckUpdates = cb.checked;
     save();
   };
-  auto.append(cb, ' Check for updates when the app starts');
+  auto.append(cb, ' Check for updates when the app starts (and offer them in a pop-up)');
   c.append(status, bar, auto);
+  const pp = cfg.updatePostpone;
+  if (pp?.version) {
+    const until = pp.until == null ? `Version ${pp.version} is skipped — the pop-up won't offer it again.` : `The pop-up for version ${pp.version} is postponed until ${new Date(pp.until * 1000).toLocaleString()}.`;
+    if (pp.until == null || pp.until * 1000 > Date.now()) {
+      c.append(
+        h('p', 'dim small', until),
+        button('Remind me again on start-up', () => {
+          cfg.updatePostpone = null;
+          save(true);
+        }),
+      );
+    }
+  }
   if (u?.status === 'available' && u.notes) c.append(h('p', 'dim small', u.notes));
   return c;
 }
