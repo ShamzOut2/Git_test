@@ -166,6 +166,7 @@ const MAKES: &[(&str, &str)] = &[
     ("volkswagen", "Volkswagen"),
     ("vw", "Volkswagen"),
     ("williams", "Williams"),
+    ("ruf", "Ruf"),
 ];
 
 /// Manufacturer of a car from its screen name or path; falls back to the first word.

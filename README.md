@@ -37,7 +37,7 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 Every column has a title (it can be switched off), and you can toggle and reorder every column:
 
 - class and overall position, car number, **country flag** (from the driver's iRacing flair; when a session doesn't include it, looked up once through the iRacing Data API if you have set that up, or set by hand in the League builder), driver, team
-- **manufacturer** logo or badge (put your own logo images in `%APPDATA%\Apex Overlays\logos\`, e.g. `porsche.png`), class, car, licence, iRating
+- **manufacturer** logo (logos for iRacing's manufacturers are built in; your own images in `%APPDATA%\Apex Overlays\logos\`, e.g. `porsche.png`, take priority), class, car, licence, iRating
 - **iRating gain/loss** and **safety rating gain/loss** (live estimates), incidents
 - current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), **last lap** and **best lap** of every driver (purple = fastest of the class, green = a personal best), **tyre** (a white **D** badge for dry tyres, a blue **W** for wets)
 - a **chequered flag** next to each driver's name once they have taken the flag at the end of the race

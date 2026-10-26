@@ -15,3 +15,8 @@ The following data is downloaded at runtime from community projects by [Lovely S
 - [Lovely Car Data](https://github.com/Lovely-Sim-Racing/lovely-car-data) (with ATSR and Gomez Sim Industries): shift-light
   RPMs and colours per gear for the driver inputs overlay, and car class shorthands.
 - [Lovely Car Classes](https://github.com/Lovely-Sim-Racing/lovely-car-classes): short car class names.
+
+## Car manufacturer logos
+`ui/static/assets/makes/` contains the logos of the manufacturers that appear in iRacing, taken from the
+[car-logos-dataset](https://github.com/filippofilip95/car-logos-dataset) (MIT License, © filippofilip95; thumbnails).
+The logos themselves are trademarks of their respective owners and are shown only to identify each car's manufacturer.

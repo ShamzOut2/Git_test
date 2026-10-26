@@ -251,6 +251,11 @@ impl Engine {
     /// Short name for an iRacing car class: Lovely Car Classes by iRacing's class name, else the
     /// class all of its cars share in Lovely Car Data ("Touring Car" → "TCR").
     fn short_class(&self, d: &crate::model::Driver) -> Option<String> {
+        // iRacing's own names that are simply wrong for the series ("Touring Car" is TCR).
+        const FIXED: &[(&str, &str)] = &[("Touring Car", "TCR")];
+        if let Some((_, n)) = FIXED.iter().find(|(k, _)| k.eq_ignore_ascii_case(d.class_name.trim())) {
+            return Some((*n).to_string());
+        }
         if !self.cfg.short_class_names {
             return None;
         }
@@ -1015,6 +1020,15 @@ pub(crate) mod tests {
             }
             last = Some((rel, race));
         }
+    }
+
+    #[test]
+    fn touring_car_is_tcr() {
+        let mut y = session_yaml(2, true);
+        y = y.replace("CarClassShortName: C", "CarClassShortName: Touring Car C");
+        let mut e = engine(2, true);
+        e.set_session(SessionInfo::parse(&y.replace("Touring Car C0", "Touring Car").replace("Touring Car C1", "Touring Car")));
+        assert_eq!(e.static_of(0).unwrap().class.name, "TCR");
     }
 
     #[test]
