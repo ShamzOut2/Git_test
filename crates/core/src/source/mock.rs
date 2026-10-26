@@ -638,6 +638,10 @@ impl Source for Mock {
         Some(self.track.map(track_id))
     }
 
+    fn pit_lane(&self) -> Option<(f32, f32)> {
+        Some((PIT_ENTRY as f32, PIT_EXIT as f32))
+    }
+
     fn corners(&self) -> Option<Vec<crate::config::Corner>> {
         Some(self.track.corners())
     }

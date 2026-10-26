@@ -17,11 +17,12 @@ pub enum Topic {
     Battle,
     Tyres,
     TrackMap,
+    Car,
 }
 
 impl Topic {
-    pub const ALL: [Topic; 9] =
-        [Topic::Session, Topic::Player, Topic::Cars, Topic::Relative, Topic::Standings, Topic::Fuel, Topic::Battle, Topic::Tyres, Topic::TrackMap];
+    pub const ALL: [Topic; 10] =
+        [Topic::Session, Topic::Player, Topic::Cars, Topic::Relative, Topic::Standings, Topic::Fuel, Topic::Battle, Topic::Tyres, Topic::TrackMap, Topic::Car];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -34,6 +35,7 @@ impl Topic {
             Topic::Battle => "battle",
             Topic::Tyres => "tyres",
             Topic::TrackMap => "trackmap",
+            Topic::Car => "car",
         }
     }
 
@@ -61,6 +63,7 @@ impl Topic {
             Topic::Battle => serde_json::to_string(&battle_out(e)),
             Topic::Tyres => serde_json::to_string(&tyres::advise(e)),
             Topic::TrackMap => serde_json::to_string(&trackmap(e)),
+            Topic::Car => serde_json::to_string(&car(e)),
         };
         r.unwrap_or_else(|_| "null".into())
     }
@@ -792,6 +795,39 @@ pub fn battle_out(e: &Engine) -> BattleOut<'_> {
     out
 }
 
+/// The player's car: shift-light data (Lovely Car Data, else iRacing's own shift points).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CarOut<'a> {
+    pub car_path: &'a str,
+    pub car_name: &'a str,
+    /// "lovely" when per-gear shift-light data was found, else "iracing".
+    pub source: &'a str,
+    pub lovely: Option<&'a crate::cardata::CarData>,
+    pub sl_first: f32,
+    pub sl_shift: f32,
+    pub sl_last: f32,
+    pub sl_blink: f32,
+    pub redline: f32,
+}
+
+pub fn car(e: &Engine) -> CarOut<'_> {
+    let me = e.info.driver(e.info.player_car_idx.max(0) as usize);
+    let path = me.map(|d| d.car_path.as_str()).unwrap_or("");
+    let lovely = e.car_data.get(&path.to_lowercase());
+    CarOut {
+        car_path: path,
+        car_name: me.map(|d| d.car_name.as_str()).unwrap_or(""),
+        source: if lovely.is_some() { "lovely" } else { "iracing" },
+        lovely,
+        sl_first: e.info.sl_first_rpm,
+        sl_shift: e.info.shift_rpm,
+        sl_last: e.info.sl_last_rpm,
+        sl_blink: e.info.sl_blink_rpm,
+        redline: e.info.redline_rpm,
+    }
+}
+
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TrackMapOut<'a> {
@@ -805,6 +841,9 @@ pub struct TrackMapOut<'a> {
     pub corners: &'a [crate::config::Corner],
     /// "custom" | "lovely" | "mock" | "none"
     pub corners_source: &'a str,
+    pub straights: &'a [crate::config::Corner],
+    pub pit_entry: Option<f32>,
+    pub pit_exit: Option<f32>,
 }
 
 pub fn trackmap(e: &Engine) -> TrackMapOut<'_> {
@@ -818,6 +857,9 @@ pub fn trackmap(e: &Engine) -> TrackMapOut<'_> {
         sectors: &e.info.sectors,
         corners: &e.corners,
         corners_source: e.corners_source,
+        straights: e.track_data().map(|d| d.straights.as_slice()).unwrap_or(&[]),
+        pit_entry: e.track_data().and_then(|d| d.pit_entry),
+        pit_exit: e.track_data().and_then(|d| d.pit_exit),
     }
 }
 

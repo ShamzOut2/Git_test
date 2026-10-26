@@ -724,6 +724,7 @@ const generalPage: Page = {
       toggleEdit: cfg.hotkeys.toggleEdit,
       toggleVisibility: cfg.hotkeys.toggleVisibility,
       ratingsOfficialOnly: cfg.ratingsOfficialOnly,
+      shortClassNames: cfg.shortClassNames,
     };
     el.replaceChildren(
       card(
@@ -739,6 +740,14 @@ const generalPage: Page = {
               help: 'Leagues and hosted sessions do not change iRating or SR',
               group: 'Display',
             },
+            {
+              key: 'shortClassNames',
+              label: 'Short class names (GT3, TCR, LMP2…)',
+              type: 'bool',
+              default: true,
+              help: 'From the community Lovely Car Classes and Car Data lists; leagues use their own class names',
+              group: 'Display',
+            },
             { key: 'toggleEdit', label: 'Toggle edit mode', type: 'text', default: 'CmdOrCtrl+Shift+E', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'toggleVisibility', label: 'Show / hide overlays', type: 'text', default: 'CmdOrCtrl+Shift+H', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'port', label: 'Port', type: 'number', default: 8182, min: 1024, max: 65535, group: 'Server (restart to apply)' },
@@ -752,6 +761,7 @@ const generalPage: Page = {
             if (k === 'toggleEdit') cfg.hotkeys.toggleEdit = v as string;
             if (k === 'toggleVisibility') cfg.hotkeys.toggleVisibility = v as string;
             if (k === 'ratingsOfficialOnly') cfg.ratingsOfficialOnly = v as boolean;
+            if (k === 'shortClassNames') cfg.shortClassNames = v as boolean;
             save();
           },
         ),

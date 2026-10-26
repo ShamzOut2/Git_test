@@ -1,7 +1,7 @@
 import { fitCanvas, h, show, style, text, toggle } from '../lib/dom';
 import * as f from '../lib/format';
 import type { OverlayDef } from '../lib/overlay';
-import type { Player } from '../lib/types';
+import type { CarInfo, Player } from '../lib/types';
 
 const WHEEL_SVG = `<svg viewBox="-50 -50 100 100"><circle r="42" fill="none" stroke="currentColor" stroke-width="9"/><path d="M-40 4 H-12 L-6 14 H6 L12 4 H40" fill="none" stroke="currentColor" stroke-width="8" stroke-linejoin="round"/><path d="M0 14 V40" stroke="currentColor" stroke-width="8"/><rect x="-3" y="-50" width="6" height="12" fill="var(--accent)"/></svg>`;
 
@@ -9,9 +9,17 @@ export const inputs: OverlayDef = {
   kind: 'inputs',
   name: 'Driver inputs',
   description: 'Throttle, brake and clutch bars with a scrolling input trace, steering wheel, gear and speed. Updates every telemetry tick.',
-  topics: ['player', 'session'],
-  size: [420, 120],
+  topics: ['player', 'session', 'car'],
+  size: [420, 140],
   settings: [
+    { key: 'showShiftLights', label: 'Shift lights', type: 'bool', default: true, group: 'Shift lights', help: 'Per-gear shift points from Lovely Car Data when the car is listed, otherwise iRacing’s own' },
+    { key: 'shiftLightCount', label: 'Number of lights (cars without Lovely data)', type: 'number', default: 10, min: 3, max: 20, group: 'Shift lights' },
+    { key: 'shiftLightSize', label: 'Light size', type: 'number', default: 0.9, min: 0.4, max: 3, step: 0.1, unit: 'em', group: 'Shift lights' },
+    { key: 'shiftFlashMs', label: 'Flash speed at the shift point', type: 'number', default: 120, min: 40, max: 1000, step: 10, unit: 'ms', group: 'Shift lights' },
+    { key: 'shiftLowColor', label: 'First lights', type: 'color', default: '#2fd36b', group: 'Shift lights' },
+    { key: 'shiftMidColor', label: 'Middle lights', type: 'color', default: '#ffd400', group: 'Shift lights' },
+    { key: 'shiftHighColor', label: 'Last lights', type: 'color', default: '#ff3b3b', group: 'Shift lights' },
+    { key: 'shiftFlashColor', label: 'Shift now (flash)', type: 'color', default: '#4da3ff', group: 'Shift lights' },
     { key: 'showTrace', label: 'Input trace graph', type: 'bool', default: true, group: 'Elements' },
     { key: 'showBars', label: 'Pedal bars', type: 'bool', default: true, group: 'Elements' },
     { key: 'showClutch', label: 'Clutch', type: 'bool', default: true, group: 'Elements' },
@@ -42,6 +50,11 @@ export const inputs: OverlayDef = {
   create(root, ctx) {
     const s = ctx.settings;
     root.classList.add('inputs');
+    const lights = h('div', 'shift-lights');
+    lights.style.setProperty('--led', `${s.shiftLightSize}em`);
+    const main = h('div', 'inputs-main');
+    let leds: HTMLElement[] = [];
+    let car: CarInfo | null = null;
     const canvas = h('canvas', 'trace');
     const bars = h('div', 'bars');
     const valuePos = s.valuePosition as string;
@@ -78,7 +91,52 @@ export const inputs: OverlayDef = {
     show(gear, s.showGear as boolean);
     show(spd, s.showSpeed as boolean);
     show(side, (s.showWheel || s.showGear || s.showSpeed) as boolean);
-    root.append(canvas, bars, side);
+    main.append(canvas, bars, side);
+    root.append(lights, main);
+
+    /** Lights for the current car: [rpm on, colour] per light plus the shift-now rpm. */
+    type Plan = { on: number[]; colors: string[]; flashAt: number; flashColor: string };
+    let plans = new Map<string, Plan | null>();
+    const ramp = (i: number, n: number) => (i < n * 0.4 ? (s.shiftLowColor as string) : i < n * 0.7 ? (s.shiftMidColor as string) : (s.shiftHighColor as string));
+    const plan = (gear: number): Plan | null => {
+      const key = gear === -1 ? 'R' : gear === 0 ? 'N' : String(gear);
+      if (plans.has(key)) return plans.get(key)!;
+      let p: Plan | null = null;
+      const lv = car?.lovely;
+      const g = lv && (lv.rpm[key] ?? lv.rpm[String(Math.max(1, gear))]);
+      if (lv && g && g.length > 1) {
+        const n = Math.min(lv.leds, g.length - 1);
+        const on = g.slice(1, n + 1);
+        p = { on, colors: on.map((_, i) => lv.colors[i + 1] || ramp(i, n)), flashAt: g[0], flashColor: lv.colors[0] || (s.shiftFlashColor as string) };
+      } else if (car && car.slShift > 0) {
+        const n = s.shiftLightCount as number;
+        const first = car.slFirst > 0 ? car.slFirst : car.slShift * 0.85;
+        const last = car.slLast > first ? car.slLast : car.slShift;
+        const on = Array.from({ length: n }, (_, i) => first + ((last - first) * i) / Math.max(1, n - 1));
+        p = { on, colors: on.map((_, i) => ramp(i, n)), flashAt: car.slBlink > 0 ? car.slBlink : car.slShift, flashColor: s.shiftFlashColor as string };
+      }
+      plans.set(key, p);
+      return p;
+    };
+    let shown: Plan | null = null;
+    const drawLights = (p: Player) => {
+      const pl = s.showShiftLights ? plan(p.gear) : null;
+      show(lights, !!pl);
+      if (!pl) return;
+      if (pl !== shown) {
+        shown = pl;
+        leds = pl.on.map(() => h('span', 'led'));
+        lights.replaceChildren(...leds);
+      }
+      const flash = p.rpm >= pl.flashAt && pl.flashAt > 0;
+      const blinkOn = !flash || Math.floor(performance.now() / (s.shiftFlashMs as number)) % 2 === 0;
+      leds.forEach((el, i) => {
+        const lit = flash ? blinkOn : p.rpm >= pl.on[i];
+        const color = lit ? (flash ? pl.flashColor : pl.colors[i]) : '';
+        if (el.style.getPropertyValue('--c') !== color) el.style.setProperty('--c', color);
+        toggle(el, 'on', lit);
+      });
+    };
 
     const n = Math.round((s.traceSeconds as number) * 60);
     const thr = new Float32Array(n);
@@ -128,8 +186,15 @@ export const inputs: OverlayDef = {
 
     return {
       update(topic, data) {
+        if (topic === 'car') {
+          car = data as CarInfo;
+          plans = new Map();
+          shown = null;
+          return;
+        }
         if (topic !== 'player') return;
         const p = data as Player;
+        drawLights(p);
         thr[head] = p.throttle;
         brk[head] = p.brake;
         clt[head] = p.clutch;

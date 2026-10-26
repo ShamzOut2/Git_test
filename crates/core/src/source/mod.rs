@@ -27,4 +27,8 @@ pub trait Source: Send {
     fn corners(&self) -> Option<Vec<crate::config::Corner>> {
         None
     }
+    /// Pit entry and exit as lap fractions, for sources that know their track.
+    fn pit_lane(&self) -> Option<(f32, f32)> {
+        None
+    }
 }

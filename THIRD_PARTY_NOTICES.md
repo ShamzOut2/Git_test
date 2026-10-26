@@ -6,7 +6,12 @@
 The flag artwork is from [Twemoji](https://github.com/twitter/twemoji), © Twitter, Inc and other contributors,
 licensed under [CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).
 
-## Lovely Track Data
-Corner names and turn positions shown on the track map are downloaded at runtime from the community
-[Lovely Track Data](https://github.com/Lovely-Sim-Racing/lovely-track-data) project by Lovely Sim Racing.
-They are not bundled with this application.
+## Lovely Sim Racing data
+The following data is downloaded at runtime from community projects by [Lovely Sim Racing](https://lsr.gg), licensed under
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/). None of it is bundled with this application.
+
+- [Lovely Track Data](https://github.com/Lovely-Sim-Racing/lovely-track-data): corner names and turn positions, straights,
+  pit entry and exit on the track map.
+- [Lovely Car Data](https://github.com/Lovely-Sim-Racing/lovely-car-data) (with ATSR and Gomez Sim Industries): shift-light
+  RPMs and colours per gear for the driver inputs overlay, and car class shorthands.
+- [Lovely Car Classes](https://github.com/Lovely-Sim-Racing/lovely-car-classes): short car class names.

@@ -21,7 +21,7 @@ export function flagEmoji(code: string): string {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-/** Logo lookup: user images in <data dir>/logos/<make>.svg|png|webp, probed once per make. */
+/** Logo lookup: user images in <data dir>/logos/<name>.svg|png|webp, probed once per name. */
 const logos = new Map<string, string | null>();
 function probeLogo(make: string, done: () => void) {
   const key = slug(make);
@@ -39,6 +39,16 @@ function probeLogo(make: string, done: () => void) {
     img.src = `/logos/${key}.${exts[i]}`;
   };
   next(0);
+}
+
+/**
+ * Class logo next to a class name: the user's image logos/class-<name>.png (e.g. class-gt3.png),
+ * or nothing. Returns the image element to show, created once per name.
+ */
+export function classLogo(name: string, onFound: () => void): string | null {
+  const key = `class-${name}`;
+  if (!logos.has(slug(key))) probeLogo(key, onFound);
+  return logos.get(slug(key)) ?? null;
 }
 
 function makeCell(c: HTMLElement, make: string, style: string) {

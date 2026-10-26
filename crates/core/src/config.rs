@@ -40,6 +40,8 @@ pub struct Config {
     pub penalties: Vec<Penalty>,
     /// Edit mode: dragging any overlay moves all of them.
     pub move_all_together: bool,
+    /// Short class names (GT3, TCR, LMP2...) from Lovely Car Classes / Car Data.
+    pub short_class_names: bool,
 }
 
 /// A penalty given by hand (iRacing does not say which penalty a black flag means).
@@ -120,6 +122,7 @@ impl Default for Config {
             auto_check_updates: true,
             penalties: vec![],
             move_all_together: false,
+            short_class_names: true,
         }
     }
 }

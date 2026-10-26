@@ -2,6 +2,7 @@
 //! derives race information at the simulator's 60 Hz, and serves it to
 //! overlays over a local WebSocket.
 
+pub mod cardata;
 pub mod config;
 pub mod corners;
 pub mod countries;
@@ -101,12 +102,16 @@ pub fn start(opts: Options) -> std::io::Result<App> {
     hub.set_command_sender(cmd_tx);
     let wanted = Arc::new(Mutex::new(Vec::new()));
     countries::spawn(hub.clone(), config.clone(), opts.data_dir.clone(), wanted.clone());
+    let wanted_cars = Arc::new(Mutex::new(Vec::new()));
+    if !opts.mock {
+        cardata::spawn(hub.clone(), opts.data_dir.clone(), wanted_cars.clone());
+    }
     let source: Box<dyn Source> = if opts.mock { Box::new(source::mock::Mock::new()) } else { Box::new(source::iracing::IRacing::new()) };
     *hub.source.lock().unwrap() = source.name();
     hub.publish_status();
     hub.publish("update", &serde_json::json!({ "status": "unsupported", "current": env!("CARGO_PKG_VERSION") }).to_string());
     let (h, c, d) = (hub.clone(), config.clone(), opts.data_dir.clone());
-    std::thread::Builder::new().name("telemetry".into()).spawn(move || run(source, h, c, combo, track, wanted, cmd_rx, d))?;
+    std::thread::Builder::new().name("telemetry".into()).spawn(move || run(source, h, c, combo, track, wanted, wanted_cars, cmd_rx, d))?;
 
     Ok(App { hub, config, addr, data_dir: opts.data_dir })
 }
@@ -119,13 +124,14 @@ fn run(
     combo: Arc<Mutex<garage61::Combo>>,
     track: Arc<Mutex<(i64, String)>>,
     wanted_countries: Arc<Mutex<Vec<i64>>>,
+    wanted_cars: Arc<Mutex<Vec<String>>>,
     cmds: mpsc::Receiver<Command>,
     data_dir: PathBuf,
 ) {
     let mut e = Engine::new(config.get(), Some(data_dir));
     e.source = source.name();
     let mut cfg_rx = config.subscribe();
-    let mut map_key = (u64::MAX, -1i32, -1i64);
+    let mut keys = Keys::default();
     loop {
         if cfg_rx.has_changed().unwrap_or(false) {
             cfg_rx.mark_unchanged();
@@ -133,8 +139,10 @@ fn run(
         }
         while let Ok(cmd) = cmds.try_recv() {
             match cmd {
-                Command::SetCorners { track_id, corners, source } => e.set_remote_corners(track_id, corners, source),
+                Command::SetTrackData { track_id, data, source } => e.set_track_data(track_id, data, source),
                 Command::SetCountries(c) => e.set_remote_countries(c),
+                Command::SetCarData(d) => e.set_car_data(d),
+                Command::SetClassNames(c) => e.set_class_names(c),
                 Command::ResetTrackMap => {
                     e.map.clear();
                     if let Some(m) = source.track_map(e.info.track_id) {
@@ -150,7 +158,7 @@ fn run(
                     e.reset();
                     hub.connected.store(false, Ordering::Relaxed);
                     hub.publish_status();
-                    publish(&e, &hub, &mut map_key, true);
+                    publish(&e, &hub, &mut keys, true);
                     *combo.lock().unwrap() = Default::default();
                 }
             }
@@ -169,9 +177,16 @@ fn run(
                         }
                     }
                     if let Some(c) = source.corners() {
-                        e.set_remote_corners(e.info.track_id, c, "mock");
+                        let (pit_entry, pit_exit) = source.pit_lane().unzip();
+                        let data = corners::TrackData { corners: c, straights: vec![], pit_entry, pit_exit };
+                        e.set_track_data(e.info.track_id, data, "mock");
                     }
                     *track.lock().unwrap() = (e.info.track_id, e.info.track_name.clone());
+                    let mut cars: Vec<String> =
+                        e.info.drivers.iter().filter(|d| !d.is_pace_car && !d.is_spectator).map(|d| d.car_path.to_lowercase()).collect();
+                    cars.sort();
+                    cars.dedup();
+                    *wanted_cars.lock().unwrap() = cars;
                     *wanted_countries.lock().unwrap() =
                         e.info.drivers.iter().filter(|d| d.country.is_empty() && !d.is_ai && !d.is_pace_car && !d.is_spectator).map(|d| d.user_id).collect();
                     let me = e.info.driver(e.info.player_car_idx.max(0) as usize);
@@ -184,13 +199,20 @@ fn run(
                     };
                 }
                 e.tick();
-                publish(&e, &hub, &mut map_key, false);
+                publish(&e, &hub, &mut keys, false);
             }
         }
     }
 }
 
-fn publish(e: &Engine, hub: &Hub, map_key: &mut (u64, i32, i64), force: bool) {
+/// Last state of the topics that are only re-sent when they change.
+#[derive(Default)]
+struct Keys {
+    map: Option<(u64, i32, i64)>,
+    car: Option<(u64, i64, i32, i32)>,
+}
+
+fn publish(e: &Engine, hub: &Hub, keys: &mut Keys, force: bool) {
     for t in Topic::ALL {
         if !force && !hub.has_subscribers(t.name()) {
             continue;
@@ -198,10 +220,17 @@ fn publish(e: &Engine, hub: &Hub, map_key: &mut (u64, i32, i64), force: bool) {
         if t == Topic::TrackMap {
             // The outline is large and rarely changes: rebuild only when it does.
             let key = (e.map.revision, (e.map.progress() * 100.0) as i32, e.info.track_id);
-            if key == *map_key && !force {
+            if keys.map == Some(key) && !force {
                 continue;
             }
-            *map_key = key;
+            keys.map = Some(key);
+        }
+        if t == Topic::Car {
+            let key = (e.car_revision, e.info.subsession_id, e.info.player_car_idx, e.tel.session_num);
+            if keys.car == Some(key) && !force {
+                continue;
+            }
+            keys.car = Some(key);
         }
         hub.publish(t.name(), &t.build(e));
     }

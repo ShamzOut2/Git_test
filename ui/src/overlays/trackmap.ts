@@ -54,6 +54,9 @@ export const trackmap: OverlayDef = {
     { key: 'cornerColor', label: 'Label colour', type: 'color', default: '#ffffff', group: 'Corners' },
     { key: 'cornerBackground', label: 'Label background', type: 'bool', default: true, group: 'Corners' },
     { key: 'cornerOffset', label: 'Distance from track', type: 'number', default: 14, min: 0, max: 60, unit: 'px', group: 'Corners' },
+    { key: 'straightLabels', label: 'Straight names (Mulsanne, Kemmel…)', type: 'bool', default: false, group: 'Corners', help: 'From Lovely Track Data, where the track has them' },
+    { key: 'showPitLane', label: 'Pit entry and exit', type: 'bool', default: true, group: 'Track', help: 'Marks where the pit lane leaves and rejoins the track (Lovely Track Data)' },
+    { key: 'pitColor', label: 'Pit entry/exit colour', type: 'color', default: '#4da3ff', group: 'Track' },
     { key: 'dotSize', label: 'Car size', type: 'number', default: 7, min: 2, max: 30, unit: 'px', group: 'Cars' },
     { key: 'playerScale', label: 'Your car size', type: 'number', default: 1.45, min: 1, max: 3, step: 0.05, unit: '×', group: 'Cars' },
     { key: 'label', label: 'Label on cars', type: 'select', default: 'classPosition', options: [['none', 'None'], ['number', 'Car number'], ['position', 'Overall position'], ['classPosition', 'Class position']], group: 'Cars' },
@@ -87,7 +90,7 @@ export const trackmap: OverlayDef = {
       const a = ((s.rotate as number) * Math.PI) / 180;
       const rx = x * Math.cos(a) - y * Math.sin(a);
       const ry = x * Math.sin(a) + y * Math.cos(a);
-      const labels = s.cornerLabels !== 'none' && map?.corners?.length ? (s.cornerOffset as number) + (s.cornerFontSize as number) : 0;
+      const labels = (s.cornerLabels !== 'none' && map?.corners?.length) || (s.straightLabels && map?.straights?.length) ? (s.cornerOffset as number) + (s.cornerFontSize as number) : 0;
       const pad = ((s.dotSize as number) * (s.playerScale as number) + 4 + labels) * dpr();
       const size = Math.min(w, hh) - pad * 2;
       return [w / 2 + rx * size, hh / 2 + ry * size];
@@ -161,8 +164,12 @@ export const trackmap: OverlayDef = {
       b.strokeStyle = s.trackColor as string;
       b.lineWidth = tw;
       b.stroke(path);
-      if (s.cornerLabels !== 'none' && map?.corners?.length) drawCorners(b, nl);
+      const labels: Label[] = [];
+      if (s.cornerLabels !== 'none') for (const c of map?.corners ?? []) labels.push({ start: c.start, end: c.end, text: cornerText(c) });
+      if (s.straightLabels) for (const c of map?.straights ?? []) labels.push({ start: c.start, end: c.end, text: c.name, dim: true });
+      if (labels.length) drawLabels(b, nl, labels);
     };
+    type Label = { start: number; end: number; text: string; dim?: boolean };
 
     /** A line across the track at a lap fraction. */
     const tick = (b: CanvasRenderingContext2D, pct: number, color: string, len: number, width: number, nl: number) => {
@@ -186,6 +193,39 @@ export const trackmap: OverlayDef = {
         for (const sp of sectorStarts()) if (sp > 0) tick(b, sp, s.sectorColor as string, across * (s.sectorLineLength as number), s.sectorLineWidth as number, nl);
       }
       if (s.showStartFinish) tick(b, 0, '#ffffff', across * 1.3, 2.5, nl);
+      if (s.showPitLane) {
+        for (const [pct, label] of [
+          [map?.pitEntry, 'PIT IN'],
+          [map?.pitExit, 'PIT OUT'],
+        ] as [number | null | undefined, string][]) {
+          if (pct == null) continue;
+          tick(b, pct, s.pitColor as string, across, 2, nl);
+          if (mode !== 'flat') pitLabel(b, pct, label, across, nl);
+        }
+      }
+    };
+
+    /** Small "PIT IN" / "PIT OUT" text on the inside of the track. */
+    const pitLabel = (b: CanvasRenderingContext2D, pct: number, label: string, across: number, nl: number) => {
+      const p = locate(pct, 0, nl);
+      const q = locate(pct + 0.002, 0, nl);
+      let nx = -(q[1] - p[1]);
+      let ny = q[0] - p[0];
+      const len = Math.hypot(nx, ny) || 1;
+      nx /= len;
+      ny /= len;
+      // Towards the centre of the map.
+      if ((p[0] + nx - canvas.width / 2) ** 2 + (p[1] + ny - canvas.height / 2) ** 2 > (p[0] - canvas.width / 2) ** 2 + (p[1] - canvas.height / 2) ** 2) {
+        nx = -nx;
+        ny = -ny;
+      }
+      const k = dpr();
+      family ||= getComputedStyle(root).getPropertyValue('--font') || 'sans-serif';
+      b.font = `700 ${Math.max(7, (s.cornerFontSize as number) * 0.8) * k}px ${family}`;
+      b.textAlign = 'center';
+      b.textBaseline = 'middle';
+      b.fillStyle = s.pitColor as string;
+      b.fillText(label, p[0] + nx * (across + 8 * k), p[1] + ny * (across + 8 * k));
     };
 
     const sectorStarts = (): number[] => {
@@ -229,8 +269,8 @@ export const trackmap: OverlayDef = {
       return c.name ? `${num} ${c.name}` : num;
     };
 
-    /** Corner labels, pushed outwards from the track so they don't cover cars. */
-    const drawCorners = (b: CanvasRenderingContext2D, nl: number) => {
+    /** Corner (and straight) labels, pushed outwards from the track so they don't cover cars. */
+    const drawLabels = (b: CanvasRenderingContext2D, nl: number, labels: Label[]) => {
       const w = canvas.width;
       const hh = canvas.height;
       const k = dpr();
@@ -238,7 +278,7 @@ export const trackmap: OverlayDef = {
       b.font = `600 ${(s.cornerFontSize as number) * k}px ${family}`;
       b.textAlign = 'center';
       b.textBaseline = 'middle';
-      map!.corners.forEach((c, i) => {
+      labels.forEach((c, i) => {
         const mid = c.end >= c.start ? (c.start + c.end) / 2 : ((c.start + c.end + 1) / 2) % 1;
         const p = locate(mid, 0, nl);
         const q = locate(mid + 0.003, 0, nl);
@@ -255,7 +295,7 @@ export const trackmap: OverlayDef = {
           ny = -ny;
         }
         const off = ((s.cornerOffset as number) + (s.trackWidth as number) / 2) * k;
-        const label = cornerText(c);
+        const label = c.text;
         const half = b.measureText(label).width / 2 + 4 * k;
         const fh = (s.cornerFontSize as number) * k;
         // Keep labels inside the overlay.
@@ -270,7 +310,9 @@ export const trackmap: OverlayDef = {
           b.fill();
         }
         b.fillStyle = s.cornerColor as string;
+        b.globalAlpha = c.dim ? 0.75 : 1;
         b.fillText(label, x, y + 0.5);
+        b.globalAlpha = 1;
       });
     };
 
