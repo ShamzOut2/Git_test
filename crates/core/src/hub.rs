@@ -25,9 +25,10 @@ pub enum HostEvent {
         value: bool,
     },
     OpenSettings,
-    /// Fit an overlay window's height to its content (CSS pixels).
+    /// Fit an overlay window to its content (CSS pixels; 0 = not automatic).
     AutoSize {
         id: String,
+        width: f64,
         height: f64,
     },
     CheckUpdate,
@@ -38,7 +39,13 @@ pub enum HostEvent {
 #[derive(Debug, Clone)]
 pub enum Command {
     ResetTrackMap,
-    SetCorners { track_id: i64, corners: Vec<crate::config::Corner>, source: &'static str },
+    SetCorners {
+        track_id: i64,
+        corners: Vec<crate::config::Corner>,
+        source: &'static str,
+    },
+    /// Driver countries looked up from the iRacing Data API (customer ID → ISO code).
+    SetCountries(std::collections::BTreeMap<i64, String>),
 }
 
 pub struct Hub {

@@ -71,23 +71,31 @@ const FLAG_TITLES: Record<string, string> = {
   blue: 'Blue flag — being lapped',
 };
 
+type NameRow = Partial<Extras> & { onPitRoad?: boolean; inWorld?: boolean };
+
 /**
  * Driver name with the chequered flag once finished, flags for this car (caused a yellow,
- * black, meatball, blue, ...) and a penalty box (DT / S&G 40s / +5s).
+ * black, meatball, blue, ...), a penalty box (DT / S&G 40s / +5s) and, right of the name,
+ * PIT while on pit road (OUT when the car has left the world, e.g. in the garage).
  */
-function nameCell(c: HTMLElement, name: string, r: Partial<Extras>, s: Values) {
+function nameCell(c: HTMLElement, name: string, r: NameRow, s: Values) {
   let fin = c.querySelector(':scope > .fin') as HTMLElement | null;
   let marks = c.querySelector(':scope > .marks') as HTMLElement | null;
   let pen = c.querySelector(':scope > .pen') as HTMLElement | null;
   let label = c.querySelector(':scope > .nm') as HTMLElement | null;
-  if (!fin || !marks || !pen || !label) {
+  let pit = c.querySelector(':scope > .pit-tag') as HTMLElement | null;
+  if (!fin || !marks || !pen || !label || !pit) {
     fin = h('span', 'fin');
     fin.title = 'Finished';
     marks = h('span', 'marks');
     pen = h('span', 'pen');
     label = h('span', 'nm');
-    c.replaceChildren(fin, marks, pen, label);
+    pit = h('span', 'pit-tag');
+    c.replaceChildren(fin, marks, pen, label, pit);
   }
+  const pitText = s.pitTag === false ? '' : r.onPitRoad ? 'PIT' : r.inWorld === false ? 'OUT' : '';
+  text(pit, pitText);
+  if (pit.hidden !== !pitText) pit.hidden = !pitText;
   const finished = s.finishFlag !== false && !!r.finished;
   if (fin.hidden !== !finished) fin.hidden = !finished;
   const flags = s.driverFlags !== false ? (r.flags ?? []) : [];
@@ -114,7 +122,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
   return [
     { id: 'number', label: '#', width: '2.9em', align: 'center', render: (c, r) => chip(c, r.number, r.classColor) },
     { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
-    { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), r, s) },
+    { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), r as NameRow, s) },
     { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
     { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string) },
     {
@@ -213,10 +221,18 @@ export const COLUMN_STYLE_SETTINGS = [
     group: 'Columns',
   },
   { key: 'penaltyBox', label: 'Penalty box next to drivers (DT, S&G 40s, +5s)', type: 'bool' as const, default: true, group: 'Columns' },
+  { key: 'pitTag', label: 'PIT after the name while on pit road', type: 'bool' as const, default: true, group: 'Columns' },
   { key: 'highlightBest', label: 'Colour lap times (purple = class best, green = personal best)', type: 'bool' as const, default: true, group: 'Colours' },
 ];
 
+/** Tyre badge: a white circle with D for dry tyres, a blue one with W for wets. */
 export function tireCell(c: HTMLElement, wet: boolean | null) {
-  text(c, wet == null ? '' : wet ? 'W' : 'D');
-  c.classList.toggle('wet', wet === true);
+  let b = c.firstElementChild as HTMLElement | null;
+  if (!b) {
+    b = h('span', 'tyre');
+    c.append(b);
+  }
+  text(b, wet == null ? '' : wet ? 'W' : 'D');
+  if (b.hidden !== (wet == null)) b.hidden = wet == null;
+  toggle(b, 'wet', wet === true);
 }

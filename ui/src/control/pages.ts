@@ -27,6 +27,66 @@ export const overlayUrl = (id: string) => `${location.origin}/o/${encodeURICompo
 
 let selected = '';
 
+/** Shared files: one overlay, or a whole layout (overlays + theme). No personal data. */
+type SharedOverlay = Pick<OverlayInstance, 'kind' | 'name' | 'enabled' | 'x' | 'y' | 'width' | 'height' | 'settings'>;
+interface ShareFile {
+  apexOverlays: 'overlay' | 'layout';
+  version: string;
+  overlays: SharedOverlay[];
+  theme?: Record<string, unknown>;
+}
+
+const shareable = (o: OverlayInstance): SharedOverlay => ({ kind: o.kind, name: o.name, enabled: o.enabled, x: o.x, y: o.y, width: o.width, height: o.height, settings: structuredClone(o.settings) });
+const fileName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'overlay';
+
+function exportOverlay(o: OverlayInstance) {
+  const file: ShareFile = { apexOverlays: 'overlay', version: state.status?.version ?? '', overlays: [shareable(o)] };
+  download(`apex-overlay-${fileName(o.name || byKind(o.kind)?.name || o.kind)}.json`, file);
+}
+
+function exportLayout() {
+  const cfg = state.config!;
+  const file: ShareFile = { apexOverlays: 'layout', version: state.status?.version ?? '', overlays: cfg.overlays.map(shareable), theme: structuredClone(cfg.theme) };
+  download('apex-overlays-layout.json', file);
+}
+
+/** Reads a shared file; also accepts a full settings backup (its overlays and theme). */
+async function readShare(): Promise<ShareFile | null> {
+  let data: unknown;
+  try {
+    data = await upload();
+  } catch {
+    alert('That file could not be read.');
+    return null;
+  }
+  const d = data as Partial<ShareFile> & { overlays?: unknown };
+  if (!d || !Array.isArray(d.overlays)) {
+    alert('That file is not an Apex Overlays overlay or layout.');
+    return null;
+  }
+  const overlays = (d.overlays as SharedOverlay[]).filter((o) => o && typeof o.kind === 'string' && byKind(o.kind));
+  if (!overlays.length) {
+    alert('That file has no overlays this version of Apex Overlays knows.');
+    return null;
+  }
+  return { apexOverlays: d.apexOverlays === 'overlay' ? 'overlay' : 'layout', version: String(d.version ?? ''), overlays, theme: d.theme as Record<string, unknown> | undefined };
+}
+
+const instanceFrom = (o: SharedOverlay): OverlayInstance => {
+  const d = byKind(o.kind)!;
+  return {
+    id: uid(o.kind),
+    kind: o.kind,
+    name: o.name ?? '',
+    enabled: o.enabled !== false,
+    x: Number.isFinite(o.x) ? o.x : 200,
+    y: Number.isFinite(o.y) ? o.y : 200,
+    width: o.width > 0 ? o.width : d.size[0],
+    height: o.height > 0 ? o.height : d.size[1],
+    settings: o.settings && typeof o.settings === 'object' ? o.settings : {},
+  };
+};
+
 function copy(text: string, btn: HTMLButtonElement) {
   navigator.clipboard?.writeText(text).then(() => {
     const old = btn.textContent;
@@ -70,6 +130,16 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
       c.y += 30;
       state.config!.overlays.push(c);
       selected = c.id;
+      save();
+      rerender();
+    }),
+    button('Export…', () => exportOverlay(o)),
+    button('Load settings…', async () => {
+      const f = await readShare();
+      if (!f) return;
+      const src = f.overlays.find((x) => x.kind === o.kind);
+      if (!src) return alert(`That file has no ${def.name} overlay.`);
+      o.settings = structuredClone(src.settings ?? {});
       save();
       rerender();
     }),
@@ -185,6 +255,71 @@ const overlaysPage: Page = {
     };
     bar.append(add, h('span', 'dim small', 'Add any overlay as many times as you like — each copy has its own settings, size and scale.'));
 
+    // Move all overlays at once: drag together in edit mode, or nudge with the arrows.
+    const group = h('div', 'toolbar');
+    const together = h('label', 'inline');
+    const tcb = h('input');
+    tcb.type = 'checkbox';
+    tcb.className = 'switch';
+    tcb.checked = !!cfg.moveAllTogether;
+    tcb.onchange = () => {
+      cfg.moveAllTogether = tcb.checked;
+      save(true);
+    };
+    together.append(tcb, ' Move all overlays together');
+    together.title = 'In edit mode, dragging any overlay moves every overlay with it';
+    const step = h('select');
+    for (const v of [1, 10, 50]) {
+      const opt = h('option', '', `${v}px`);
+      opt.value = String(v);
+      step.append(opt);
+    }
+    step.value = '10';
+    const nudge = (dx: number, dy: number) => () => {
+      const n = parseInt(step.value, 10);
+      for (const o of cfg.overlays) {
+        o.x += dx * n;
+        o.y += dy * n;
+      }
+      save(true);
+    };
+    group.append(
+      together,
+      h('span', 'dim small', 'Move all:'),
+      button('←', nudge(-1, 0), 'mini'),
+      button('↑', nudge(0, -1), 'mini'),
+      button('↓', nudge(0, 1), 'mini'),
+      button('→', nudge(1, 0), 'mini'),
+      step,
+    );
+
+    // Sharing: one overlay (Export… in the editor) or the whole layout.
+    const share = h('div', 'toolbar');
+    share.append(
+      button('Import overlay…', async () => {
+        const f = await readShare();
+        if (!f) return;
+        const added = f.overlays.map(instanceFrom);
+        cfg.overlays.push(...added);
+        selected = added[0].id;
+        save(true);
+        rerender();
+      }),
+      button('Share layout…', exportLayout),
+      button('Import layout…', async () => {
+        const f = await readShare();
+        if (!f) return;
+        const replace = confirm(`Replace your ${cfg.overlays.length} overlays with the ${f.overlays.length} in this file?\n\nOK = replace, Cancel = add them to yours.`);
+        const added = f.overlays.map(instanceFrom);
+        cfg.overlays = replace ? added : [...cfg.overlays, ...added];
+        if (f.theme && confirm('Also use the colour theme from this layout?')) cfg.theme = f.theme;
+        selected = added[0].id;
+        save(true);
+        rerender();
+      }),
+      h('span', 'dim small', 'Layouts contain overlays, their settings and the theme — no tokens, logins or leagues.'),
+    );
+
     const list = h('div', 'ov-list');
     for (const o of cfg.overlays) {
       const d = byKind(o.kind);
@@ -201,7 +336,7 @@ const overlaysPage: Page = {
     main.append(sel ? overlayEditor(sel, rerender) : h('p', 'dim', 'No overlays yet — add one above.'));
     const layout = h('div', 'ov-layout');
     layout.append(list, main);
-    el.replaceChildren(bar, layout);
+    el.replaceChildren(bar, group, share, layout);
   },
 };
 

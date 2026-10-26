@@ -157,6 +157,8 @@ pub struct Engine {
     pub corners: Vec<Corner>,
     pub corners_source: &'static str,
     remote_corners: Option<(i64, Vec<Corner>, &'static str)>,
+    /// Countries from the iRacing Data API for drivers the session info has none for.
+    remote_countries: std::collections::BTreeMap<i64, String>,
     /// Session time the leader took the chequered flag.
     checkered_at: Option<f64>,
     last_session: (i64, i32),
@@ -184,6 +186,7 @@ impl Engine {
             corners: vec![],
             corners_source: "none",
             remote_corners: None,
+            remote_countries: Default::default(),
             checkered_at: None,
             last_session: (-1, -1),
             last_state: 0,
@@ -204,6 +207,11 @@ impl Engine {
     pub fn set_remote_corners(&mut self, track_id: i64, corners: Vec<Corner>, source: &'static str) {
         self.remote_corners = Some((track_id, corners, source));
         self.refresh_corners();
+    }
+
+    pub fn set_remote_countries(&mut self, c: std::collections::BTreeMap<i64, String>) {
+        self.remote_countries = c;
+        self.rebuild_statics();
     }
 
     fn refresh_corners(&mut self) {
@@ -228,6 +236,16 @@ impl Engine {
         } else {
             (self.info.track_length_km * 3.0).max(6.0)
         }
+    }
+
+    /// Compass heading (degrees, 0-360) of the focus car. The player's own yaw while driving;
+    /// otherwise the direction of the track where the watched car is.
+    pub fn focus_heading(&self) -> Option<f32> {
+        let t = &self.tel;
+        let idx = t.focus_idx()?;
+        let is_player = usize::try_from(t.player_idx).ok() == Some(idx);
+        let rad = if is_player && t.driving() { Some(t.yaw_north) } else { self.map.heading_at(t.cars[idx].pct).or_else(|| is_player.then_some(t.yaw_north)) };
+        rad.map(|r| r.to_degrees().rem_euclid(360.0))
     }
 
     pub fn stint(&self, idx: usize) -> Stint {
@@ -386,7 +404,11 @@ impl Engine {
                 lic_color: d.lic_color,
                 club: d.club.clone(),
                 flair: d.flair.clone(),
-                country: if override_country(&self.resolver, d.user_id).is_empty() { d.country.clone() } else { override_country(&self.resolver, d.user_id) },
+                country: Some(override_country(&self.resolver, d.user_id))
+                    .filter(|c| !c.is_empty())
+                    .or_else(|| (!d.country.is_empty()).then(|| d.country.clone()))
+                    .or_else(|| self.remote_countries.get(&d.user_id).cloned())
+                    .unwrap_or_default(),
                 make: d.make.clone(),
                 hidden,
                 ir_class: d.class_id,

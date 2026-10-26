@@ -4,6 +4,7 @@
 
 pub mod config;
 pub mod corners;
+pub mod countries;
 pub mod engine;
 pub mod garage61;
 pub mod hub;
@@ -98,12 +99,14 @@ pub fn start(opts: Options) -> std::io::Result<App> {
 
     let (cmd_tx, cmd_rx) = mpsc::channel();
     hub.set_command_sender(cmd_tx);
+    let wanted = Arc::new(Mutex::new(Vec::new()));
+    countries::spawn(hub.clone(), config.clone(), opts.data_dir.clone(), wanted.clone());
     let source: Box<dyn Source> = if opts.mock { Box::new(source::mock::Mock::new()) } else { Box::new(source::iracing::IRacing::new()) };
     *hub.source.lock().unwrap() = source.name();
     hub.publish_status();
     hub.publish("update", &serde_json::json!({ "status": "unsupported", "current": env!("CARGO_PKG_VERSION") }).to_string());
     let (h, c, d) = (hub.clone(), config.clone(), opts.data_dir.clone());
-    std::thread::Builder::new().name("telemetry".into()).spawn(move || run(source, h, c, combo, track, cmd_rx, d))?;
+    std::thread::Builder::new().name("telemetry".into()).spawn(move || run(source, h, c, combo, track, wanted, cmd_rx, d))?;
 
     Ok(App { hub, config, addr, data_dir: opts.data_dir })
 }
@@ -115,6 +118,7 @@ fn run(
     config: ConfigStore,
     combo: Arc<Mutex<garage61::Combo>>,
     track: Arc<Mutex<(i64, String)>>,
+    wanted_countries: Arc<Mutex<Vec<i64>>>,
     cmds: mpsc::Receiver<Command>,
     data_dir: PathBuf,
 ) {
@@ -130,6 +134,7 @@ fn run(
         while let Ok(cmd) = cmds.try_recv() {
             match cmd {
                 Command::SetCorners { track_id, corners, source } => e.set_remote_corners(track_id, corners, source),
+                Command::SetCountries(c) => e.set_remote_countries(c),
                 Command::ResetTrackMap => {
                     e.map.clear();
                     if let Some(m) = source.track_map(e.info.track_id) {
@@ -167,6 +172,8 @@ fn run(
                         e.set_remote_corners(e.info.track_id, c, "mock");
                     }
                     *track.lock().unwrap() = (e.info.track_id, e.info.track_name.clone());
+                    *wanted_countries.lock().unwrap() =
+                        e.info.drivers.iter().filter(|d| d.country.is_empty() && !d.is_ai && !d.is_pace_car && !d.is_spectator).map(|d| d.user_id).collect();
                     let me = e.info.driver(e.info.player_car_idx.max(0) as usize);
                     *combo.lock().unwrap() = garage61::Combo {
                         car_id: me.map(|d| d.car_id).unwrap_or(0),

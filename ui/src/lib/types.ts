@@ -80,8 +80,8 @@ export interface Player {
   incidents: number;
   latG: number;
   longG: number;
-  /** Compass heading of the car, degrees (0 = north, clockwise). */
-  heading: number;
+  /** Compass heading of the followed car (you, or the camera car when spectating), degrees; null if unknown. */
+  heading: number | null;
 }
 
 export interface CarDot {
@@ -443,6 +443,7 @@ export interface Config {
   ratingsOfficialOnly: boolean;
   autoCheckUpdates: boolean;
   penalties: Penalty[];
+  moveAllTogether: boolean;
 }
 
 export interface Penalty {

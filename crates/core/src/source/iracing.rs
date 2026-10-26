@@ -20,7 +20,7 @@ vars! {
     session_time = "SessionTime", session_num = "SessionNum", session_state = "SessionState",
     session_flags = "SessionFlags", session_time_remain = "SessionTimeRemain",
     session_laps_remain = "SessionLapsRemainEx", time_of_day = "SessionTimeOfDay",
-    player_idx = "PlayerCarIdx", cam_car_idx = "CamCarIdx",
+    player_idx = "PlayerCarIdx", cam_car_idx = "CamCarIdx", replay = "IsReplayPlaying",
     speed = "Speed", rpm = "RPM", gear = "Gear", throttle = "Throttle", brake = "Brake", clutch = "Clutch",
     steering = "SteeringWheelAngle", steering_max = "SteeringWheelAngleMax", abs_active = "BrakeABSactive",
     fuel_level = "FuelLevel", fuel_level_pct = "FuelLevelPct", fuel_use_per_hour = "FuelUsePerHour",
@@ -49,6 +49,7 @@ pub fn fill(v: &Vars, r: Row, t: &mut Telemetry) {
     t.time_of_day = r.f32(v.time_of_day);
     t.player_idx = r.i32(v.player_idx);
     t.cam_car_idx = r.i32(v.cam_car_idx);
+    t.is_replay_playing = r.bool(v.replay);
     t.speed = r.f32(v.speed);
     t.rpm = r.f32(v.rpm);
     t.gear = r.i32(v.gear);

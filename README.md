@@ -26,7 +26,7 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 | **Fuel calculator** | Average/last/max use per lap, laps of fuel, race laps left (lap- or time-limited, lapped-car aware), fuel to finish, fuel to add, stops, pit window and how much to save to skip a stop. |
 | **Battle box** | The car ahead and behind — in the race overall, in your class, or physically nearest on track (pick per overlay): gap, how fast it is closing (s/lap), laps until you catch them (or they catch you), and their last lap against yours. |
 | **Flags** | A digital (LED-style) flag panel showing the flags out right now — green, yellow and waving yellow, caution, blue, white, chequered, red, black, meatball, furled black, debris, crossed flags, one-lap-to-green, 5/10 to go and more — plus start lights. Every flag can be switched on or off. |
-| **Weather** | Live weather with a wind compass that turns with your car, showing head/tail and crosswind, plus track and air temperature, humidity, pressure, sky, rain and wetness. |
+| **Weather** | Live weather with a wind compass that turns with your car (or the car you are watching when spectating or in a replay), showing head/tail and crosswind, plus track and air temperature, humidity, pressure, sky, rain and wetness. |
 | **Data box** | A small box with one value of your choice (speed, delta, fuel, position, gaps, track temperature, iRating change…). Add as many as you like, each with its own size and look. |
 | **Tyre advisor** | Tells you when to change between slicks and wets (**BOX FOR WETS / BOX FOR SLICKS**). It combines track wetness, the rain trend, what your class is running and the wet/dry lap-time crossover, and explains why. |
 | **Session info** | Track and air temperature (with trend), wetness, rain, declared wet, wind, humidity, sky, time or laps remaining, sim clock, SOF, incidents and flags. You can pick and order any of these fields. |
@@ -36,13 +36,14 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 
 Every column has a title (it can be switched off), and you can toggle and reorder every column:
 
-- class and overall position, car number, **country flag** (from the driver's iRacing flair), driver, team
+- class and overall position, car number, **country flag** (from the driver's iRacing flair; when a session doesn't include it, looked up once through the iRacing Data API if you have set that up, or set by hand in the League builder), driver, team
 - **manufacturer** logo or badge (put your own logo images in `%APPDATA%\Apex Overlays\logos\`, e.g. `porsche.png`), class, car, licence, iRating
 - **iRating gain/loss** and **safety rating gain/loss** (live estimates), incidents
-- current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), **last lap** and **best lap** of every driver (purple = fastest of the class, green = a personal best), **tyre** (wet/dry)
+- current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), **last lap** and **best lap** of every driver (purple = fastest of the class, green = a personal best), **tyre** (a white **D** badge for dry tyres, a blue **W** for wets)
 - a **chequered flag** next to each driver's name once they have taken the flag at the end of the race
 - **flags next to each driver**: a yellow when they caused one (off track or stopped on track), black flag, meatball (damage), furled black (warning) and blue flag
 - a **penalty box** next to the black flag: `DT`, `S&G 40s` or `+5s` from *Race control*. When a black-flagged car serves its penalty in the pits, the box shows `DT` or a live `S&G` timer automatically.
+- a **PIT** tag right after the driver's name while they are on pit road (OUT when they have left the car)
 - gap and interval, positions gained, pit stops
 - **league points** for the current position, and the **projected championship total**
 
@@ -55,7 +56,9 @@ The **header** of both overlays is also customisable. By default it shows the ov
 - **Transparency per overlay:** each overlay has its own overall opacity and background opacity, and one button copies them to all overlays. Global defaults live in the theme.
 - **Colour themes** restyle every overlay *and* the settings window. Text on coloured badges switches between white and black automatically, so it stays readable on bright accents such as yellow. There are 8 presets (Apex Overlays default, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
 - **Any overlay can be added more than once**, each copy with its own settings, size and scale.
-- **Auto-fit height:** the window grows and shrinks with the number of rows (on by default for Standings).
+- **Auto-fit height and width:** the window grows and shrinks with the number of rows and the columns you show (both on by default for Standings).
+- **Move all overlays together:** in edit mode, drag one overlay and the rest follow, or nudge them all with the arrow buttons on the Overlays page.
+- **Share settings:** export a single overlay (*Export…*) or your whole layout with its theme (*Share layout…*) to a file, and import overlays or layouts from others. Shared files contain no tokens, logins or leagues.
 - **Every overlay** has its own scale, visibility rules (hide when iRacing isn't running, when you're not in the car, on pit road, or outside races) and **custom CSS**.
 - **Column and field overlays** (relative, standings, session info) let you toggle and reorder every column, plus set name formats, gap signs and decimals.
 - **The global theme** sets font, size and weight, every colour (player, lapped, lapping, pit, fastest, good/bad, caution), corner radius, row shading and padding, outline and text shadow.

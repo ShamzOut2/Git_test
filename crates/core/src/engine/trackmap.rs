@@ -150,6 +150,28 @@ impl Recorder {
     }
 }
 
+impl Recorder {
+    /// Heading (radians, same convention as YawNorth) of the track at a lap fraction,
+    /// from the recorded outline. Lets the compass follow any car, not only the player's.
+    pub fn heading_at(&self, pct: f32) -> Option<f32> {
+        let map = self.map.as_ref().filter(|m| m.source == "recorded" || m.source == "mock")?;
+        let pts = &map.points;
+        let n = pts.len();
+        if n < 8 || !(0.0..=1.0).contains(&pct) {
+            return None;
+        }
+        let i = (pct * n as f32) as usize;
+        let (a, b) = (pts[(i + n - 2) % n], pts[(i + 2) % n]);
+        // Outline y is flipped for screen space.
+        let (dx, dy) = (b[0] - a[0], -(b[1] - a[1]));
+        if dx == 0.0 && dy == 0.0 {
+            return None;
+        }
+        // Recorded outlines are integrated from YawNorth itself; the simulator's circuit uses maths angles.
+        Some(if map.source == "mock" { std::f32::consts::FRAC_PI_2 - dy.atan2(dx) } else { dy.atan2(dx) })
+    }
+}
+
 fn fill_gaps(bins: &[Option<[f64; 2]>]) -> Vec<[f64; 2]> {
     let n = bins.len();
     let known: Vec<usize> = (0..n).filter(|&i| bins[i].is_some()).collect();
@@ -211,12 +233,19 @@ mod tests {
             t.yaw_north = f * std::f32::consts::TAU;
             r.update(&t, &info);
         }
-        let m = r.map.expect("map recorded");
+        let m = r.map.clone().expect("map recorded");
         assert_eq!(m.points.len(), BINS);
         // Circle: every point is ~0.5 from the centre.
         for p in &m.points {
             let d = ((p[0] - 0.5).powi(2) + (p[1] - 0.5).powi(2)).sqrt();
             assert!((d - 0.5).abs() < 0.02, "{d}");
+        }
+        // The outline gives back the heading the car had at each point.
+        for f in [0.1f32, 0.3, 0.6, 0.85] {
+            let want = f * std::f32::consts::TAU;
+            let got = r.heading_at(f).unwrap();
+            let diff = (got - want).rem_euclid(std::f32::consts::TAU);
+            assert!(diff.min(std::f32::consts::TAU - diff) < 0.05, "{f}: {got} vs {want}");
         }
     }
 }

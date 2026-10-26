@@ -3,7 +3,7 @@ import * as f from '../lib/format';
 import { headerSettings, sessionHeader } from '../lib/header';
 import type { OverlayDef } from '../lib/overlay';
 import { columns, enabledColumns, NAME_STYLES } from '../lib/settings';
-import { type Col, Table } from '../lib/table';
+import { type Col, columnFitter, Table } from '../lib/table';
 import type { Session, StandClass, StandRow, Standings } from '../lib/types';
 import { COLUMN_STYLE_SETTINGS, driverCols, extraCols, tireCell } from './common';
 
@@ -34,7 +34,6 @@ const COLS = [
   { id: 'tire', label: 'Tyre (wet/dry)' },
   { id: 'points', label: 'League points for position' },
   { id: 'seasonPoints', label: 'Championship total (projected)' },
-  { id: 'pit', label: 'Pit flag' },
 ];
 
 interface Section {
@@ -52,13 +51,13 @@ export const standings: OverlayDef = {
   description: 'Multi-class leaderboard with gaps, intervals, lap times, pit stops and positions gained. Respects league classes.',
   topics: ['standings', 'session'],
   size: [700, 380],
-  commonDefaults: { autoHeight: true },
+  commonDefaults: { autoHeight: true, autoWidth: true },
   settings: [
     { key: 'mode', label: 'Show', type: 'select', default: 'multiclass', options: [['multiclass', 'All classes'], ['myClass', 'My class only'], ['overall', 'Single overall list']], group: 'Layout' },
     { key: 'maxRows', label: 'Rows in my class', type: 'number', default: 10, min: 1, max: 64, group: 'Layout' },
     { key: 'otherClassRows', label: 'Rows in other classes', type: 'number', default: 3, min: 0, max: 64, group: 'Layout' },
     { key: 'topRows', label: 'Always show top', type: 'number', default: 3, min: 0, max: 20, group: 'Layout', help: 'The rest of the rows follow the car you are watching' },
-    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'flag', 'name', 'irating', 'gap', 'interval', 'lastLap', 'bestLap', 'pit']), group: 'Columns' },
+    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'flag', 'name', 'irating', 'gap', 'interval', 'lastLap', 'bestLap']), group: 'Columns' },
     { key: 'nameStyle', label: 'Name format', type: 'select', default: 'full', options: NAME_STYLES, group: 'Columns' },
     { key: 'gapDecimals', label: 'Gap decimals', type: 'number', default: 1, min: 0, max: 3, group: 'Columns' },
     ...COLUMN_STYLE_SETTINGS,
@@ -97,11 +96,11 @@ export const standings: OverlayDef = {
       { id: 'laps', label: 'Laps', width: '2.6em', align: 'right', render: (c, r) => text(c, String(r.laps)) },
       { id: 'pits', label: 'Stops', width: '2.8em', align: 'center', render: (c, r) => text(c, r.pitStops ? String(r.pitStops) : '') },
       { id: 'tire', label: 'Tyre', width: '2.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
-      { id: 'pit', label: 'Pit', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.inWorld ? '' : 'OUT') },
       ...extraCols<StandRow>(s),
     ];
     const order = enabledColumns(s.columns);
     let sections: Section[] = [];
+    const fit = columnFitter();
     let key = '';
 
     const section = (id: string, first: boolean): Section => {
@@ -163,6 +162,7 @@ export const standings: OverlayDef = {
             (row, r) => row.style.setProperty('--class', r.classColor),
           );
         });
+        if (s.autoWidth) fit(sections.map((x) => x.table));
       },
     };
   },

@@ -78,6 +78,7 @@ export const weather: OverlayDef = {
     root.append(compass, side);
     let session: Session | null = null;
     let heading = 0;
+    let headingKnown = true;
 
     const draw = () => {
       if (!session) return;
@@ -93,7 +94,9 @@ export const weather: OverlayDef = {
       const rel = ((from - hdg) * Math.PI) / 180;
       const head = speed * Math.cos(rel);
       const cross = speed * Math.sin(rel);
-      text(
+      show(car, headingKnown);
+      if (!headingKnown) text(comp, 'Heading unknown — drive a lap to record the track');
+      else text(
         comp,
         `${head >= 0 ? 'Head' : 'Tail'} ${Math.abs(head).toFixed(0)} · ${Math.abs(cross) < 0.5 ? 'no cross' : `cross ${Math.abs(cross).toFixed(0)} from ${cross > 0 ? 'right' : 'left'}`}`,
       );
@@ -115,9 +118,11 @@ export const weather: OverlayDef = {
       update(topic, data) {
         if (topic === 'session') session = data as Session;
         if (topic === 'player') {
-          const hd = (data as Player).heading ?? 0;
-          if (Math.abs(hd - heading) < 0.2 && topic === 'player') return;
+          const raw = (data as Player).heading;
+          const hd = raw ?? 0;
+          if (Math.abs(hd - heading) < 0.2 && headingKnown === (raw != null)) return;
           heading = hd;
+          headingKnown = raw != null;
         }
         draw();
       },

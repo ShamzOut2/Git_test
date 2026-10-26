@@ -31,7 +31,7 @@ export const FIELDS: Field[] = [
   { id: 'brake', group: 'Car', label: 'Brake', get: (d) => num(d.player ? d.player.brake * 100 : null, 0, '%') },
   { id: 'latG', group: 'Car', label: 'Lateral G', get: (d, o) => num(d.player?.latG, Math.max(1, o.dec), ' G') },
   { id: 'longG', group: 'Car', label: 'Longitudinal G', get: (d, o) => num(d.player?.longG, Math.max(1, o.dec), ' G') },
-  { id: 'heading', group: 'Car', label: 'Heading', get: (d) => (d.player ? { v: `${Math.round(d.player.heading)}° ${f.compass(d.player.heading)}` } : null) },
+  { id: 'heading', group: 'Car', label: 'Heading', get: (d) => (d.player?.heading != null ? { v: `${Math.round(d.player.heading)}° ${f.compass(d.player.heading)}` } : null) },
   // Laps
   { id: 'lapTime', group: 'Laps', label: 'Current lap', get: (d) => (d.player ? { v: f.lapTime(d.player.lapTime) } : null) },
   { id: 'lastLap', group: 'Laps', label: 'Last lap', get: (d) => (d.player ? { v: f.lapTime(d.player.lastLap) } : null) },
