@@ -563,6 +563,15 @@ mod tests {
     use super::*;
 
     #[test]
+    fn countries_from_flair() {
+        // As sent by iRacing (2026): FlairName / FlairID per driver.
+        let y = "DriverInfo:\n DriverCarIdx: 0\n Drivers:\n - CarIdx: 0\n   UserName: A\n   ClubName: None\n   FlairName: Antarctica\n   FlairID: 11\n - CarIdx: 1\n   UserName: B\n   FlairName: Global\n   FlairID: 2\n - CarIdx: 2\n   UserName: C\n   FlairName: Poland\n   FlairID: 167\n";
+        let s = SessionInfo::parse(y);
+        let c: Vec<&str> = s.drivers.iter().map(|d| d.country.as_str()).collect();
+        assert_eq!(c, ["AQ", "GLOBE", "PL"]);
+    }
+
+    #[test]
     fn parses_session_info() {
         let s = SessionInfo::parse(
             "WeekendInfo:\n TrackID: 9\n TrackDisplayName: Road Atlanta\n TrackLength: 4.08 km\n WeekendOptions:\n  IncidentLimit: unlimited\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionLaps: 20\n   SessionTime: unlimited\n   SessionType: Race\nDriverInfo:\n DriverCarIdx: 2\n DriverCarFuelMaxLtr: 100.0\n DriverCarMaxFuelPct: 0.5\n DriverTires:\n - TireIndex: 0\n   TireCompoundType: \"Hard\"\n - TireIndex: 1\n   TireCompoundType: \"Wet\"\n Drivers:\n - CarIdx: 2\n   UserName: Me\n   CarClassColor: 0xff0000\n",

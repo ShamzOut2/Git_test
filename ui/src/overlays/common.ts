@@ -9,6 +9,8 @@ import type { Driver, Extras } from '../lib/types';
 /** ISO code → flag emoji (rendered by the bundled flag font). Handles GB-SCT style UK nations. */
 export function flagEmoji(code: string): string {
   if (!code) return '';
+  // iRacing's "Global" flair.
+  if (code === 'GLOBE') return '\u{1F310}';
   if (code.toUpperCase().startsWith('GB-')) {
     const tag = `gb${code.slice(3).toLowerCase()}`;
     return `\u{1F3F4}${[...tag].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('')}\u{E007F}`;
@@ -121,7 +123,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
   const nameStyle = s.nameStyle as string;
   return [
     { id: 'number', label: '#', width: '2.9em', align: 'center', render: (c, r) => chip(c, r.number, r.classColor) },
-    { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
+    { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' && r.country !== 'GLOBE' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
     { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), r as NameRow, s) },
     { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
     { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string) },
