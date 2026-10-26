@@ -23,6 +23,9 @@ pub struct Config {
     pub battle: BattleConfig,
     pub leagues: Vec<League>,
     pub active_league: Option<String>,
+    /// "auto": use the league whose iRacing league ID matches the session (none otherwise);
+    /// "always": always use `active_league`, whatever the session.
+    pub league_mode: String,
     pub garage61: Garage61Config,
     /// Colour themes the user saved (name + theme values), shared by overlays and the settings window.
     pub saved_themes: Vec<serde_json::Value>,
@@ -37,6 +40,10 @@ pub struct Config {
     pub penalties: Vec<Penalty>,
     /// Edit mode: dragging any overlay moves all of them.
     pub move_all_together: bool,
+    /// Short class names (GT3, TCR, LMP2...) from Lovely Car Classes / Car Data.
+    pub short_class_names: bool,
+    /// "Remind me later" / "skip this version" for the update pop-up.
+    pub update_postpone: Option<UpdatePostpone>,
 }
 
 /// A penalty given by hand (iRacing does not say which penalty a black flag means).
@@ -108,6 +115,7 @@ impl Default for Config {
             battle: BattleConfig::default(),
             leagues: vec![],
             active_league: None,
+            league_mode: "auto".into(),
             garage61: Garage61Config::default(),
             saved_themes: vec![],
             track_corners: Default::default(),
@@ -116,6 +124,8 @@ impl Default for Config {
             auto_check_updates: true,
             penalties: vec![],
             move_all_together: false,
+            short_class_names: true,
+            update_postpone: None,
         }
     }
 }
@@ -287,6 +297,21 @@ pub struct Corner {
     pub end: f32,
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct UpdatePostpone {
+    pub version: String,
+    /// Unix time (seconds) until which the pop-up stays away; `None` = skip this version.
+    pub until: Option<i64>,
+}
+
+impl UpdatePostpone {
+    /// The start-up pop-up should stay away for `version` at `now` (unix seconds).
+    pub fn holds(&self, version: &str, now: i64) -> bool {
+        self.version == version && self.until.is_none_or(|u| now < u)
+    }
+}
+
 /// Credentials for the iRacing Data API (OAuth "password limited" grant). Secrets are stored
 /// masked (base64 SHA-256, as iRacing's token endpoint expects), never in plain text.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -444,6 +469,17 @@ impl ConfigStore {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn update_postpone() {
+        let later = UpdatePostpone { version: "0.6.0".into(), until: Some(1_000) };
+        assert!(later.holds("0.6.0", 999));
+        assert!(!later.holds("0.6.0", 1_000), "reminder time reached");
+        assert!(!later.holds("0.7.0", 0), "a newer version always pops up");
+        let skip = UpdatePostpone { version: "0.6.0".into(), until: None };
+        assert!(skip.holds("0.6.0", i64::MAX));
+        assert!(!skip.holds("0.6.1", 0));
+    }
+
     use super::*;
 
     #[test]

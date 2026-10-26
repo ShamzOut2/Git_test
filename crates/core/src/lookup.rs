@@ -17,6 +17,9 @@ Taiwan:TW;Thailand:TH;Trinidad and Tobago:TT;Tunisia:TN;Turkey:TR;Türkiye:TR;Uk
 United Kingdom:GB;Great Britain:GB;UK:GB;United States:US;United States of America:US;USA:US;Uruguay:UY;Uzbekistan:UZ;\
 Venezuela:VE;Vietnam:VN;Viet Nam:VN;Wales:GB-WLS;Zambia:ZM;Zimbabwe:ZW";
 
+/// The rest of the world (ISO 3166-1), plus flairs that are not countries.
+const WORLD: &str = "Aland Islands:AX;American Samoa:AS;Anguilla:AI;Antarctica:AQ;Antigua and Barbuda:AG;Benin:BJ;Bonaire:BQ;Bouvet Island:BV;British Indian Ocean Territory:IO;British Virgin Islands:VG;Virgin Islands British:VG;Burkina Faso:BF;Burundi:BI;Central African Republic:CF;Chad:TD;Christmas Island:CX;Cocos Islands:CC;Cocos Keeling Islands:CC;Comoros:KM;Congo:CG;Republic of the Congo:CG;Democratic Republic of the Congo:CD;Congo Democratic Republic:CD;DR Congo:CD;Cook Islands:CK;Djibouti:DJ;Dominica:DM;East Timor:TL;Timor-Leste:TL;Equatorial Guinea:GQ;Eritrea:ER;Eswatini:SZ;Swaziland:SZ;Falkland Islands:FK;French Guiana:GF;French Southern Territories:TF;Gabon:GA;Gambia:GM;Grenada:GD;Guam:GU;Guinea:GN;Guinea-Bissau:GW;Heard Island and McDonald Islands:HM;Kiribati:KI;North Korea:KP;Korea Democratic People's Republic:KP;Lesotho:LS;Liberia:LR;Marshall Islands:MH;Mauritania:MR;Mayotte:YT;Micronesia:FM;Montserrat:MS;Nauru:NR;Niger:NE;Niue:NU;Norfolk Island:NF;Northern Mariana Islands:MP;Palau:PW;Pitcairn:PN;Pitcairn Islands:PN;Saint Barthelemy:BL;Saint Helena:SH;Saint Kitts and Nevis:KN;Saint Lucia:LC;Saint Martin:MF;Saint Pierre and Miquelon:PM;Saint Vincent and the Grenadines:VC;Sao Tome and Principe:ST;Seychelles:SC;Sierra Leone:SL;Sint Maarten:SX;Solomon Islands:SB;Somalia:SO;South Georgia and the South Sandwich Islands:GS;South Sudan:SS;Svalbard and Jan Mayen:SJ;Togo:TG;Tokelau:TK;Turks and Caicos Islands:TC;Tuvalu:TV;United States Minor Outlying Islands:UM;US Virgin Islands:VI;Virgin Islands US:VI;Vanuatu:VU;Wallis and Futuna:WF;Western Sahara:EH;European Union:EU;Europe:EU;United Nations:UN;Basque Country:ES;Catalonia:ES;Global:GLOBE;World:GLOBE;International:GLOBE";
+
 /// Longer official names and alternative spellings, plus common ISO alpha-3 codes.
 const ALIASES: &str = "Korea Republic Of:KR;Republic of Korea:KR;Iran Islamic Republic Of:IR;Taiwan Province Of China:TW;Chinese Taipei:TW;\
 Hong Kong SAR:HK;Hong Kong SAR China:HK;Macao SAR China:MO;The Former Yugoslav Republic of Macedonia:MK;Bolivia Plurinational State Of:BO;\
@@ -61,12 +64,26 @@ fn norm(s: &str) -> String {
 }
 
 fn entries() -> impl Iterator<Item = (&'static str, &'static str)> {
-    COUNTRIES.split(';').chain(ALIASES.split(';')).filter_map(|e| e.trim().rsplit_once(':'))
+    COUNTRIES.split(';').chain(WORLD.split(';')).chain(ALIASES.split(';')).filter_map(|e| e.trim().rsplit_once(':'))
 }
 
 /// iRacing flair IDs seen in real Data API responses (flair_id → ISO code).
-const FLAIR_IDS: &[(i64, &str)] =
-    &[(13, "AR"), (16, "AU"), (31, "BR"), (39, "CA"), (71, "FR"), (77, "DE"), (79, "GI"), (104, "JP"), (168, "PT"), (222, "GB"), (223, "US")];
+const FLAIR_IDS: &[(i64, &str)] = &[
+    (2, "GLOBE"),
+    (11, "AQ"),
+    (13, "AR"),
+    (16, "AU"),
+    (31, "BR"),
+    (39, "CA"),
+    (71, "FR"),
+    (77, "DE"),
+    (79, "GI"),
+    (104, "JP"),
+    (167, "PL"),
+    (168, "PT"),
+    (222, "GB"),
+    (223, "US"),
+];
 
 /// Best country for a driver from every flair field iRacing may send: an ISO country code,
 /// a three-letter short name, the flair name, or a known flair ID.
@@ -149,6 +166,10 @@ const MAKES: &[(&str, &str)] = &[
     ("volkswagen", "Volkswagen"),
     ("vw", "Volkswagen"),
     ("williams", "Williams"),
+    ("ruf", "Ruf"),
+    ("tatuus", "Tatuus"),
+    ("fia f4", "Tatuus"),
+    ("formula 4", "Tatuus"),
 ];
 
 /// Manufacturer of a car from its screen name or path; falls back to the first word.
@@ -165,6 +186,13 @@ mod tests {
     use super::*;
 
     #[test]
+    fn more_makes() {
+        assert_eq!(make("FIA F4", "formulaf4"), "Tatuus");
+        assert_eq!(make("Dallara P217", "dallarap217"), "Dallara");
+        assert_eq!(make("Williams FW31", "williamsfw31"), "Williams");
+    }
+
+    #[test]
     fn countries() {
         assert_eq!(country_code("United Kingdom"), "GB");
         assert_eq!(country_code("germany"), "DE");
@@ -179,6 +207,9 @@ mod tests {
         assert_eq!(country_code("Côte d'Ivoire"), "CI");
         assert_eq!(country_code("None"), "");
         assert_eq!(country_code("iRacing"), "");
+        assert_eq!(country_code("Antarctica"), "AQ");
+        assert_eq!(country_code("Global"), "GLOBE");
+        assert_eq!(country_code("Poland"), "PL");
         assert_eq!(driver_country("", "", "", 223), "US");
         assert_eq!(driver_country("AU", "AUS", "Australia", 16), "AU");
         assert_eq!(driver_country("", "DEU", "", 0), "DE");

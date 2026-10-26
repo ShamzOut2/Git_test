@@ -190,6 +190,12 @@ enum ClientMsg {
     },
     CheckUpdate,
     InstallUpdate,
+    /// Update pop-up: remind me in `days` days, or skip this version when `days` is absent.
+    PostponeUpdate {
+        version: String,
+        days: Option<u32>,
+    },
+    ClosePrompt,
 }
 
 async fn ws(upgrade: WebSocketUpgrade, State(s): State<AppState>) -> Response {
@@ -300,6 +306,13 @@ fn handle(s: &AppState, m: ClientMsg, subs: &mut HashSet<String>, send_now: &mut
             s.hub.publish("update", r#"{"status":"unsupported","message":"Updates are installed by the Apex Overlays desktop app"}"#);
         }
         ClientMsg::CheckUpdate => s.hub.host(HostEvent::CheckUpdate),
+        ClientMsg::PostponeUpdate { version, days } => {
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+            let until = days.map(|d| now + d as i64 * 86_400);
+            s.config.update(|c| c.update_postpone = Some(crate::config::UpdatePostpone { version, until }));
+            s.hub.host(HostEvent::ClosePrompt);
+        }
+        ClientMsg::ClosePrompt => s.hub.host(HostEvent::ClosePrompt),
         ClientMsg::InstallUpdate => s.hub.host(HostEvent::InstallUpdate),
     }
 }

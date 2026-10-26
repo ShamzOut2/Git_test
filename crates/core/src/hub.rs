@@ -33,17 +33,23 @@ pub enum HostEvent {
     },
     CheckUpdate,
     InstallUpdate,
+    /// Close the update pop-up window.
+    ClosePrompt,
 }
 
 /// Commands for the telemetry thread.
 #[derive(Debug, Clone)]
 pub enum Command {
     ResetTrackMap,
-    SetCorners {
+    SetTrackData {
         track_id: i64,
-        corners: Vec<crate::config::Corner>,
+        data: crate::corners::TrackData,
         source: &'static str,
     },
+    /// Lovely Car Data per `CarPath` (lower case).
+    SetCarData(std::collections::HashMap<String, crate::cardata::CarData>),
+    /// Lovely Car Classes: iRacing class name → shorthand.
+    SetClassNames(std::collections::HashMap<String, String>),
     /// Driver countries looked up from the iRacing Data API (customer ID → ISO code).
     SetCountries(std::collections::BTreeMap<i64, String>),
 }

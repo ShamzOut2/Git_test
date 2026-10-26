@@ -26,8 +26,16 @@ so installed apps will not see them as updates.
 ## Publishing an update
 
 1. Bump the version in `Cargo.toml` (`[workspace.package] version`), `apps/desktop/tauri.conf.json` and `ui/package.json`.
+   Add a `## x.y.z` section to `CHANGELOG.md`: it becomes the release notes and is shown in the app's update pop-up.
 2. Merge to `main`, then **Actions → Release → Run workflow** with the version (e.g. `v0.5.0`), or push a tag `v0.5.0`.
 3. Installed apps offer the update the next time they start or when you click *Check for updates*.
+
+## The update pop-up
+
+When the start-up check finds a new version, a small window offers it: **Update now**, **Remind me tomorrow**,
+**Remind me in a week** or **Skip this version**. The choice is remembered: a reminder shows up again on the first
+start after the chosen time, a skipped version is never offered again, and a newer version always pops up.
+*Settings → General → Updates* shows a postponed reminder and can bring it back.
 
 Copies older than 0.4.0 have no updater: install 0.4.0 (or later) once by hand; every update after that
 happens inside the app.

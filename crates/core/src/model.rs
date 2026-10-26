@@ -351,6 +351,10 @@ pub struct SessionInfo {
     pub est_lap_time: f32,
     pub shift_rpm: f32,
     pub redline_rpm: f32,
+    /// iRacing's own shift-light points: first light, last light, flashing.
+    pub sl_first_rpm: f32,
+    pub sl_last_rpm: f32,
+    pub sl_blink_rpm: f32,
     pub tires: Vec<TireDef>,
     pub sectors: Vec<f32>,
     /// Qualifying order carried into the race (QualifyResultsInfo), in finishing order.
@@ -462,6 +466,9 @@ impl SessionInfo {
             est_lap_time: di.get("DriverCarEstLapTime").f32_or(0.0),
             shift_rpm: di.get("DriverCarSLShiftRPM").f32_or(0.0),
             redline_rpm: di.get("DriverCarRedLine").f32_or(0.0),
+            sl_first_rpm: di.get("DriverCarSLFirstRPM").f32_or(0.0),
+            sl_last_rpm: di.get("DriverCarSLLastRPM").f32_or(0.0),
+            sl_blink_rpm: di.get("DriverCarSLBlinkRPM").f32_or(0.0),
             tires: di
                 .get("DriverTires")
                 .list()
@@ -561,6 +568,15 @@ pub fn session_state_label(s: i32) -> &'static str {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn countries_from_flair() {
+        // As sent by iRacing (2026): FlairName / FlairID per driver.
+        let y = "DriverInfo:\n DriverCarIdx: 0\n Drivers:\n - CarIdx: 0\n   UserName: A\n   ClubName: None\n   FlairName: Antarctica\n   FlairID: 11\n - CarIdx: 1\n   UserName: B\n   FlairName: Global\n   FlairID: 2\n - CarIdx: 2\n   UserName: C\n   FlairName: Poland\n   FlairID: 167\n";
+        let s = SessionInfo::parse(y);
+        let c: Vec<&str> = s.drivers.iter().map(|d| d.country.as_str()).collect();
+        assert_eq!(c, ["AQ", "GLOBE", "PL"]);
+    }
 
     #[test]
     fn parses_session_info() {

@@ -36,7 +36,11 @@ export function columns(def: ColumnDef[], on: string[]): { columns: ColumnDef[];
 function mergeColumns(stored: unknown, def: Extract<SettingDef, { type: 'columns' }>): ColumnSetting[] {
   if (!Array.isArray(stored)) return def.default.map((c) => ({ ...c }));
   const known = new Set(def.columns.map((c) => c.id));
-  const out = (stored as ColumnSetting[]).filter((c) => c && known.has(c.id)).map((c) => ({ id: c.id, on: !!c.on }));
+  // Each column once (the first entry wins), unknown ones dropped, new ones appended.
+  const seen = new Set<string>();
+  const out = (stored as ColumnSetting[])
+    .filter((c) => c && known.has(c.id) && !seen.has(c.id) && !!seen.add(c.id))
+    .map((c) => ({ id: c.id, on: !!c.on }));
   for (const d of def.default) if (!out.some((c) => c.id === d.id)) out.push({ ...d });
   return out;
 }

@@ -22,7 +22,7 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 | **Relative** | Cars around you on track with colours for cars a lap ahead or behind. The gap column shows the time to each car on track, the gap to the class leader, or the gap to the car ahead (interval). |
 | **Standings** | Multi-class leaderboard with gap to leader and interval. It shows the top rows and a window around you, per class or as one overall list. |
 | **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sector lines, start/finish, class-leader rings, rotation and mirroring. **Sector performance** paints each sector of your lap: purple when faster than your best, green when within 0.25 s of it (adjustable), yellow when slower. The colours stay for 5 s after you cross the line. |
-| **Driver inputs** | Throttle, brake and clutch bars with their percentage above each bar, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
+| **Driver inputs** | Shift lights (per-gear shift points, flashing when it's time to shift), throttle, brake and clutch bars with their percentage above each bar, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
 | **Fuel calculator** | Average/last/max use per lap, laps of fuel, race laps left (lap- or time-limited, lapped-car aware), fuel to finish, fuel to add, stops, pit window and how much to save to skip a stop. |
 | **Battle box** | The car ahead and behind — in the race overall, in your class, or physically nearest on track (pick per overlay): gap, how fast it is closing (s/lap), laps until you catch them (or they catch you), and their last lap against yours. |
 | **Flags** | A digital (LED-style) flag panel showing the flags out right now — green, yellow and waving yellow, caution, blue, white, chequered, red, black, meatball, furled black, debris, crossed flags, one-lap-to-green, 5/10 to go and more — plus start lights. Every flag can be switched on or off. |
@@ -37,7 +37,7 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 Every column has a title (it can be switched off), and you can toggle and reorder every column:
 
 - class and overall position, car number, **country flag** (from the driver's iRacing flair; when a session doesn't include it, looked up once through the iRacing Data API if you have set that up, or set by hand in the League builder), driver, team
-- **manufacturer** logo or badge (put your own logo images in `%APPDATA%\Apex Overlays\logos\`, e.g. `porsche.png`), class, car, licence, iRating
+- **manufacturer** logo (logos for iRacing's manufacturers are built in; your own images in `%APPDATA%\Apex Overlays\logos\`, e.g. `porsche.png`, take priority), class, car, licence, iRating
 - **iRating gain/loss** and **safety rating gain/loss** (live estimates), incidents
 - current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), **last lap** and **best lap** of every driver (purple = fastest of the class, green = a personal best), **tyre** (a white **D** badge for dry tyres, a blue **W** for wets)
 - a **chequered flag** next to each driver's name once they have taken the flag at the end of the race
@@ -64,7 +64,7 @@ The **header** of both overlays is also customisable. By default it shows the ov
 - **The global theme** sets font, size and weight, every colour (player, lapped, lapping, pit, fastest, good/bad, caution), corner radius, row shading and padding, outline and text shadow.
 - **Multiple copies of the same overlay** can run side by side with different settings, for example a compact relative for VR-style layouts and a full one for streaming.
 - **Race control** (settings page) lets you hand out penalties by hand: drive-through, stop & go with its length, or added time. They're shown next to the driver's name. iRacing itself only reports *that* a black flag is out, not which penalty it is.
-- **The League builder** creates your own classes and assigns cars to them by car number, customer ID, driver or team name (wildcards), car model, car ID or iRacing class ID. You can also assign drivers in the current session from a dropdown, rename drivers and teams, set a driver's flag, or hide spectators.
+- **The League builder** switches leagues automatically: in a session of an iRacing league, the league you built (or imported) with that league ID is used, and in every other session (official races, other leagues) no league is applied. You can also choose to always use one league, e.g. for hosted sessions that aren't run as an iRacing league. It creates your own classes and assigns cars to them by car number, customer ID, driver or team name (wildcards), car model, car ID or iRacing class ID. You can also assign drivers in the current session from a dropdown, rename drivers and teams, set a driver's flag, or hide spectators.
   - **Import from iRacing by league ID** pulls the league name, roster nicknames, car classes, points system and championship standings. It needs iRacing Data API access (see below).
   - **Manual setup** covers league name, league ID, season, classes, points and bonuses, all typed by hand. **Pull drivers from current session** fills the driver roster automatically (names, car numbers, customer IDs). You then pick each driver's class and can add a nickname, team, flag or league car number.
   - **Create from current session** builds the classes *and* the roster from the session you're in, with no API needed.
@@ -110,11 +110,18 @@ iRacing only allows API access through OAuth. To import a league by ID you need 
 iRacing's points-system endpoint only returns a name and description, so the points table is read from that description when it
 lists the points. Otherwise pick a preset or type it in.
 
-### Corner names
+### Track, car and class data
 
-Corner names and turn numbers come from the community [Lovely Track Data](https://github.com/Lovely-Sim-Racing/lovely-track-data)
-project. They are downloaded the first time you drive a track and cached. For any track you can edit them, or add your own
-("Add corner at my car's position"), under *General → Track map & corners*.
+Corner names and turn numbers, straight names, and pit entry and exit on the track map come from the community
+[Lovely Track Data](https://github.com/Lovely-Sim-Racing/lovely-track-data) project. They are downloaded the first time you
+drive a track and cached. For any track you can edit the corners, or add your own ("Add corner at my car's position"), under
+*General → Track map & corners*.
+
+Shift lights in the driver inputs overlay use per-gear shift points and colours from
+[Lovely Car Data](https://github.com/Lovely-Sim-Racing/lovely-car-data) when your car is listed there, and iRacing's own shift
+points otherwise. Short class names (GT3, TCR, LMP2…) come from [Lovely Car Classes](https://github.com/Lovely-Sim-Racing/lovely-car-classes)
+and Lovely Car Data; switch them off under *General*. For a logo next to a class name in the standings, put an image named
+after the class in `%APPDATA%\Apex Overlays\logos\`, e.g. `class-gt3.png`.
 
 ### Without iRacing: the built-in simulator
 

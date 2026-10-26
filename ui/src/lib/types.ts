@@ -299,6 +299,32 @@ export interface TrackMap {
   sectors: number[];
   corners: Corner[];
   cornersSource: 'custom' | 'lovely' | 'mock' | 'none';
+  /** Named straights from Lovely Track Data. */
+  straights: Corner[];
+  pitEntry: number | null;
+  pitExit: number | null;
+}
+
+/** Shift-light data of the player's car. */
+export interface CarInfo {
+  carPath: string;
+  carName: string;
+  source: 'lovely' | 'iracing';
+  lovely: {
+    carName: string;
+    carClass: string;
+    leds: number;
+    blinkMs: number;
+    /** Index 0 = redline colour ('' = none), then one per light. */
+    colors: string[];
+    /** Gear ('R', 'N', '1'…) → [redline RPM, light 1 RPM, …]. */
+    rpm: Record<string, number[]>;
+  } | null;
+  slFirst: number;
+  slShift: number;
+  slLast: number;
+  slBlink: number;
+  redline: number;
 }
 
 export interface Corner {
@@ -436,14 +462,19 @@ export interface Config {
   battle: { maxGap: number };
   leagues: League[];
   activeLeague: string | null;
+  /** 'auto': the league matching the session's iRacing league ID (none otherwise); 'always': activeLeague. */
+  leagueMode: 'auto' | 'always';
   garage61: { enabled: boolean; token: string; includeTeam: boolean; refreshMinutes: number };
   savedThemes: SavedTheme[];
   trackCorners: Record<string, Corner[]>;
   iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
   ratingsOfficialOnly: boolean;
   autoCheckUpdates: boolean;
+  /** "Remind me later" / "skip this version" from the update pop-up (until: unix seconds, null = skip). */
+  updatePostpone: { version: string; until: number | null } | null;
   penalties: Penalty[];
   moveAllTogether: boolean;
+  shortClassNames: boolean;
 }
 
 export interface Penalty {
@@ -474,6 +505,7 @@ export interface TopicMap {
   battle: Battle;
   tyres: Tyres;
   trackmap: TrackMap;
+  car: CarInfo;
   garage61: Garage61;
   status: Status;
   config: Config;

@@ -17,6 +17,7 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, RunEvent, WebviewU
 use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const SETTINGS: &str = "settings";
+const UPDATE_PROMPT: &str = "update-prompt";
 const PREFIX: &str = "ov-";
 
 /// Pending (position, size) of an overlay window, in logical pixels.
@@ -72,6 +73,26 @@ fn show_settings(app: &AppHandle) {
         .title("Apex Overlays")
         .inner_size(1240.0, 860.0)
         .min_inner_size(900.0, 600.0)
+        .build();
+}
+
+/// The small "update available" window (the settings page in pop-up mode).
+fn show_update_prompt(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window(UPDATE_PROMPT) {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let url = format!("{}?prompt=update", app.state::<Core>().url).parse().expect("valid url");
+    let _ = WebviewWindowBuilder::new(app, UPDATE_PROMPT, WebviewUrl::External(url))
+        .title("Apex Overlays – update available")
+        .inner_size(480.0, 340.0)
+        .resizable(false)
+        .minimizable(false)
+        .maximizable(false)
+        .always_on_top(true)
+        .center()
+        .focused(true)
         .build();
 }
 
@@ -216,7 +237,12 @@ fn handle_host_event(app: &AppHandle, ev: HostEvent) {
         }
         HostEvent::CheckUpdate => {
             let app = app.clone();
-            tauri::async_runtime::spawn(async move { check_update(app).await });
+            tauri::async_runtime::spawn(async move { check_update(app, false).await });
+        }
+        HostEvent::ClosePrompt => {
+            if let Some(w) = app.get_webview_window(UPDATE_PROMPT) {
+                let _ = w.close();
+            }
         }
         HostEvent::InstallUpdate => {
             let app = app.clone();
@@ -232,7 +258,8 @@ fn publish_update(app: &AppHandle, v: serde_json::Value) {
 }
 
 /// Ask GitHub Releases (via the signed `latest.json`) whether a newer version exists.
-async fn check_update(app: AppHandle) {
+/// `prompt`: pop up the update window when one is found, unless the user postponed that version.
+async fn check_update(app: AppHandle, prompt: bool) {
     use tauri_plugin_updater::UpdaterExt;
     publish_update(&app, serde_json::json!({ "status": "checking" }));
     let result = match app.updater() {
@@ -242,7 +269,13 @@ async fn check_update(app: AppHandle) {
     match result {
         Ok(Some(update)) => {
             publish_update(&app, serde_json::json!({ "status": "available", "version": update.version, "notes": update.body.clone().unwrap_or_default() }));
+            let version = update.version.clone();
             *app.state::<Core>().update.lock().await = Some(update);
+            let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+            let postponed = app.state::<Core>().config.read(|c| c.update_postpone.as_ref().is_some_and(|p| p.holds(&version, now)));
+            if prompt && !postponed {
+                show_update_prompt(&app);
+            }
         }
         Ok(None) => publish_update(&app, serde_json::json!({ "status": "none" })),
         Err(e) => publish_update(&app, serde_json::json!({ "status": "error", "message": e })),
@@ -252,7 +285,7 @@ async fn check_update(app: AppHandle) {
 /// Download the update, verify its signature and run the installer (the app closes and restarts).
 async fn install_update(app: AppHandle) {
     let Some(update) = app.state::<Core>().update.lock().await.take() else {
-        return check_update(app).await;
+        return check_update(app, false).await;
     };
     let version = update.version.clone();
     let mut done: usize = 0;
@@ -396,7 +429,7 @@ fn main() {
                 let h = handle.clone();
                 tauri::async_runtime::spawn(async move {
                     tokio::time::sleep(Duration::from_secs(8)).await;
-                    check_update(h).await;
+                    check_update(h, true).await;
                 });
             }
             reconcile(&handle);

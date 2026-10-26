@@ -9,6 +9,8 @@ import type { Driver, Extras } from '../lib/types';
 /** ISO code → flag emoji (rendered by the bundled flag font). Handles GB-SCT style UK nations. */
 export function flagEmoji(code: string): string {
   if (!code) return '';
+  // iRacing's "Global" flair.
+  if (code === 'GLOBE') return '\u{1F310}';
   if (code.toUpperCase().startsWith('GB-')) {
     const tag = `gb${code.slice(3).toLowerCase()}`;
     return `\u{1F3F4}${[...tag].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('')}\u{E007F}`;
@@ -19,30 +21,44 @@ export function flagEmoji(code: string): string {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-/** Logo lookup: user images in <data dir>/logos/<make>.svg|png|webp, probed once per make. */
+/**
+ * Logo lookup, probed once per name: the user's images in <data dir>/logos/<name>.svg|png|webp
+ * first, then (for manufacturers) the logos bundled with the app (car-logos-dataset).
+ */
 const logos = new Map<string, string | null>();
-function probeLogo(make: string, done: () => void) {
+function probeLogo(make: string, done: () => void, bundled = false) {
   const key = slug(make);
   if (logos.has(key)) return;
   logos.set(key, null);
-  const exts = ['svg', 'png', 'webp'];
+  const urls = ['svg', 'png', 'webp'].map((e) => `/logos/${key}.${e}`);
+  if (bundled) urls.push(`/assets/makes/${key}.png`);
   const next = (i: number) => {
-    if (i >= exts.length) return;
+    if (i >= urls.length) return;
     const img = new Image();
     img.onload = () => {
       logos.set(key, img.src);
       done();
     };
     img.onerror = () => next(i + 1);
-    img.src = `/logos/${key}.${exts[i]}`;
+    img.src = urls[i];
   };
   next(0);
 }
 
-function makeCell(c: HTMLElement, make: string, style: string) {
+/**
+ * Class logo next to a class name: the user's image logos/class-<name>.png (e.g. class-gt3.png),
+ * or nothing. Returns the image element to show, created once per name.
+ */
+export function classLogo(name: string, onFound: () => void): string | null {
+  const key = `class-${name}`;
+  if (!logos.has(slug(key))) probeLogo(key, onFound);
+  return logos.get(slug(key)) ?? null;
+}
+
+function makeCell(c: HTMLElement, make: string, style: string, plate = true) {
   if (!make) return text(c, '');
   const url = style === 'logo' ? logos.get(slug(make)) : null;
-  if (style === 'logo' && !logos.has(slug(make))) probeLogo(make, () => c.replaceChildren());
+  if (style === 'logo' && !logos.has(slug(make))) probeLogo(make, () => c.replaceChildren(), true);
   if (url) {
     let img = c.firstElementChild as HTMLImageElement | null;
     if (!img || img.tagName !== 'IMG') {
@@ -50,6 +66,7 @@ function makeCell(c: HTMLElement, make: string, style: string) {
       c.replaceChildren(img);
     }
     if (img.getAttribute('src') !== url) img.src = url;
+    toggle(img, 'plate', plate);
     img.alt = make;
     return;
   }
@@ -121,10 +138,10 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
   const nameStyle = s.nameStyle as string;
   return [
     { id: 'number', label: '#', width: '2.9em', align: 'center', render: (c, r) => chip(c, r.number, r.classColor) },
-    { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
+    { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' && r.country !== 'GLOBE' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
     { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), r as NameRow, s) },
     { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
-    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string) },
+    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string, s.makePlate !== false) },
     {
       id: 'license',
       label: 'Lic',
@@ -207,9 +224,10 @@ export const COLUMN_STYLE_SETTINGS = [
     type: 'select' as const,
     default: 'logo',
     options: [['logo', 'Logo (falls back to short name)'], ['short', 'Short name'], ['full', 'Full name']] as [string, string][],
-    help: 'Put your own logo images in the data folder under logos/ (e.g. porsche.png)',
+    help: 'Logos for iRacing’s manufacturers are built in; your own images in the data folder under logos/ (e.g. porsche.png) take priority',
     group: 'Columns',
   },
+  { key: 'makePlate', label: 'Light background behind manufacturer logos', type: 'bool' as const, default: true, group: 'Columns', help: 'Keeps dark logos visible on dark overlays' },
   { key: 'outLapText', label: 'Out-lap label', type: 'text' as const, default: 'OUTLAP', group: 'Columns' },
   { key: 'pointsPlus', label: 'Show points as gains (+25)', type: 'bool' as const, default: true, group: 'Columns' },
   { key: 'finishFlag', label: 'Chequered flag next to drivers who have finished', type: 'bool' as const, default: true, group: 'Columns' },

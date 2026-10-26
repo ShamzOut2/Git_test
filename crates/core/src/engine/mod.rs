@@ -156,7 +156,12 @@ pub struct Engine {
     /// Corners of the current track (custom > downloaded > source-provided).
     pub corners: Vec<Corner>,
     pub corners_source: &'static str,
-    remote_corners: Option<(i64, Vec<Corner>, &'static str)>,
+    remote_track: Option<(i64, crate::corners::TrackData, &'static str)>,
+    /// Lovely Car Data per `CarPath` (lower case) and Lovely Car Classes shorthands.
+    pub car_data: std::collections::HashMap<String, crate::cardata::CarData>,
+    class_names: std::collections::HashMap<String, String>,
+    /// Bumped when car data arrives (the car topic is only re-sent then).
+    pub car_revision: u64,
     /// Countries from the iRacing Data API for drivers the session info has none for.
     remote_countries: std::collections::BTreeMap<i64, String>,
     /// Session time the leader took the chequered flag.
@@ -185,8 +190,11 @@ impl Engine {
             sectors: Default::default(),
             corners: vec![],
             corners_source: "none",
-            remote_corners: None,
+            remote_track: None,
             remote_countries: Default::default(),
+            car_data: Default::default(),
+            class_names: Default::default(),
+            car_revision: 0,
             checkered_at: None,
             last_session: (-1, -1),
             last_state: 0,
@@ -196,17 +204,73 @@ impl Engine {
     }
 
     pub fn set_config(&mut self, cfg: Config) {
-        let league = cfg.active_league.as_ref().and_then(|id| cfg.leagues.iter().find(|l| &l.id == id)).cloned();
-        self.resolver = Resolver::new(league);
         self.cfg = cfg;
+        self.resolver = Resolver::new(self.pick_league());
         self.rebuild_statics();
         self.refresh_corners();
     }
 
+    /// The league to apply to this session. Automatic: the league built for the session's
+    /// iRacing league ID, or none (official races, other leagues). Otherwise the one picked.
+    pub fn pick_league(&self) -> Option<crate::config::League> {
+        let cfg = &self.cfg;
+        if cfg.league_mode == "always" {
+            return cfg.active_league.as_ref().and_then(|id| cfg.leagues.iter().find(|l| &l.id == id)).cloned();
+        }
+        let id = self.info.league_id;
+        (id > 0).then(|| cfg.leagues.iter().find(|l| l.iracing_league_id == id)).flatten().cloned()
+    }
+
     /// Corner data fetched or generated outside the engine for `track_id`.
     pub fn set_remote_corners(&mut self, track_id: i64, corners: Vec<Corner>, source: &'static str) {
-        self.remote_corners = Some((track_id, corners, source));
+        self.set_track_data(track_id, crate::corners::TrackData { corners, ..Default::default() }, source);
+    }
+
+    /// Track data (corners, straights, pit entry/exit) fetched outside the engine for `track_id`.
+    pub fn set_track_data(&mut self, track_id: i64, data: crate::corners::TrackData, source: &'static str) {
+        self.remote_track = Some((track_id, data, source));
         self.refresh_corners();
+    }
+
+    /// Downloaded data for the current track (straights, pit entry/exit), if any.
+    pub fn track_data(&self) -> Option<&crate::corners::TrackData> {
+        self.remote_track.as_ref().filter(|r| r.0 == self.info.track_id).map(|r| &r.1)
+    }
+
+    pub fn set_car_data(&mut self, d: std::collections::HashMap<String, crate::cardata::CarData>) {
+        self.car_data = d;
+        self.car_revision += 1;
+        self.rebuild_statics();
+    }
+
+    pub fn set_class_names(&mut self, c: std::collections::HashMap<String, String>) {
+        self.class_names = c;
+        self.rebuild_statics();
+    }
+
+    /// Short name for an iRacing car class: Lovely Car Classes by iRacing's class name, else the
+    /// class all of its cars share in Lovely Car Data ("Touring Car" → "TCR").
+    fn short_class(&self, d: &crate::model::Driver) -> Option<String> {
+        // iRacing's own names that are simply wrong for the series ("Touring Car" is TCR).
+        const FIXED: &[(&str, &str)] = &[("Touring Car", "TCR")];
+        if let Some((_, n)) = FIXED.iter().find(|(k, _)| k.eq_ignore_ascii_case(d.class_name.trim())) {
+            return Some((*n).to_string());
+        }
+        if !self.cfg.short_class_names {
+            return None;
+        }
+        if let Some(s) = self.class_names.get(&d.class_name) {
+            return Some(s.clone());
+        }
+        let mut found: Option<&str> = None;
+        for o in self.info.drivers.iter().filter(|o| o.class_id == d.class_id && !o.is_pace_car && !o.is_spectator) {
+            match self.car_data.get(&o.car_path.to_lowercase()).map(|c| c.car_class.as_str()).filter(|c| !c.is_empty()) {
+                Some(c) if found.is_none_or(|f| f == c) => found = Some(c),
+                Some(_) => return None,
+                None => {}
+            }
+        }
+        found.map(String::from)
     }
 
     pub fn set_remote_countries(&mut self, c: std::collections::BTreeMap<i64, String>) {
@@ -219,8 +283,8 @@ impl Engine {
         if let Some(c) = self.cfg.track_corners.get(&id.to_string()).filter(|c| !c.is_empty()) {
             self.corners = c.clone();
             self.corners_source = "custom";
-        } else if let Some((_, c, src)) = self.remote_corners.as_ref().filter(|r| r.0 == id) {
-            self.corners = c.clone();
+        } else if let Some((_, d, src)) = self.remote_track.as_ref().filter(|r| r.0 == id && !r.1.corners.is_empty()) {
+            self.corners = d.corners.clone();
             self.corners_source = src;
         } else {
             self.corners.clear();
@@ -372,7 +436,11 @@ impl Engine {
 
     pub fn set_session(&mut self, info: SessionInfo) {
         let track_changed = info.track_id != self.info.track_id;
+        let league_changed = info.league_id != self.info.league_id;
         self.info = info;
+        if league_changed {
+            self.resolver = Resolver::new(self.pick_league());
+        }
         if track_changed {
             self.map.load(self.info.track_id, &self.info.track_display_name);
         }
@@ -389,9 +457,15 @@ impl Engine {
                 continue;
             }
             let (name, team, hidden) = self.resolver.display(d);
+            let mut class = self.resolver.class_of(d);
+            if class.id.starts_with("ir") {
+                if let Some(short) = self.short_class(d) {
+                    class.name = short;
+                }
+            }
             statics[d.car_idx] = Some(Static {
                 idx: d.car_idx,
-                class: self.resolver.class_of(d),
+                class,
                 abbrev: if d.abbrev.is_empty() { name.clone() } else { d.abbrev.clone() },
                 name,
                 team,
@@ -482,6 +556,21 @@ impl Engine {
         }
     }
 
+    /// How far round its lap a car is, in time rather than distance (0..1): the sim's estimated
+    /// time to the car's position over its class's estimated lap time. Unlike the raw estimated
+    /// time this has no jump at the line (the raw value falls from the class lap time to zero,
+    /// which is not the lap time gaps are scaled with), and it accounts for slow and fast parts
+    /// of the track. Falls back to the distance fraction when the sim gives no estimate.
+    pub fn lap_frac(&self, idx: usize) -> f32 {
+        let c = &self.tel.cars[idx];
+        let est = self.info.driver(idx).map(|d| d.class_est_lap).filter(|e| *e > 0.0).unwrap_or(self.info.est_lap_time);
+        if est > 0.0 && c.est_time > 0.0 && c.est_time < est * 1.2 {
+            (c.est_time / est).clamp(0.0, 0.9999)
+        } else {
+            c.pct.clamp(0.0, 0.9999)
+        }
+    }
+
     /// Time from `behind` to `ahead` in race terms. Returns (seconds, whole laps).
     pub fn time_between(&self, behind: usize, ahead: usize) -> (Option<f32>, i32) {
         let dp = self.progress(ahead) - self.progress(behind);
@@ -491,40 +580,23 @@ impl Engine {
         if dp < 0.0 {
             return (Some(0.0), 0);
         }
-        let (a, b) = (&self.tel.cars[ahead], &self.tel.cars[behind]);
         let l = self.ref_lap(behind);
-        let t = if a.est_time > 0.0 || b.est_time > 0.0 {
-            let mut t = a.est_time - b.est_time;
-            if a.pct < b.pct {
-                t += l;
-            }
-            t
-        } else {
-            dp as f32 * l
-        };
-        (Some(t.clamp(0.0, l)), 0)
+        let df = (self.lap_frac(ahead) - self.lap_frac(behind)).rem_euclid(1.0);
+        // Near the line the time and distance fractions can disagree on which side a car is.
+        let df = if (df - dp as f32).abs() > 0.5 { dp as f32 } else { df };
+        (Some((df * l).clamp(0.0, l)), 0)
     }
 
     /// On-track gap from the focus car to `idx` (positive = `idx` is ahead on track).
     pub fn relative_gap(&self, focus: usize, idx: usize) -> f32 {
-        let (f, c) = (&self.tel.cars[focus], &self.tel.cars[idx]);
-        let mut dp = c.pct - f.pct;
-        if dp > 0.5 {
-            dp -= 1.0;
-        } else if dp < -0.5 {
-            dp += 1.0;
+        let mut df = self.lap_frac(idx) - self.lap_frac(focus);
+        if df > 0.5 {
+            df -= 1.0;
+        } else if df < -0.5 {
+            df += 1.0;
         }
         let l = self.ref_lap(focus);
-        if f.est_time <= 0.0 && c.est_time <= 0.0 {
-            return dp * l;
-        }
-        let mut t = c.est_time - f.est_time;
-        if dp > 0.0 && t < 0.0 {
-            t += l;
-        } else if dp < 0.0 && t > 0.0 {
-            t -= l;
-        }
-        t.clamp(-l / 2.0, l / 2.0)
+        (df * l).clamp(-l / 2.0, l / 2.0)
     }
 
     /// Advance all derived state after the source has written a new telemetry row.
@@ -895,6 +967,7 @@ pub(crate) mod tests {
                 ..Default::default()
             }],
             active_league: Some("l".into()),
+            league_mode: "always".into(),
             ..Default::default()
         };
         let mut e = engine(3, true);
@@ -922,6 +995,63 @@ pub(crate) mod tests {
         lap(&mut e, 212.0, [(4, 0.03), (3, 0.01), (2, 0.99)]);
         assert!(e.hist[1].finished);
         assert!(!e.hist[2].finished);
+    }
+
+    #[test]
+    fn gaps_do_not_jump_at_the_line() {
+        let mut e = engine(2, true);
+        e.tick();
+        // Real pace (110 s) differs from the sim's class estimate (100 s, used by est_time).
+        e.hist[0].laps.push_back(LapRec { time: 110.0, wet: None, at: 0.0, pit: false });
+        let mut last: Option<(f32, f32)> = None;
+        // Car 1 runs 4% ahead of car 0 and crosses the line during this.
+        for k in 0..40 {
+            let p0 = 0.94 + k as f32 * 0.001;
+            let p1 = p0 + 0.04;
+            place(&mut e, 0, 3, p0);
+            let (lap1, p1) = if p1 >= 1.0 { (4, p1 - 1.0) } else { (3, p1) };
+            place(&mut e, 1, lap1, p1);
+            e.tick();
+            let rel = e.relative_gap(0, 1);
+            let race = e.time_between(0, 1).0.unwrap();
+            assert!((rel - 4.4).abs() < 0.05, "relative {rel} at {k}");
+            if let Some((r0, t0)) = last {
+                assert!((rel - r0).abs() < 0.05 && (race - t0).abs() < 0.05, "jump at {k}: {r0}->{rel}, {t0}->{race}");
+            }
+            last = Some((rel, race));
+        }
+    }
+
+    #[test]
+    fn touring_car_is_tcr() {
+        let mut y = session_yaml(2, true);
+        y = y.replace("CarClassShortName: C", "CarClassShortName: Touring Car C");
+        let mut e = engine(2, true);
+        e.set_session(SessionInfo::parse(&y.replace("Touring Car C0", "Touring Car").replace("Touring Car C1", "Touring Car")));
+        assert_eq!(e.static_of(0).unwrap().class.name, "TCR");
+    }
+
+    #[test]
+    fn league_follows_the_session() {
+        use crate::config::League;
+        let league = |id: &str, lid: i64| League { id: id.into(), name: id.into(), iracing_league_id: lid, ..Default::default() };
+        let cfg = Config { leagues: vec![league("a", 111), league("b", 0)], active_league: Some("b".into()), ..Default::default() };
+        let mut e = engine(2, true);
+        e.set_config(cfg.clone());
+        // Official race (no league ID): no league, even though one is selected.
+        assert!(e.resolver.league().is_none());
+        let mut info = e.info.clone();
+        info.league_id = 111;
+        e.set_session(info);
+        assert_eq!(e.resolver.league_name(), Some("a"));
+        // Another league's session: none of ours.
+        let mut info = e.info.clone();
+        info.league_id = 222;
+        e.set_session(info);
+        assert!(e.resolver.league().is_none());
+        // "Always use" keeps the selected league whatever the session.
+        e.set_config(Config { league_mode: "always".into(), ..cfg });
+        assert_eq!(e.resolver.league_name(), Some("b"));
     }
 
     #[test]

@@ -5,35 +5,35 @@ import type { OverlayDef } from '../lib/overlay';
 import { columns, enabledColumns, NAME_STYLES } from '../lib/settings';
 import { type Col, columnFitter, Table } from '../lib/table';
 import type { Session, StandClass, StandRow, Standings } from '../lib/types';
-import { COLUMN_STYLE_SETTINGS, driverCols, extraCols, tireCell } from './common';
+import { classLogo, COLUMN_STYLE_SETTINGS, driverCols, extraCols, tireCell } from './common';
 
 const COLS = [
-  { id: 'pos', label: 'Class position' },
-  { id: 'overall', label: 'Overall position' },
-  { id: 'number', label: 'Number' },
-  { id: 'flag', label: 'Country flag' },
+  { id: 'pos', label: 'Class position — POS' },
+  { id: 'overall', label: 'Overall position — OVR' },
+  { id: 'number', label: 'Number — #' },
+  { id: 'flag', label: 'Country flag — NAT' },
   { id: 'name', label: 'Driver' },
   { id: 'team', label: 'Team' },
-  { id: 'make', label: 'Manufacturer' },
+  { id: 'make', label: 'Manufacturer — MAKE' },
   { id: 'class', label: 'Class' },
   { id: 'car', label: 'Car' },
-  { id: 'license', label: 'Licence' },
-  { id: 'irating', label: 'iRating' },
-  { id: 'irDelta', label: 'iRating gain/loss (est.)' },
-  { id: 'srDelta', label: 'Safety rating gain/loss (est.)' },
-  { id: 'incidents', label: 'Incidents' },
-  { id: 'gained', label: 'Positions gained' },
-  { id: 'gap', label: 'Gap to leader' },
-  { id: 'interval', label: 'Interval' },
-  { id: 'lastLap', label: 'Last lap' },
-  { id: 'bestLap', label: 'Best lap' },
-  { id: 'laps', label: 'Laps completed' },
-  { id: 'lap', label: 'Current lap' },
-  { id: 'stint', label: 'Stint lap / OUTLAP / PIT' },
-  { id: 'pits', label: 'Pit stops' },
-  { id: 'tire', label: 'Tyre (wet/dry)' },
-  { id: 'points', label: 'League points for position' },
-  { id: 'seasonPoints', label: 'Championship total (projected)' },
+  { id: 'license', label: 'Licence — LIC' },
+  { id: 'irating', label: 'iRating — IR' },
+  { id: 'irDelta', label: 'iRating gain/loss (est.) — IR ±' },
+  { id: 'srDelta', label: 'Safety rating gain/loss (est.) — SR ±' },
+  { id: 'incidents', label: 'Incidents — INC' },
+  { id: 'gained', label: 'Positions gained — +/−' },
+  { id: 'gap', label: 'Gap to leader — GAP' },
+  { id: 'interval', label: 'Interval — INT' },
+  { id: 'lastLap', label: 'Last lap — LAST' },
+  { id: 'bestLap', label: 'Best lap — BEST' },
+  { id: 'laps', label: 'Laps completed — LAPS' },
+  { id: 'lap', label: 'Current lap — LAP' },
+  { id: 'stint', label: 'Stint lap / OUTLAP / PIT — STINT' },
+  { id: 'pits', label: 'Pit stops — STOPS' },
+  { id: 'tire', label: 'Tyre (wet/dry) — TYRE' },
+  { id: 'points', label: 'League points for position — PTS' },
+  { id: 'seasonPoints', label: 'Championship total (projected) — CHAMP' },
 ];
 
 interface Section {
@@ -42,6 +42,7 @@ interface Section {
   head: HTMLElement;
   name: HTMLElement;
   meta: HTMLElement;
+  logo: HTMLImageElement;
   table: Table<StandRow>;
 }
 
@@ -63,6 +64,14 @@ export const standings: OverlayDef = {
     ...COLUMN_STYLE_SETTINGS,
     ...headerSettings(['time', 'lap', 'cars']),
     { key: 'showClassHeader', label: 'Show class headers', type: 'bool', default: true, group: 'Header' },
+    {
+      key: 'classLogo',
+      label: 'Class logo in class headers',
+      type: 'bool',
+      default: true,
+      group: 'Header',
+      help: 'Put images named after the class in the data folder under logos/, e.g. class-gt3.png or class-lmp2.svg',
+    },
     { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: true, group: 'Header' },
     { key: 'columnTitlesEveryClass', label: 'Repeat column titles for every class', type: 'bool', default: false, group: 'Header' },
     { key: 'dimPitCars', label: 'Dim cars in the pits', type: 'bool', default: true, group: 'Colours' },
@@ -108,11 +117,15 @@ export const standings: OverlayDef = {
       const head = h('div', 'class-head');
       const name = h('span', 'class-name');
       const meta = h('span', 'info');
-      head.append(name, meta);
+      const logo = h('img', 'class-logo');
+      logo.hidden = true;
+      const left = h('span', 'class-left');
+      left.append(logo, name);
+      head.append(left, meta);
       show(head, s.showClassHeader as boolean);
       const table = new Table<StandRow>(cols, order, (s.showColumnTitles as boolean) && (first || (s.columnTitlesEveryClass as boolean)));
       el.append(head, table.el);
-      return { id, el, head, name, meta, table };
+      return { id, el, head, name, meta, logo, table };
     };
 
     /** Top rows plus a window around the focused car, padded with leaders. */
@@ -147,6 +160,9 @@ export const standings: OverlayDef = {
         classes.forEach((c, i) => {
           const sec = sections[i];
           text(sec.name, c.name);
+          const url = s.classLogo ? classLogo(c.name, () => (key = '')) : null;
+          if (url && sec.logo.getAttribute('src') !== url) sec.logo.src = url;
+          if (sec.logo.hidden !== !url) sec.logo.hidden = !url;
           sec.head.style.setProperty('--class', c.color);
           text(sec.meta, [c.sof ? `SOF ${f.iRating(c.sof)}` : '', `${c.count} cars`, c.bestLap ? f.lapTime(c.bestLap) : ''].filter(Boolean).join('  ·  '));
           const mine = c.id === d.focusClass || s.mode !== 'multiclass';
