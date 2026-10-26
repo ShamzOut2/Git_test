@@ -24,6 +24,13 @@ pub struct Config {
     pub leagues: Vec<League>,
     pub active_league: Option<String>,
     pub garage61: Garage61Config,
+    /// Colour themes the user saved (name + theme values), shared by overlays and the settings window.
+    pub saved_themes: Vec<serde_json::Value>,
+    /// User-edited corner names per iRacing TrackID; overrides downloaded corner data.
+    pub track_corners: std::collections::BTreeMap<String, Vec<Corner>>,
+    pub iracing_api: IracingApiConfig,
+    /// Only show iRating / SR estimates in official (ranked) sessions.
+    pub ratings_official_only: bool,
 }
 
 impl Default for Config {
@@ -62,6 +69,10 @@ impl Default for Config {
             leagues: vec![],
             active_league: None,
             garage61: Garage61Config::default(),
+            saved_themes: vec![],
+            track_corners: Default::default(),
+            iracing_api: IracingApiConfig::default(),
+            ratings_official_only: true,
         }
     }
 }
@@ -185,6 +196,63 @@ pub struct League {
     pub driver_overrides: Vec<DriverOverride>,
     /// What to do with cars matching no class: "iracing" keeps the sim class, "other" groups them.
     pub fallback: String,
+    /// iRacing league this was imported from (0 = built by hand).
+    pub iracing_league_id: i64,
+    pub season_id: i64,
+    pub season_name: String,
+    pub points: PointsConfig,
+    /// Championship totals before the current race, from the league's season standings.
+    pub season_points: Vec<SeasonEntry>,
+    pub imported_at: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PointsConfig {
+    /// Points for P1, P2, ... (anything beyond the table scores `default_points`).
+    pub table: Vec<f32>,
+    pub default_points: f32,
+    /// "class" scores by position in class, "overall" by overall position.
+    pub basis: String,
+    pub fastest_lap_bonus: f32,
+    pub system_name: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SeasonEntry {
+    pub customer_id: i64,
+    pub name: String,
+    pub points: f32,
+    pub position: i32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Corner {
+    pub name: String,
+    pub number: i32,
+    /// Lap fractions (0..1).
+    pub start: f32,
+    pub end: f32,
+}
+
+/// Credentials for the iRacing Data API (OAuth "password limited" grant). Secrets are stored
+/// masked (base64 SHA-256, as iRacing's token endpoint expects), never in plain text.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct IracingApiConfig {
+    pub client_id: String,
+    pub client_secret_masked: String,
+    pub username: String,
+    pub password_masked: String,
+}
+
+impl IracingApiConfig {
+    pub fn configured(&self) -> bool {
+        !self.client_id.is_empty() && !self.client_secret_masked.is_empty() && !self.username.is_empty() && !self.password_masked.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -217,6 +285,8 @@ pub struct DriverOverride {
     pub customer_id: i64,
     pub display_name: String,
     pub team_name: String,
+    /// ISO country code shown as the driver's flag, overriding their iRacing flair.
+    pub country: String,
     pub hidden: bool,
 }
 

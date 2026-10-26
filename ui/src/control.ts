@@ -4,6 +4,7 @@ import { h, text } from './lib/dom';
 import { leaguesPage } from './control/leagues';
 import { PAGES, type Page } from './control/pages';
 import { listen, state } from './control/state';
+import { applyUiTheme } from './lib/theme';
 
 const pages: Page[] = [PAGES[0], PAGES[1], PAGES[2], leaguesPage, ...PAGES.slice(3)];
 
@@ -30,6 +31,7 @@ function render() {
     main.replaceChildren(h('p', 'dim', 'Connecting to Apex Overlays…'));
     return;
   }
+  applyUiTheme(state.config.theme, document.documentElement);
   const p = current();
   links.forEach((a, id) => a.classList.toggle('sel', id === p.id));
   p.render(main);
@@ -52,5 +54,7 @@ listen((t) => {
   }
   if (t === 'session') renderStatus();
   if (t === 'garage61' && current().id === 'garage61') render();
+  if (t === 'leagueImport' && current().id === 'leagues') render();
+  if (t === 'trackmap' && current().id === 'general') render();
 });
 render();

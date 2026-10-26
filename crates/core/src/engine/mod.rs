@@ -2,11 +2,12 @@
 
 pub mod battle;
 pub mod fuel;
+pub mod ratings;
 pub mod trackmap;
 pub mod tyres;
 pub mod weather;
 
-use crate::config::Config;
+use crate::config::{Config, Corner};
 use crate::league::{ClassKey, Resolver};
 use crate::model::{flags, surface, SessionDef, SessionInfo, Telemetry, MAX_CARS};
 use std::collections::VecDeque;
@@ -32,7 +33,14 @@ pub struct Static {
     pub lic: String,
     pub lic_color: u32,
     pub club: String,
+    pub country: String,
+    pub make: String,
     pub hidden: bool,
+    /// iRacing car class (iRating is calculated per iRacing class even when league classes are shown).
+    pub ir_class: i64,
+    pub lic_class: char,
+    /// Expected score against the drivers of the same iRacing class (for the iRating estimate).
+    pub ir_expected: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -55,6 +63,19 @@ pub struct CarHist {
     pub last_lap_seen: f32,
     pub pit_this_lap: bool,
     pub laps: VecDeque<LapRec>,
+    /// Left the pits and has not crossed the line yet.
+    pub out_lap: bool,
+    pub pitted: bool,
+    pub exit_completed: i32,
+}
+
+/// Where a car is in its stint, for the "stint lap" column.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Stint {
+    Pit,
+    OutLap,
+    /// Lap number within the stint (race lap number before the first stop).
+    Lap(i32),
 }
 
 impl CarHist {
@@ -108,6 +129,10 @@ pub struct Engine {
     pub weather: weather::WeatherTracker,
     pub battle: battle::BattleTracker,
     pub map: trackmap::Recorder,
+    /// Corners of the current track (custom > downloaded > source-provided).
+    pub corners: Vec<Corner>,
+    pub corners_source: &'static str,
+    remote_corners: Option<(i64, Vec<Corner>, &'static str)>,
     last_session: (i64, i32),
     last_state: i32,
 }
@@ -129,6 +154,9 @@ impl Engine {
             weather: Default::default(),
             battle: Default::default(),
             map: trackmap::Recorder::new(data_dir.map(|d| d.join("trackmaps"))),
+            corners: vec![],
+            corners_source: "none",
+            remote_corners: None,
             last_session: (-1, -1),
             last_state: 0,
         };
@@ -141,6 +169,111 @@ impl Engine {
         self.resolver = Resolver::new(league);
         self.cfg = cfg;
         self.rebuild_statics();
+        self.refresh_corners();
+    }
+
+    /// Corner data fetched or generated outside the engine for `track_id`.
+    pub fn set_remote_corners(&mut self, track_id: i64, corners: Vec<Corner>, source: &'static str) {
+        self.remote_corners = Some((track_id, corners, source));
+        self.refresh_corners();
+    }
+
+    fn refresh_corners(&mut self) {
+        let id = self.info.track_id;
+        if let Some(c) = self.cfg.track_corners.get(&id.to_string()).filter(|c| !c.is_empty()) {
+            self.corners = c.clone();
+            self.corners_source = "custom";
+        } else if let Some((_, c, src)) = self.remote_corners.as_ref().filter(|r| r.0 == id) {
+            self.corners = c.clone();
+            self.corners_source = src;
+        } else {
+            self.corners.clear();
+            self.corners_source = "none";
+        }
+        self.map.revision += 1;
+    }
+
+    /// Corners per lap, estimated from the track length when no corner data exists.
+    pub fn corners_per_lap(&self) -> f32 {
+        if !self.corners.is_empty() {
+            self.corners.len() as f32
+        } else {
+            (self.info.track_length_km * 3.0).max(6.0)
+        }
+    }
+
+    pub fn stint(&self, idx: usize) -> Stint {
+        let (c, h) = (&self.tel.cars[idx], &self.hist[idx]);
+        if c.on_pit_road {
+            Stint::Pit
+        } else if h.out_lap {
+            Stint::OutLap
+        } else if h.pitted {
+            Stint::Lap((c.lap_completed - h.exit_completed).max(1))
+        } else {
+            Stint::Lap(c.lap.max(1))
+        }
+    }
+
+    /// Incidents of a car this session (live for the player, from the session string otherwise).
+    pub fn incidents(&self, idx: usize) -> i32 {
+        if idx as i32 == self.tel.player_idx {
+            self.tel.incidents
+        } else {
+            self.info.driver(idx).map(|d| d.incidents).unwrap_or(0)
+        }
+    }
+
+    /// Other drivers' incident counts are hidden in many sessions; assume visible once any is non-zero.
+    pub fn incidents_visible(&self, idx: usize) -> bool {
+        idx as i32 == self.tel.player_idx || self.info.drivers.iter().any(|d| d.incidents > 0 && d.car_idx as i32 != self.tel.player_idx)
+    }
+
+    pub fn ir_delta(&self, idx: usize) -> Option<f32> {
+        if !self.is_race() {
+            return None;
+        }
+        let s = self.static_of(idx)?;
+        let group: Vec<usize> = self.order.iter().map(|r| r.idx).filter(|&i| self.static_of(i).is_some_and(|o| o.ir_class == s.ir_class)).collect();
+        let pos = group.iter().position(|&i| i == idx)? + 1;
+        Some(ratings::ir_change(group.len(), pos, s.ir_expected))
+    }
+
+    pub fn sr_delta(&self, idx: usize) -> Option<f32> {
+        let s = self.static_of(idx)?;
+        if !self.incidents_visible(idx) {
+            return None;
+        }
+        let c = &self.tel.cars[idx];
+        let per_lap = self.corners_per_lap();
+        let passed = if self.corners.is_empty() { c.pct.max(0.0) * per_lap } else { self.corners.iter().filter(|k| k.end <= c.pct).count() as f32 };
+        let corners = c.lap_completed.max(0) as f32 * per_lap + passed;
+        Some(ratings::sr_change(s.lic_class, corners, self.incidents(idx)))
+    }
+
+    /// League points for the current running position, and the projected championship total.
+    pub fn points(&self, idx: usize) -> (Option<f32>, Option<f32>) {
+        let Some(league) = self.resolver.league() else { return (None, None) };
+        let (Some(r), Some(s)) = (self.row(idx), self.static_of(idx)) else { return (None, None) };
+        if !self.is_race() {
+            return (None, None);
+        }
+        let overall = league.points.basis == "overall";
+        let pos = if overall { r.pos } else { r.class_pos };
+        let fastest = if overall {
+            self.classes.iter().filter_map(|c| c.best_lap).min_by(|a, b| a.1.total_cmp(&b.1)).map(|b| b.0)
+        } else {
+            self.classes.iter().find(|c| c.key.id == s.class.id).and_then(|c| c.best_lap).map(|b| b.0)
+        };
+        let pts = ratings::points(&league.points, pos, fastest == Some(idx));
+        let season = league.season_points.iter().find(|e| e.customer_id == s.user_id).map(|e| e.points);
+        let total = match (season, pts) {
+            (Some(a), Some(b)) => Some(a + b),
+            (Some(a), None) => Some(a),
+            (None, b) if !league.season_points.is_empty() => b,
+            _ => None,
+        };
+        (pts, total)
     }
 
     pub fn set_session(&mut self, info: SessionInfo) {
@@ -150,6 +283,9 @@ impl Engine {
             self.map.load(self.info.track_id, &self.info.track_display_name);
         }
         self.rebuild_statics();
+        if track_changed {
+            self.refresh_corners();
+        }
     }
 
     fn rebuild_statics(&mut self) {
@@ -173,8 +309,24 @@ impl Engine {
                 lic: d.lic_string.clone(),
                 lic_color: d.lic_color,
                 club: d.club.clone(),
+                country: if override_country(&self.resolver, d.user_id).is_empty() { d.country.clone() } else { override_country(&self.resolver, d.user_id) },
+                make: d.make.clone(),
                 hidden,
+                ir_class: d.class_id,
+                lic_class: d.licence().0,
+                ir_expected: 0.0,
             });
+        }
+        // Expected scores per iRacing class for the iRating estimate (iRatings only change with the session string).
+        let mut groups: std::collections::BTreeMap<i64, Vec<usize>> = Default::default();
+        for s in statics.iter().flatten() {
+            groups.entry(s.ir_class).or_default().push(s.idx);
+        }
+        for idxs in groups.values() {
+            let irs: Vec<i32> = idxs.iter().map(|&i| statics[i].as_ref().unwrap().irating).collect();
+            for (k, e) in ratings::expected_scores(&irs).into_iter().enumerate() {
+                statics[idxs[k]].as_mut().unwrap().ir_expected = e;
+            }
         }
         self.statics = statics;
     }
@@ -320,6 +472,12 @@ impl Engine {
             }
             if !c.on_pit_road && h.was_on_pit {
                 h.stint_start_lap = c.lap;
+                h.out_lap = true;
+                h.pitted = true;
+                h.exit_completed = c.lap_completed;
+            }
+            if h.out_lap && c.lap_completed > h.exit_completed {
+                h.out_lap = false;
             }
             h.was_on_pit = c.on_pit_road;
             if c.last_lap > 0.0 && (c.last_lap - h.last_lap_seen).abs() > 1e-4 {
@@ -431,6 +589,10 @@ impl Engine {
     pub fn on_track(&self, idx: usize) -> bool {
         self.tel.cars[idx].surface == surface::ON_TRACK
     }
+}
+
+fn override_country(r: &Resolver, user_id: i64) -> String {
+    r.league().and_then(|l| l.driver_overrides.iter().find(|o| o.customer_id == user_id)).map(|o| o.country.trim().to_uppercase()).unwrap_or_default()
 }
 
 /// iRacing's strength-of-field formula.

@@ -24,6 +24,20 @@ export const trackmap: OverlayDef = {
     { key: 'showSectors', label: 'Sector marks', type: 'bool', default: true, group: 'Track' },
     { key: 'sectorColor', label: 'Sector colour', type: 'color', default: '#ffb020', group: 'Track' },
     { key: 'showStartFinish', label: 'Start / finish line', type: 'bool', default: true, group: 'Track' },
+    {
+      key: 'cornerLabels',
+      label: 'Corner labels',
+      type: 'select',
+      default: 'number',
+      options: [['none', 'None'], ['number', 'Turn numbers (T3)'], ['name', 'Corner names (Eau Rouge)'], ['both', 'Both (T3 Eau Rouge)']],
+      help: 'Corner data is downloaded per track; edit or add your own under Settings → General',
+      group: 'Corners',
+    },
+    { key: 'cornerPrefix', label: 'Turn number prefix', type: 'text', default: 'T', group: 'Corners' },
+    { key: 'cornerFontSize', label: 'Label size', type: 'number', default: 10, min: 6, max: 24, unit: 'px', group: 'Corners' },
+    { key: 'cornerColor', label: 'Label colour', type: 'color', default: '#ffffff', group: 'Corners' },
+    { key: 'cornerBackground', label: 'Label background', type: 'bool', default: true, group: 'Corners' },
+    { key: 'cornerOffset', label: 'Distance from track', type: 'number', default: 14, min: 0, max: 60, unit: 'px', group: 'Corners' },
     { key: 'dotSize', label: 'Car size', type: 'number', default: 7, min: 2, max: 30, unit: 'px', group: 'Cars' },
     { key: 'playerScale', label: 'Your car size', type: 'number', default: 1.45, min: 1, max: 3, step: 0.05, unit: '×', group: 'Cars' },
     { key: 'label', label: 'Label on cars', type: 'select', default: 'classPosition', options: [['none', 'None'], ['number', 'Car number'], ['position', 'Overall position'], ['classPosition', 'Class position']], group: 'Cars' },
@@ -57,7 +71,8 @@ export const trackmap: OverlayDef = {
       const a = ((s.rotate as number) * Math.PI) / 180;
       const rx = x * Math.cos(a) - y * Math.sin(a);
       const ry = x * Math.sin(a) + y * Math.cos(a);
-      const pad = ((s.dotSize as number) * (s.playerScale as number) + 4) * dpr();
+      const labels = s.cornerLabels !== 'none' && map?.corners?.length ? (s.cornerOffset as number) + (s.cornerFontSize as number) : 0;
+      const pad = ((s.dotSize as number) * (s.playerScale as number) + 4 + labels) * dpr();
       const size = Math.min(w, hh) - pad * 2;
       return [w / 2 + rx * size, hh / 2 + ry * size];
     };
@@ -143,10 +158,63 @@ export const trackmap: OverlayDef = {
           b.stroke();
         }
       };
+      if (s.cornerLabels !== 'none' && map?.corners?.length) drawCorners(b, nl);
       const sectors = map?.sectors ?? cars?.sectors ?? [];
       const across = tw / 2 + ((s.outlineWidth as number) + 3) * dpr();
       if (s.showSectors) for (const sp of sectors) if (sp > 0) tick(sp, s.sectorColor as string, across);
       if (s.showStartFinish) tick(0, '#ffffff', across * 1.3);
+    };
+
+    const cornerText = (c: { name: string; number: number }) => {
+      const num = `${s.cornerPrefix}${c.number}`;
+      if (s.cornerLabels === 'number') return num;
+      if (s.cornerLabels === 'name') return c.name || num;
+      return c.name ? `${num} ${c.name}` : num;
+    };
+
+    /** Corner labels, pushed outwards from the track so they don't cover cars. */
+    const drawCorners = (b: CanvasRenderingContext2D, nl: number) => {
+      const w = canvas.width;
+      const hh = canvas.height;
+      const k = dpr();
+      family ||= getComputedStyle(root).getPropertyValue('--font') || 'sans-serif';
+      b.font = `600 ${(s.cornerFontSize as number) * k}px ${family}`;
+      b.textAlign = 'center';
+      b.textBaseline = 'middle';
+      map!.corners.forEach((c, i) => {
+        const mid = c.end >= c.start ? (c.start + c.end) / 2 : ((c.start + c.end + 1) / 2) % 1;
+        const p = locate(mid, 0, nl);
+        const q = locate(mid + 0.003, 0, nl);
+        let nx = -(q[1] - p[1]);
+        let ny = q[0] - p[0];
+        const len = Math.hypot(nx, ny) || 1;
+        nx /= len;
+        ny /= len;
+        if (mode === 'flat') {
+          nx = 0;
+          ny = i % 2 ? 1 : -1;
+        } else if ((p[0] + nx - w / 2) ** 2 + (p[1] + ny - hh / 2) ** 2 < (p[0] - w / 2) ** 2 + (p[1] - hh / 2) ** 2) {
+          nx = -nx;
+          ny = -ny;
+        }
+        const off = ((s.cornerOffset as number) + (s.trackWidth as number) / 2) * k;
+        const label = cornerText(c);
+        const half = b.measureText(label).width / 2 + 4 * k;
+        const fh = (s.cornerFontSize as number) * k;
+        // Keep labels inside the overlay.
+        const x = Math.min(w - half, Math.max(half, p[0] + nx * off));
+        const y = Math.min(hh - fh, Math.max(fh, p[1] + ny * off));
+        if (s.cornerBackground) {
+          const tw = b.measureText(label).width + 6 * k;
+          const th = (s.cornerFontSize as number) * 1.45 * k;
+          b.fillStyle = 'rgba(0,0,0,0.6)';
+          b.beginPath();
+          b.roundRect(x - tw / 2, y - th / 2, tw, th, 3 * k);
+          b.fill();
+        }
+        b.fillStyle = s.cornerColor as string;
+        b.fillText(label, x, y + 0.5);
+      });
     };
 
     const draw = () => {

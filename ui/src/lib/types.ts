@@ -49,6 +49,8 @@ export interface Session {
   incidentLimit: number | null;
   numCars: number;
   league: string | null;
+  leagueId: number;
+  official: boolean;
   subsessionId: number;
 }
 
@@ -115,11 +117,27 @@ export interface Driver {
   license: string;
   licenseColor: string;
   club: string;
+  /** ISO country code ('' if unknown); may be 'GB-SCT' style for UK nations. */
+  country: string;
+  make: string;
   isPlayer: boolean;
   isFocus: boolean;
 }
 
-export interface RelRow extends Driver {
+/** Per-car extras shared by relative and standings rows. */
+export interface Extras {
+  lap: number;
+  stintState: 'pit' | 'out' | 'lap';
+  stintLap: number | null;
+  bestLap: number | null;
+  incidents: number | null;
+  irDelta: number | null;
+  srDelta: number | null;
+  points: number | null;
+  seasonPoints: number | null;
+}
+
+export interface RelRow extends Driver, Extras {
   gap: number;
   position: number;
   classPosition: number;
@@ -134,7 +152,7 @@ export interface Relative {
   rows: RelRow[];
 }
 
-export interface StandRow extends Driver {
+export interface StandRow extends Driver, Extras {
   position: number;
   classPosition: number;
   gap: number | null;
@@ -142,7 +160,6 @@ export interface StandRow extends Driver {
   interval: number | null;
   intervalLaps: number;
   lastLap: number | null;
-  bestLap: number | null;
   isClassBest: boolean;
   laps: number;
   onPitRoad: boolean;
@@ -238,6 +255,15 @@ export interface TrackMap {
   recording: boolean;
   progress: number;
   sectors: number[];
+  corners: Corner[];
+  cornersSource: 'custom' | 'lovely' | 'mock' | 'none';
+}
+
+export interface Corner {
+  name: string;
+  number: number;
+  start: number;
+  end: number;
 }
 
 export interface G61Lap {
@@ -299,7 +325,24 @@ export interface DriverOverride {
   customerId: number;
   displayName: string;
   teamName: string;
+  country: string;
   hidden: boolean;
+}
+
+export interface PointsConfig {
+  table: number[];
+  defaultPoints: number;
+  basis: 'class' | 'overall';
+  fastestLapBonus: number;
+  systemName: string;
+  description: string;
+}
+
+export interface SeasonEntry {
+  customerId: number;
+  name: string;
+  points: number;
+  position: number;
 }
 
 export interface League {
@@ -308,6 +351,25 @@ export interface League {
   classes: LeagueClass[];
   driverOverrides: DriverOverride[];
   fallback: 'iracing' | 'other';
+  iracingLeagueId: number;
+  seasonId: number;
+  seasonName: string;
+  points: PointsConfig;
+  seasonPoints: SeasonEntry[];
+  importedAt: string;
+}
+
+export interface LeagueImport {
+  status: 'working' | 'ok' | 'error';
+  message: string;
+  leagueId: number;
+  seasons: { seasonId: number; name: string; active: boolean }[];
+  id: string | null;
+}
+
+export interface SavedTheme {
+  name: string;
+  theme: Record<string, unknown>;
 }
 
 export interface Config {
@@ -323,6 +385,10 @@ export interface Config {
   leagues: League[];
   activeLeague: string | null;
   garage61: { enabled: boolean; token: string; includeTeam: boolean; refreshMinutes: number };
+  savedThemes: SavedTheme[];
+  trackCorners: Record<string, Corner[]>;
+  iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
+  ratingsOfficialOnly: boolean;
 }
 
 export interface TopicMap {
@@ -338,6 +404,7 @@ export interface TopicMap {
   garage61: Garage61;
   status: Status;
   config: Config;
+  leagueImport: LeagueImport;
 }
 
 export type TopicName = keyof TopicMap;

@@ -1,4 +1,5 @@
-// Global look & feel, applied as CSS variables. Every value is user editable.
+// Global colour theme, applied as CSS variables to the overlays AND the settings
+// window. Built-in presets can be applied, tweaked and saved as custom themes.
 
 import { merge, type SettingDef, type Values } from './settings';
 
@@ -9,7 +10,6 @@ export const THEME: SettingDef[] = [
   { key: 'textColor', label: 'Text', type: 'color', default: '#f2f4f8', group: 'Colours' },
   { key: 'dimColor', label: 'Secondary text', type: 'color', default: '#98a2b3', group: 'Colours' },
   { key: 'background', label: 'Background', type: 'color', default: '#0b0e13', group: 'Colours' },
-  { key: 'backgroundOpacity', label: 'Background opacity', type: 'number', default: 80, min: 0, max: 100, unit: '%', group: 'Colours' },
   { key: 'headerBackground', label: 'Header background', type: 'color', default: '#161b24', group: 'Colours' },
   { key: 'accent', label: 'Accent', type: 'color', default: '#ff3d57', group: 'Colours' },
   { key: 'playerColor', label: 'Your car highlight', type: 'color', default: '#ffd84d', group: 'Colours' },
@@ -20,6 +20,8 @@ export const THEME: SettingDef[] = [
   { key: 'goodColor', label: 'Gaining / good', type: 'color', default: '#3ddc84', group: 'Colours' },
   { key: 'badColor', label: 'Losing / warning', type: 'color', default: '#ff5c5c', group: 'Colours' },
   { key: 'warnColor', label: 'Caution', type: 'color', default: '#ffb020', group: 'Colours' },
+  { key: 'backgroundOpacity', label: 'Background opacity (all overlays)', type: 'number', default: 80, min: 0, max: 100, unit: '%', group: 'Transparency' },
+  { key: 'overlayOpacity', label: 'Overlay opacity (all overlays)', type: 'number', default: 100, min: 10, max: 100, unit: '%', group: 'Transparency' },
   { key: 'radius', label: 'Corner radius', type: 'number', default: 6, min: 0, max: 24, unit: 'px', group: 'Shape' },
   { key: 'rowAlt', label: 'Alternate row shading', type: 'number', default: 4, min: 0, max: 30, unit: '%', group: 'Shape' },
   { key: 'rowPadding', label: 'Row padding', type: 'number', default: 0.22, min: 0, max: 1, step: 0.02, unit: 'em', group: 'Shape' },
@@ -27,21 +29,75 @@ export const THEME: SettingDef[] = [
   { key: 'shadow', label: 'Text shadow (better on bright scenes)', type: 'bool', default: true, group: 'Shape' },
 ];
 
-function rgba(hex: string, alpha: number): string {
+type Preset = { name: string; values: Values };
+
+/** Built-in colour themes. Only colours are set; fonts and shapes are left as they are. */
+export const PRESETS: Preset[] = [
+  { name: 'Apex (default)', values: {} },
+  {
+    name: 'Midnight Blue',
+    values: { background: '#070b14', headerBackground: '#0f1830', textColor: '#e9f0ff', dimColor: '#8ea0c4', accent: '#3d8bff', playerColor: '#7cf2ff', bestColor: '#c27bff', goodColor: '#40e0a0', badColor: '#ff6b81', lapAheadColor: '#ff8fa3', lapBehindColor: '#7fb2ff' },
+  },
+  {
+    name: 'Racing Green',
+    values: { background: '#07110c', headerBackground: '#0f2218', textColor: '#ecf7f0', dimColor: '#8fb09c', accent: '#1fbf62', playerColor: '#f4d35e', bestColor: '#c27bff', goodColor: '#5ee08f', badColor: '#ff6b6b', lapAheadColor: '#ff8a80', lapBehindColor: '#80c8ff' },
+  },
+  {
+    name: 'Papaya',
+    values: { background: '#121212', headerBackground: '#1d1d1d', textColor: '#f7f3ee', dimColor: '#a8a29a', accent: '#ff8000', playerColor: '#47c7fc', bestColor: '#c27bff', goodColor: '#3ddc84', badColor: '#ff5c5c', lapAheadColor: '#ff9e80', lapBehindColor: '#47c7fc' },
+  },
+  {
+    name: 'Rosso',
+    values: { background: '#140608', headerBackground: '#2a0b10', textColor: '#fff1f1', dimColor: '#c39b9f', accent: '#e10600', playerColor: '#ffd700', bestColor: '#c27bff', goodColor: '#4cd98a', badColor: '#ff7070', lapAheadColor: '#ff9a9a', lapBehindColor: '#8ec5ff' },
+  },
+  {
+    name: 'Monochrome',
+    values: { background: '#0c0c0c', headerBackground: '#1a1a1a', textColor: '#f5f5f5', dimColor: '#9a9a9a', accent: '#ffffff', playerColor: '#ffffff', bestColor: '#d0d0d0', goodColor: '#e0e0e0', badColor: '#8a8a8a', lapAheadColor: '#bdbdbd', lapBehindColor: '#bdbdbd', pitColor: '#6a6a6a', warnColor: '#d0d0d0' },
+  },
+  {
+    name: 'High Contrast',
+    values: { background: '#000000', headerBackground: '#000000', textColor: '#ffffff', dimColor: '#d0d0d0', accent: '#ffe600', playerColor: '#ffe600', bestColor: '#ff4dff', goodColor: '#00ff6a', badColor: '#ff3b3b', lapAheadColor: '#ff6b6b', lapBehindColor: '#4dc3ff', backgroundOpacity: 92, shadow: false },
+  },
+  {
+    name: 'Light',
+    values: { background: '#f5f7fa', headerBackground: '#e4e8ef', textColor: '#11161d', dimColor: '#5b6472', accent: '#e10600', playerColor: '#b07a00', bestColor: '#8a2be2', goodColor: '#0f9d58', badColor: '#d93025', lapAheadColor: '#c62828', lapBehindColor: '#1565c0', pitColor: '#8a8f98', warnColor: '#c77700', backgroundOpacity: 88, shadow: false },
+  },
+];
+
+export function rgb(hex: string): [number, number, number] | null {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
-  if (!m) return hex;
+  if (!m) return null;
   const n = parseInt(m[1], 16);
-  return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+  return [n >> 16, (n >> 8) & 255, n & 255];
 }
 
-export function applyTheme(stored: Values | undefined, el: HTMLElement, overrides: { scale?: number; bgOpacity?: number } = {}) {
+export function rgba(hex: string, alpha: number): string {
+  const c = rgb(hex);
+  return c ? `rgba(${c[0]}, ${c[1]}, ${c[2]}, ${alpha})` : hex;
+}
+
+/** Mix two hex colours: t=0 → a, t=1 → b. */
+export function mix(a: string, b: string, t: number): string {
+  const x = rgb(a);
+  const y = rgb(b);
+  if (!x || !y) return a;
+  return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
+}
+
+export function isLight(hex: string): boolean {
+  const c = rgb(hex);
+  return !!c && 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] > 150;
+}
+
+export function applyTheme(stored: Values | undefined, el: HTMLElement, overrides: { scale?: number; bgOpacity?: number; opacity?: number } = {}) {
   const t = merge(THEME, stored);
   const s = el.style;
   const bgOpacity = overrides.bgOpacity != null && overrides.bgOpacity >= 0 ? overrides.bgOpacity : (t.backgroundOpacity as number);
-  s.setProperty('--font', t.fontFamily as string);
+  const text = t.textColor as string;
+  s.setProperty('--font', `'Twemoji Country Flags', ${t.fontFamily}`);
   s.setProperty('--font-size', `${((t.fontSize as number) * (overrides.scale ?? 100)) / 100}px`);
   s.setProperty('--weight', t.fontWeight as string);
-  s.setProperty('--text', t.textColor as string);
+  s.setProperty('--text', text);
   s.setProperty('--dim', t.dimColor as string);
   s.setProperty('--bg', rgba(t.background as string, bgOpacity / 100));
   s.setProperty('--bg-solid', t.background as string);
@@ -57,9 +113,33 @@ export function applyTheme(stored: Values | undefined, el: HTMLElement, override
   s.setProperty('--bad', t.badColor as string);
   s.setProperty('--warn', t.warnColor as string);
   s.setProperty('--radius', `${t.radius}px`);
-  s.setProperty('--row-alt', `rgba(255,255,255,${(t.rowAlt as number) / 100})`);
+  // Shading and outlines derive from the text colour so light themes work too.
+  s.setProperty('--row-alt', rgba(text, (t.rowAlt as number) / 100));
+  s.setProperty('--subtle', rgba(text, 0.06));
+  s.setProperty('--track', rgba(text, 0.1));
   s.setProperty('--row-pad', `${t.rowPadding}em`);
-  s.setProperty('--border', t.border ? '1px solid rgba(255,255,255,0.09)' : 'none');
-  s.setProperty('--shadow', t.shadow ? '0 1px 2px rgba(0,0,0,0.8)' : 'none');
+  s.setProperty('--border', t.border ? `1px solid ${rgba(text, 0.09)}` : 'none');
+  s.setProperty('--shadow', t.shadow ? (isLight(t.background as string) ? '0 1px 1px rgba(255,255,255,0.6)' : '0 1px 2px rgba(0,0,0,0.8)') : 'none');
+  s.setProperty('--opacity', String(((t.overlayOpacity as number) / 100) * ((overrides.opacity ?? 100) / 100)));
   return t;
+}
+
+/** Colours for the settings window, derived from the same theme. */
+export function applyUiTheme(stored: Values | undefined, el: HTMLElement) {
+  const t = merge(THEME, stored);
+  const bg = t.background as string;
+  const text = t.textColor as string;
+  const light = isLight(bg);
+  const s = el.style;
+  s.setProperty('--bg', light ? mix(bg, '#000000', 0.03) : mix(bg, '#000000', 0.15));
+  s.setProperty('--panel', light ? '#ffffff' : mix(bg, text, 0.05));
+  s.setProperty('--panel-2', light ? mix(bg, '#000000', 0.05) : mix(bg, text, 0.09));
+  s.setProperty('--line', light ? mix(bg, '#000000', 0.12) : mix(bg, text, 0.15));
+  s.setProperty('--text', text);
+  s.setProperty('--dim', t.dimColor as string);
+  s.setProperty('--accent', t.accent as string);
+  s.setProperty('--good', t.goodColor as string);
+  s.setProperty('--bad', t.badColor as string);
+  s.setProperty('--accent-text', isLight(t.accent as string) ? '#0b0e13' : '#ffffff');
+  s.setProperty('color-scheme', light ? 'light' : 'dark');
 }

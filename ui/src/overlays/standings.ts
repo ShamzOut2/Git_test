@@ -1,30 +1,39 @@
 import { h, show, text, toggle } from '../lib/dom';
 import * as f from '../lib/format';
+import { headerSettings, sessionHeader } from '../lib/header';
 import type { OverlayDef } from '../lib/overlay';
 import { columns, enabledColumns, NAME_STYLES } from '../lib/settings';
 import { type Col, Table } from '../lib/table';
 import type { Session, StandClass, StandRow, Standings } from '../lib/types';
-import { driverCols, tireCell } from './common';
+import { COLUMN_STYLE_SETTINGS, driverCols, extraCols, tireCell } from './common';
 
 const COLS = [
   { id: 'pos', label: 'Class position' },
   { id: 'overall', label: 'Overall position' },
   { id: 'number', label: 'Number' },
+  { id: 'flag', label: 'Country flag' },
   { id: 'name', label: 'Driver' },
   { id: 'team', label: 'Team' },
+  { id: 'make', label: 'Manufacturer' },
   { id: 'class', label: 'Class' },
   { id: 'car', label: 'Car' },
   { id: 'license', label: 'Licence' },
   { id: 'irating', label: 'iRating' },
+  { id: 'irDelta', label: 'iRating gain/loss (est.)' },
+  { id: 'srDelta', label: 'Safety rating gain/loss (est.)' },
+  { id: 'incidents', label: 'Incidents' },
   { id: 'gained', label: 'Positions gained' },
   { id: 'gap', label: 'Gap to leader' },
   { id: 'interval', label: 'Interval' },
   { id: 'lastLap', label: 'Last lap' },
   { id: 'bestLap', label: 'Best lap' },
-  { id: 'laps', label: 'Laps' },
+  { id: 'laps', label: 'Laps completed' },
+  { id: 'lap', label: 'Current lap' },
+  { id: 'stint', label: 'Stint lap / OUTLAP / PIT' },
   { id: 'pits', label: 'Pit stops' },
-  { id: 'stint', label: 'Stint laps' },
   { id: 'tire', label: 'Tyre (wet/dry)' },
+  { id: 'points', label: 'League points for position' },
+  { id: 'seasonPoints', label: 'Championship total (projected)' },
   { id: 'pit', label: 'Pit flag' },
 ];
 
@@ -51,7 +60,8 @@ export const standings: OverlayDef = {
     { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'name', 'irating', 'gap', 'lastLap', 'pit']), group: 'Columns' },
     { key: 'nameStyle', label: 'Name format', type: 'select', default: 'full', options: NAME_STYLES, group: 'Columns' },
     { key: 'gapDecimals', label: 'Gap decimals', type: 'number', default: 1, min: 0, max: 3, group: 'Columns' },
-    { key: 'showHeader', label: 'Show header', type: 'bool', default: true, group: 'Header' },
+    ...COLUMN_STYLE_SETTINGS,
+    ...headerSettings(['time', 'lap', 'cars']),
     { key: 'showClassHeader', label: 'Show class headers', type: 'bool', default: true, group: 'Header' },
     { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: false, group: 'Header' },
     { key: 'highlightBest', label: 'Highlight fastest lap of class', type: 'bool', default: true, group: 'Colours' },
@@ -61,18 +71,14 @@ export const standings: OverlayDef = {
   create(root, ctx) {
     const s = ctx.settings;
     const dec = s.gapDecimals as number;
-    const header = h('div', 'header');
-    const title = h('span', 'title', 'Standings');
-    const info = h('span', 'info');
-    header.append(title, info);
-    show(header, s.showHeader as boolean);
+    const header = sessionHeader(s, 'Standings', () => ctx.units);
     const body = h('div', 'sections');
-    root.append(header, body);
+    root.append(header.el, body);
 
     const cols: Col<StandRow>[] = [
       { id: 'pos', label: 'P', width: '2.2em', align: 'center', render: (c, r) => text(c, String(r.classPosition)) },
       { id: 'overall', label: 'O', width: '2.2em', align: 'center', render: (c, r) => text(c, String(r.position)) },
-      ...driverCols<StandRow>(s.nameStyle as string),
+      ...driverCols<StandRow>(s),
       {
         id: 'gained',
         label: '±',
@@ -100,9 +106,9 @@ export const standings: OverlayDef = {
       },
       { id: 'laps', label: 'L', width: '2.4em', align: 'right', render: (c, r) => text(c, String(r.laps)) },
       { id: 'pits', label: 'Pit', width: '2.2em', align: 'center', render: (c, r) => text(c, r.pitStops ? String(r.pitStops) : '') },
-      { id: 'stint', label: 'Stint', width: '2.6em', align: 'right', render: (c, r) => text(c, String(r.stintLaps)) },
       { id: 'tire', label: 'T', width: '1.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
       { id: 'pit', label: '', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.inWorld ? '' : 'OUT') },
+      ...extraCols<StandRow>(s),
     ];
     const order = enabledColumns(s.columns);
     let sections: Section[] = [];
@@ -134,13 +140,7 @@ export const standings: OverlayDef = {
 
     return {
       update(topic, data) {
-        if (topic === 'session') {
-          const d = data as Session;
-          text(title, `${d.sessionName || d.sessionType || 'Standings'}${d.league ? ` · ${d.league}` : ''}`);
-          const left = d.timeRemain != null ? f.duration(d.timeRemain) : d.lapsRemain != null ? `${d.lapsRemain} laps` : '';
-          text(info, [left, d.isRace && d.leaderLap ? `Lap ${d.leaderLap}${d.lapsTotal ? '/' + d.lapsTotal : ''}` : '', `${d.numCars} cars`].filter(Boolean).join('  ·  '));
-          return;
-        }
+        if (topic === 'session') return header.update(data as Session);
         if (topic !== 'standings') return;
         const d = data as Standings;
         let classes: StandClass[] = d.classes;

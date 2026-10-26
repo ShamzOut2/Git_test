@@ -2,7 +2,7 @@
 //! per tick and only while at least one client subscribes to it; unchanged
 //! payloads are not re-sent.
 
-use crate::engine::{battle, fuel, tyres, Engine, Row, Static};
+use crate::engine::{battle, fuel, tyres, Engine, Row, Static, Stint};
 use crate::model::{self, flags, surface};
 use serde::Serialize;
 
@@ -142,6 +142,9 @@ pub struct SessionOut<'a> {
     pub incident_limit: Option<i32>,
     pub num_cars: usize,
     pub league: Option<&'a str>,
+    /// iRacing league of the current session (0 if not a league session).
+    pub league_id: i64,
+    pub official: bool,
     pub subsession_id: i64,
 }
 
@@ -195,6 +198,8 @@ pub fn session(e: &Engine) -> SessionOut<'_> {
         incident_limit: e.info.incident_limit,
         num_cars: e.order.len(),
         league: e.resolver.league_name(),
+        league_id: e.info.league_id,
+        official: e.info.official,
         subsession_id: e.info.subsession_id,
     }
 }
@@ -331,6 +336,9 @@ pub struct DriverOut<'a> {
     pub license: &'a str,
     pub license_color: String,
     pub club: &'a str,
+    /// ISO country code for the flag ("" if unknown).
+    pub country: &'a str,
+    pub make: &'a str,
     pub is_player: bool,
     pub is_focus: bool,
 }
@@ -352,8 +360,52 @@ fn driver<'a>(e: &Engine, s: &'a Static) -> DriverOut<'a> {
         license: &s.lic,
         license_color: hex(s.lic_color),
         club: &s.club,
+        country: &s.country,
+        make: &s.make,
         is_player: s.idx as i32 == e.tel.player_idx,
         is_focus: Some(s.idx) == e.tel.focus_idx(),
+    }
+}
+
+/// Per-car extras shared by relative and standings rows.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Extras {
+    /// Current race lap.
+    pub lap: i32,
+    /// "pit" | "out" | "lap"
+    pub stint_state: &'static str,
+    pub stint_lap: Option<i32>,
+    pub best_lap: Option<f32>,
+    pub incidents: Option<i32>,
+    /// Estimated iRating change if the race finished now (official races).
+    pub ir_delta: Option<i32>,
+    /// Rough estimated safety-rating change this session.
+    pub sr_delta: Option<f32>,
+    /// League points for the current position and the projected championship total.
+    pub points: Option<f32>,
+    pub season_points: Option<f32>,
+}
+
+fn extras(e: &Engine, idx: usize) -> Extras {
+    let c = &e.tel.cars[idx];
+    let (stint_state, stint_lap) = match e.stint(idx) {
+        Stint::Pit => ("pit", None),
+        Stint::OutLap => ("out", None),
+        Stint::Lap(n) => ("lap", Some(n)),
+    };
+    let (points, season_points) = e.points(idx);
+    let ir_ok = e.info.official || !e.cfg.ratings_official_only;
+    Extras {
+        lap: c.lap.max(0),
+        stint_state,
+        stint_lap,
+        best_lap: opt_time(c.best_lap),
+        incidents: e.incidents_visible(idx).then(|| e.incidents(idx)),
+        ir_delta: if ir_ok { e.ir_delta(idx).map(|v| v.round() as i32) } else { None },
+        sr_delta: if ir_ok { e.sr_delta(idx).map(|v| round(v, 2)) } else { None },
+        points,
+        season_points,
     }
 }
 
@@ -362,6 +414,8 @@ fn driver<'a>(e: &Engine, s: &'a Static) -> DriverOut<'a> {
 pub struct RelRow<'a> {
     #[serde(flatten)]
     pub d: DriverOut<'a>,
+    #[serde(flatten)]
+    pub x: Extras,
     pub gap: f32,
     pub position: i32,
     pub class_position: i32,
@@ -400,6 +454,7 @@ pub fn relative(e: &Engine) -> RelativeOut<'_> {
             let lap_diff = if race { (c.progress() - fprog - dp as f64).round() as i32 } else { 0 };
             Some(RelRow {
                 d: driver(e, s),
+                x: extras(e, r.idx),
                 gap: r3(gap),
                 position: r.pos,
                 class_position: r.class_pos,
@@ -424,6 +479,8 @@ pub fn relative(e: &Engine) -> RelativeOut<'_> {
 pub struct StandRow<'a> {
     #[serde(flatten)]
     pub d: DriverOut<'a>,
+    #[serde(flatten)]
+    pub x: Extras,
     pub position: i32,
     pub class_position: i32,
     pub gap: Option<f32>,
@@ -431,7 +488,6 @@ pub struct StandRow<'a> {
     pub interval: Option<f32>,
     pub interval_laps: i32,
     pub last_lap: Option<f32>,
-    pub best_lap: Option<f32>,
     pub is_class_best: bool,
     pub laps: i32,
     pub on_pit_road: bool,
@@ -476,9 +532,9 @@ pub fn standings(e: &Engine) -> StandingsOut<'_> {
         let Some(ci) = e.classes.iter().position(|c| c.key.id == s.class.id) else { continue };
         let c = &t.cars[r.idx];
         let h = &e.hist[r.idx];
-        let best = opt_time(c.best_lap);
         classes[ci].rows.push(StandRow {
             d: driver(e, s),
+            x: extras(e, r.idx),
             position: r.pos,
             class_position: r.class_pos,
             gap: r.gap.map(r3),
@@ -486,7 +542,6 @@ pub fn standings(e: &Engine) -> StandingsOut<'_> {
             interval: r.interval.map(r3),
             interval_laps: r.interval_laps,
             last_lap: opt_time(c.last_lap),
-            best_lap: best,
             is_class_best: e.classes[ci].best_lap.is_some_and(|b| b.0 == r.idx),
             laps: c.lap_completed.max(0),
             on_pit_road: c.on_pit_road,
@@ -671,6 +726,9 @@ pub struct TrackMapOut<'a> {
     pub recording: bool,
     pub progress: f32,
     pub sectors: &'a [f32],
+    pub corners: &'a [crate::config::Corner],
+    /// "custom" | "lovely" | "mock" | "none"
+    pub corners_source: &'a str,
 }
 
 pub fn trackmap(e: &Engine) -> TrackMapOut<'_> {
@@ -682,6 +740,8 @@ pub fn trackmap(e: &Engine) -> TrackMapOut<'_> {
         recording: e.map.recording(),
         progress: round(e.map.progress(), 2),
         sectors: &e.info.sectors,
+        corners: &e.corners,
+        corners_source: e.corners_source,
     }
 }
 

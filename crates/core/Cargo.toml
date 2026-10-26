@@ -13,6 +13,8 @@ tokio.workspace = true
 log.workspace = true
 axum = { version = "0.8", default-features = false, features = ["http1", "json", "tokio", "ws", "query"] }
 rust-embed = "8"
+sha2 = "0.10"
+base64 = "0.22"
 
 # Windows uses the OS TLS stack (SChannel): smaller binary, system certificates, no C toolchain.
 [target.'cfg(windows)'.dependencies]

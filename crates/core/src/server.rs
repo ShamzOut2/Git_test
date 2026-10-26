@@ -28,6 +28,8 @@ pub struct AppState {
     pub hub: Arc<Hub>,
     pub config: ConfigStore,
     pub ui_dir: Option<PathBuf>,
+    /// User data directory; `<data>/logos` holds optional manufacturer logo images.
+    pub data_dir: PathBuf,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -37,6 +39,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/config", get(get_config).put(put_config))
         .route("/api/status", get(|s: State<AppState>| async move { s.hub.latest("status").map(|m| m.to_string()).unwrap_or_default() }))
         .route("/ws", get(ws))
+        .route("/logos/{file}", get(logo))
         .fallback(|s: State<AppState>, uri: Uri| async move { asset(&s, uri.path().trim_start_matches('/')) })
         .with_state(state)
 }
@@ -59,6 +62,17 @@ fn asset(s: &AppState, path: &str) -> Response {
     }
 }
 
+/// User-supplied manufacturer logos: `<data dir>/logos/<make>.svg|png|webp`.
+async fn logo(State(s): State<AppState>, Path(file): Path<String>) -> Response {
+    if file.contains("..") || file.contains('/') || file.contains('\\') {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    match std::fs::read(s.data_dir.join("logos").join(&file)) {
+        Ok(bytes) => ([(header::CONTENT_TYPE, mime_for(&file)), (header::CACHE_CONTROL, "max-age=300")], bytes).into_response(),
+        Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
 fn mime_for(path: &str) -> &'static str {
     match path.rsplit('.').next().unwrap_or("") {
         "html" => "text/html; charset=utf-8",
@@ -67,6 +81,8 @@ fn mime_for(path: &str) -> &'static str {
         "json" => "application/json",
         "svg" => "image/svg+xml",
         "png" => "image/png",
+        "webp" => "image/webp",
+        "jpg" | "jpeg" => "image/jpeg",
         "ico" => "image/x-icon",
         "woff2" => "font/woff2",
         "map" => "application/json",
@@ -77,17 +93,27 @@ fn mime_for(path: &str) -> &'static str {
 /// Config as sent to browsers: the Garage 61 token is never echoed back.
 pub fn redacted(c: &Config) -> serde_json::Value {
     let mut v = serde_json::to_value(c).unwrap_or_default();
-    if let Some(t) = v.pointer_mut("/garage61/token") {
-        if t.as_str().is_some_and(|s| !s.is_empty()) {
-            *t = KEEP_TOKEN.into();
+    for p in ["/garage61/token", "/iracingApi/clientSecretMasked", "/iracingApi/passwordMasked"] {
+        if let Some(t) = v.pointer_mut(p) {
+            if t.as_str().is_some_and(|s| !s.is_empty()) {
+                *t = KEEP_TOKEN.into();
+            }
         }
     }
     v
 }
 
 fn merge_incoming(store: &ConfigStore, mut incoming: Config) {
+    let cur = store.get();
     if incoming.garage61.token == KEEP_TOKEN {
-        incoming.garage61.token = store.read(|c| c.garage61.token.clone());
+        incoming.garage61.token = cur.garage61.token;
+    }
+    let api = &mut incoming.iracing_api;
+    if api.client_secret_masked == KEEP_TOKEN {
+        api.client_secret_masked = cur.iracing_api.client_secret_masked;
+    }
+    if api.password_masked == KEEP_TOKEN {
+        api.password_masked = cur.iracing_api.password_masked;
     }
     store.replace(incoming);
 }
@@ -104,17 +130,46 @@ async fn put_config(State(s): State<AppState>, Json(c): Json<Config>) -> StatusC
 #[derive(Deserialize)]
 #[serde(tag = "op", rename_all = "camelCase")]
 enum ClientMsg {
-    Sub { topics: Vec<String> },
-    Unsub { topics: Vec<String> },
-    SetEditMode { value: bool },
+    Sub {
+        topics: Vec<String>,
+    },
+    Unsub {
+        topics: Vec<String>,
+    },
+    SetEditMode {
+        value: bool,
+    },
     ToggleEditMode,
-    SetVisible { value: bool },
-    Drag { id: String },
-    Resize { id: String, dir: String },
-    SetConfig { config: Box<Config> },
-    PatchOverlay { id: String, patch: serde_json::Value },
+    SetVisible {
+        value: bool,
+    },
+    Drag {
+        id: String,
+    },
+    Resize {
+        id: String,
+        dir: String,
+    },
+    SetConfig {
+        config: Box<Config>,
+    },
+    PatchOverlay {
+        id: String,
+        patch: serde_json::Value,
+    },
     ResetTrackMap,
     OpenSettings,
+    /// Plain-text secrets are masked immediately and never stored.
+    SetIracingApi {
+        client_id: String,
+        client_secret: String,
+        username: String,
+        password: String,
+    },
+    ImportLeague {
+        league_id: i64,
+        season_id: Option<i64>,
+    },
 }
 
 async fn ws(upgrade: WebSocketUpgrade, State(s): State<AppState>) -> Response {
@@ -202,7 +257,79 @@ fn handle(s: &AppState, m: ClientMsg, subs: &mut HashSet<String>, send_now: &mut
         }),
         ClientMsg::ResetTrackMap => s.hub.command(Command::ResetTrackMap),
         ClientMsg::OpenSettings => s.hub.host(HostEvent::OpenSettings),
+        ClientMsg::SetIracingApi { client_id, client_secret, username, password } => s.config.update(|c| {
+            let api = &mut c.iracing_api;
+            let username = username.trim().to_string();
+            let client_id = client_id.trim().to_string();
+            if !client_id.is_empty() {
+                api.client_id = client_id;
+            }
+            if !username.is_empty() {
+                api.username = username;
+            }
+            if !client_secret.is_empty() {
+                api.client_secret_masked = crate::iracing_api::mask(&client_secret, &api.client_id);
+            }
+            if !password.is_empty() {
+                api.password_masked = crate::iracing_api::mask(&password, &api.username);
+            }
+        }),
+        ClientMsg::ImportLeague { league_id, season_id } => import_league(s.clone(), league_id, season_id),
     }
+}
+
+/// Imports a league in the background, reporting progress on the `leagueImport` topic.
+fn import_league(s: AppState, league_id: i64, season_id: Option<i64>) {
+    let status = move |hub: &Hub, state: &str, msg: &str, seasons: &[crate::iracing_api::SeasonSummary], id: Option<&str>| {
+        let v = serde_json::json!({ "status": state, "message": msg, "leagueId": league_id, "seasons": seasons, "id": id });
+        hub.publish("leagueImport", &v.to_string());
+    };
+    status(&s.hub, "working", "Contacting iRacing…", &[], None);
+    std::thread::spawn(move || {
+        let mut client = crate::iracing_api::Client::new(s.config.read(|c| c.iracing_api.clone()));
+        match crate::iracing_api::import(&mut client, league_id, season_id) {
+            Ok((mut league, seasons)) => {
+                league.imported_at = format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0));
+                let id = league.id.clone();
+                let msg = format!(
+                    "Imported {}: {} classes, {} nicknames, {} points positions, {} drivers in the standings",
+                    league.name,
+                    league.classes.len(),
+                    league.driver_overrides.len(),
+                    league.points.table.len(),
+                    league.season_points.len()
+                );
+                s.config.update(|c| match c.leagues.iter_mut().find(|l| l.iracing_league_id == league.iracing_league_id && league.iracing_league_id != 0) {
+                    // Re-import: refresh data but keep the user's colours, class names and edits.
+                    Some(existing) => {
+                        for class in &mut league.classes {
+                            if let Some(old) = existing.classes.iter().find(|o| o.id == class.id) {
+                                class.color = old.color.clone();
+                                class.name = old.name.clone();
+                            }
+                        }
+                        for o in &existing.driver_overrides {
+                            if !league.driver_overrides.iter().any(|n| n.customer_id == o.customer_id) {
+                                league.driver_overrides.push(o.clone());
+                            }
+                        }
+                        if league.points.table.is_empty() {
+                            league.points.table = existing.points.table.clone();
+                        }
+                        league.points.basis = existing.points.basis.clone();
+                        league.points.fastest_lap_bonus = existing.points.fastest_lap_bonus;
+                        league.points.default_points = existing.points.default_points;
+                        league.fallback = existing.fallback.clone();
+                        league.id = existing.id.clone();
+                        *existing = league;
+                    }
+                    None => c.leagues.push(league),
+                });
+                status(&s.hub, "ok", &msg, &seasons, Some(&id));
+            }
+            Err(e) => status(&s.hub, "error", &e, &[], None),
+        }
+    });
 }
 
 /// RFC 7386-style merge patch.
@@ -235,11 +362,15 @@ mod tests {
     #[test]
     fn token_is_redacted_and_kept() {
         let store = ConfigStore::new(Config::default(), None);
-        store.update(|c| c.garage61.token = "secret".into());
+        store.update(|c| {
+            c.garage61.token = "secret".into();
+            c.iracing_api.password_masked = "hash".into();
+        });
         let red = store.read(redacted);
         assert_eq!(red["garage61"]["token"], KEEP_TOKEN);
         let incoming: Config = serde_json::from_value(red).unwrap();
         merge_incoming(&store, incoming);
         assert_eq!(store.read(|c| c.garage61.token.clone()), "secret");
+        assert_eq!(store.read(|c| c.iracing_api.password_masked.clone()), "hash");
     }
 }

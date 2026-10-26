@@ -1,0 +1,116 @@
+// Session detail fields shared by the Session info overlay and the
+// customisable headers of the relative and standings.
+
+import * as f from './format';
+import { columns, type ColumnDef } from './settings';
+import type { Session } from './types';
+
+export const SESSION_FIELDS: ColumnDef[] = [
+  { id: 'session', label: 'Session name' },
+  { id: 'track', label: 'Track' },
+  { id: 'time', label: 'Time / laps left' },
+  { id: 'lap', label: 'Leader lap' },
+  { id: 'clock', label: 'Time of day (in sim)' },
+  { id: 'trackTemp', label: 'Track temperature' },
+  { id: 'airTemp', label: 'Air temperature' },
+  { id: 'wetness', label: 'Track wetness' },
+  { id: 'rain', label: 'Rain' },
+  { id: 'declared', label: 'Declared wet' },
+  { id: 'skies', label: 'Sky' },
+  { id: 'wind', label: 'Wind' },
+  { id: 'humidity', label: 'Humidity' },
+  { id: 'sof', label: 'Strength of field' },
+  { id: 'cars', label: 'Cars' },
+  { id: 'incidents', label: 'Incidents' },
+  { id: 'flags', label: 'Flags' },
+  { id: 'league', label: 'League name' },
+];
+
+export const FIELD_LABELS: Record<string, string> = {
+  track: 'TRACK',
+  session: 'SESSION',
+  time: 'REMAINING',
+  lap: 'LAP',
+  clock: 'TIME',
+  trackTemp: 'TRACK',
+  airTemp: 'AIR',
+  wetness: 'SURFACE',
+  rain: 'RAIN',
+  declared: 'DECLARED WET',
+  skies: 'SKY',
+  wind: 'WIND',
+  humidity: 'HUMIDITY',
+  sof: 'SOF',
+  cars: 'CARS',
+  incidents: 'INC',
+  flags: 'FLAG',
+  league: 'LEAGUE',
+};
+
+/** Columns-type setting for picking and ordering header fields. */
+export const headerFields = (on: string[]) => columns(SESSION_FIELDS, on);
+
+export interface FieldOpts {
+  clock24?: boolean;
+  tempTrend?: boolean;
+  /** Short forms suit compact headers ("42:10", "SOF 2.3k"). */
+  compact?: boolean;
+}
+
+/** Display value of a field; '' when there is nothing to show. */
+export function fieldValue(id: string, d: Session, u: f.Units, o: FieldOpts = {}): string {
+  switch (id) {
+    case 'session':
+      return d.sessionName || d.sessionType || '';
+    case 'track':
+      return d.trackName + (d.trackConfig && !o.compact ? ` – ${d.trackConfig}` : '');
+    case 'time':
+      return d.timeRemain != null ? f.duration(d.timeRemain) : d.lapsRemain != null ? `${d.lapsRemain} laps` : '';
+    case 'lap':
+      return d.leaderLap ? `${o.compact ? 'Lap ' : ''}${d.leaderLap}${d.lapsTotal ? '/' + d.lapsTotal : ''}` : '';
+    case 'clock':
+      return f.clock(d.timeOfDay, o.clock24 ?? true);
+    case 'trackTemp': {
+      const trend = o.tempTrend !== false && Math.abs(d.trackTempDelta) >= 0.3 ? (d.trackTempDelta > 0 ? ' ▲' : ' ▼') : '';
+      return `${o.compact ? 'Track ' : ''}${f.temp(d.trackTemp, u)}${trend}`;
+    }
+    case 'airTemp':
+      return `${o.compact ? 'Air ' : ''}${f.temp(d.airTemp, u)}`;
+    case 'wetness':
+      return d.wetnessLabel;
+    case 'rain':
+      return d.precipitation > 0 ? `${o.compact ? 'Rain ' : ''}${Math.round(d.precipitation * 100)}%` : o.compact ? '' : 'None';
+    case 'declared':
+      return o.compact ? (d.declaredWet ? 'Declared wet' : '') : d.declaredWet ? 'Yes' : 'No';
+    case 'skies':
+      return d.skies;
+    case 'wind':
+      return `${o.compact ? 'Wind ' : ''}${Math.round(f.speed(d.windSpeed, u))} ${f.speedUnit(u)} ${f.compass(d.windDir)}`;
+    case 'humidity':
+      return `${o.compact ? 'Hum ' : ''}${Math.round(d.humidity * 100)}%`;
+    case 'sof':
+      return d.sof ? (o.compact ? `SOF ${f.iRating(d.sof)}` : String(d.sof)) : '';
+    case 'cars':
+      return `${d.numCars}${o.compact ? ' cars' : ''}`;
+    case 'incidents':
+      return d.incidentLimit ? `${d.incidents}/${d.incidentLimit}x` : `${d.incidents}x`;
+    case 'flags':
+      return d.flags.map((x) => x.replace(/([A-Z])/g, ' $1').toLowerCase()).join(', ');
+    case 'league':
+      return d.league ?? '';
+    default:
+      return '';
+  }
+}
+
+/** Data attribute used to colour the flags field. */
+export function flagKind(d: Session): string {
+  const fl = d.flags;
+  if (fl.includes('red')) return 'red';
+  if (fl.some((x) => x.startsWith('yellow') || x.startsWith('caution'))) return 'yellow';
+  if (fl.includes('blue')) return 'blue';
+  if (fl.includes('white')) return 'white';
+  if (fl.includes('checkered')) return 'checkered';
+  if (fl.includes('green')) return 'green';
+  return '';
+}

@@ -23,6 +23,10 @@ impl Resolver {
         Self { league }
     }
 
+    pub fn league(&self) -> Option<&League> {
+        self.league.as_ref()
+    }
+
     pub fn league_name(&self) -> Option<&str> {
         self.league.as_ref().map(|l| l.name.as_str())
     }
@@ -151,6 +155,7 @@ mod tests {
             ],
             driver_overrides: vec![DriverOverride { customer_id: 42, display_name: "Ace".into(), ..Default::default() }],
             fallback: "other".into(),
+            ..Default::default()
         };
         let r = Resolver::new(Some(league));
         let d = |num: &str, team: &str| Driver { car_number: num.into(), team_name: team.into(), class_id: 7, ..Default::default() };

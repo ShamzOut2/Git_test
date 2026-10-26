@@ -1,22 +1,34 @@
-import { h, show, text } from '../lib/dom';
+import { text } from '../lib/dom';
 import * as f from '../lib/format';
+import { headerSettings, sessionHeader } from '../lib/header';
 import type { OverlayDef } from '../lib/overlay';
 import { columns, enabledColumns, NAME_STYLES } from '../lib/settings';
 import { type Col, Table } from '../lib/table';
 import type { RelRow, Relative, Session } from '../lib/types';
-import { driverCols, tireCell } from './common';
+import { COLUMN_STYLE_SETTINGS, driverCols, extraCols, tireCell } from './common';
 
 const COLS = [
-  { id: 'pos', label: 'Pos' },
+  { id: 'pos', label: 'Class position' },
+  { id: 'overall', label: 'Overall position' },
   { id: 'number', label: 'Number' },
+  { id: 'flag', label: 'Country flag' },
   { id: 'name', label: 'Driver' },
   { id: 'team', label: 'Team' },
+  { id: 'make', label: 'Manufacturer' },
   { id: 'class', label: 'Class' },
   { id: 'car', label: 'Car' },
   { id: 'license', label: 'Licence' },
   { id: 'irating', label: 'iRating' },
+  { id: 'irDelta', label: 'iRating gain/loss (est.)' },
+  { id: 'srDelta', label: 'Safety rating gain/loss (est.)' },
+  { id: 'incidents', label: 'Incidents' },
+  { id: 'lap', label: 'Current lap' },
+  { id: 'stint', label: 'Stint lap / OUTLAP / PIT' },
   { id: 'lastLap', label: 'Last lap' },
+  { id: 'bestLap', label: 'Best lap' },
   { id: 'tire', label: 'Tyre (wet/dry)' },
+  { id: 'points', label: 'League points for position' },
+  { id: 'seasonPoints', label: 'Championship total (projected)' },
   { id: 'pit', label: 'Pit flag' },
   { id: 'gap', label: 'Gap' },
 ];
@@ -35,7 +47,8 @@ export const relative: OverlayDef = {
     { key: 'nameStyle', label: 'Name format', type: 'select', default: 'full', options: NAME_STYLES, group: 'Columns' },
     { key: 'gapSign', label: 'Gap sign', type: 'select', default: 'aheadNegative', options: [['abs', 'No sign'], ['aheadNegative', 'Ahead negative'], ['aheadPositive', 'Ahead positive']], group: 'Columns' },
     { key: 'gapDecimals', label: 'Gap decimals', type: 'number', default: 1, min: 0, max: 3, group: 'Columns' },
-    { key: 'showHeader', label: 'Show header', type: 'bool', default: true, group: 'Header' },
+    ...COLUMN_STYLE_SETTINGS,
+    ...headerSettings(['time', 'sof', 'incidents']),
     { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: false, group: 'Header' },
     { key: 'lapColors', label: 'Colour cars a lap ahead / behind', type: 'bool', default: true, group: 'Colours' },
     { key: 'classStripe', label: 'Class colour stripe', type: 'bool', default: true, group: 'Colours' },
@@ -43,15 +56,12 @@ export const relative: OverlayDef = {
   ],
   create(root, ctx) {
     const s = ctx.settings;
-    const header = h('div', 'header');
-    const title = h('span', 'title', 'Relative');
-    const info = h('span', 'info');
-    header.append(title, info);
-    show(header, s.showHeader as boolean);
-
+    const header = sessionHeader(s, 'Relative', () => ctx.units);
     const cols: Col<RelRow>[] = [
       { id: 'pos', label: 'P', width: '2.2em', align: 'center', render: (c, r) => text(c, r.classPosition > 0 ? String(r.classPosition) : '') },
-      ...driverCols<RelRow>(s.nameStyle as string),
+      { id: 'overall', label: 'O', width: '2.2em', align: 'center', render: (c, r) => text(c, r.position > 0 ? String(r.position) : '') },
+      ...driverCols<RelRow>(s),
+      ...extraCols<RelRow>(s),
       { id: 'lastLap', label: 'Last', width: '4.6em', align: 'right', render: (c, r) => text(c, r.lastLap ? f.lapTime(r.lastLap) : '') },
       { id: 'tire', label: 'T', width: '1.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
       { id: 'pit', label: '', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.offTrack ? 'OFF' : '') },
@@ -68,20 +78,14 @@ export const relative: OverlayDef = {
       },
     ];
     const table = new Table<RelRow>(cols, enabledColumns(s.columns), s.showColumnTitles as boolean);
-    root.append(header, table.el);
+    root.append(header.el, table.el);
     root.classList.toggle('stripe', s.classStripe as boolean);
 
     const ahead = s.carsAhead as number;
     const behind = s.carsBehind as number;
     return {
       update(topic, data) {
-        if (topic === 'session') {
-          const d = data as Session;
-          const left = d.timeRemain != null ? f.duration(d.timeRemain) : d.lapsRemain != null ? `${d.lapsRemain} laps` : '';
-          text(title, d.sessionName || d.sessionType || 'Relative');
-          text(info, [left, d.sof ? `SOF ${f.iRating(d.sof)}` : '', d.incidentLimit ? `${d.incidents}/${d.incidentLimit}x` : `${d.incidents}x`].filter(Boolean).join('  ·  '));
-          return;
-        }
+        if (topic === 'session') return header.update(data as Session);
         if (topic !== 'relative') return;
         const rows = (data as Relative).rows;
         const me = rows.findIndex((r) => r.isFocus);

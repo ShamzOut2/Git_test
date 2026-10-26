@@ -19,9 +19,9 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 
 | Overlay | What it shows |
 |---|---|
-| **Relative** | Cars around you on track with live gaps, class colour, licence/iRating, pit/off-track flags and colours for cars a lap ahead or behind. You choose and reorder the columns. |
-| **Standings** | Multi-class leaderboard: gap to leader, interval, last/best lap (class-fastest highlighted), laps, pit stops, stint length, positions gained, tyre. It shows the top rows and a window around you, per class or as one overall list. |
-| **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes sectors, start/finish, class-leader rings, labels, rotation and mirroring. |
+| **Relative** | Cars around you on track with live gaps and colours for cars a lap ahead or behind. |
+| **Standings** | Multi-class leaderboard with gap to leader and interval. It shows the top rows and a window around you, per class or as one overall list. |
+| **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sectors, start/finish, class-leader rings, rotation and mirroring. |
 | **Driver inputs** | Throttle, brake and clutch bars, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
 | **Fuel calculator** | Average/last/max use per lap, laps of fuel, race laps left (lap- or time-limited, lapped-car aware), fuel to finish, fuel to add, stops, pit window and how much to save to skip a stop. |
 | **Battle box** | The car ahead and behind in your class: gap, how fast it is closing (s/lap), laps until you catch them (or they catch you), and their last lap against yours. |
@@ -29,20 +29,51 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 | **Session info** | Track and air temperature (with trend), wetness, rain, declared wet, wind, humidity, sky, time or laps remaining, sim clock, SOF, incidents and flags. You can pick and order any of these fields. |
 | **Garage 61** | Your Garage 61 personal best and your teams' best laps for the current car and track, compared with your session best. |
 
+### Relative and standings columns
+
+You can toggle and reorder every column:
+
+- class and overall position, car number, **country flag** (from the driver's iRacing flair), driver, team
+- **manufacturer** logo or badge (put your own logo images in `%APPDATA%\ApexOverlays\logos\`, e.g. `porsche.png`), class, car, licence, iRating
+- **iRating gain/loss** and **safety rating gain/loss** (live estimates), incidents
+- current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), last lap, best lap, **tyre** (wet/dry)
+- gap and interval, positions gained, pit stops
+- **league points** for the current position, and the **projected championship total**
+
+The **header** of both overlays is also customisable. Choose the title (session, track, league or your own text) and any session details next to it: time left, leader lap, track/air temperature with trend, wetness, rain, wind, SOF, incidents, flags and so on.
+
+> iRacing doesn't publish its rating formulas. The iRating change uses the community formula most rating calculators use, so it's usually within a few points. The SR change is a rough corners-per-incident estimate that shows direction and approximate size, nothing more. Both are only shown in official races unless you change that under *General*. Other drivers' incidents are only visible in sessions where iRacing shares them.
+
 ### Customisation
 
-- **Every overlay** has its own scale, background opacity, visibility rules (hide when iRacing isn't running, when you're not in the car, on pit road, or outside races) and **custom CSS**.
+- **Transparency per overlay:** each overlay has its own overall opacity and background opacity, and one button copies them to all overlays. Global defaults live in the theme.
+- **Colour themes** restyle every overlay *and* the settings window. There are 8 presets (Apex, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
+- **Every overlay** has its own scale, visibility rules (hide when iRacing isn't running, when you're not in the car, on pit road, or outside races) and **custom CSS**.
 - **Column and field overlays** (relative, standings, session info) let you toggle and reorder every column, plus set name formats, gap signs and decimals.
 - **The global theme** sets font, size and weight, every colour (player, lapped, lapping, pit, fastest, good/bad, caution), corner radius, row shading and padding, outline and text shadow.
 - **Multiple copies of the same overlay** can run side by side with different settings, for example a compact relative for VR-style layouts and a full one for streaming.
-- **The League builder** creates your own classes and assigns cars to them by car number, customer ID, driver or team name (wildcards), car model, car ID or iRacing class ID. You can also assign drivers in the current session from a dropdown, rename drivers and teams, or hide spectators. Leagues import and export as JSON, so a league admin can share one file with everybody.
+- **The League builder** creates your own classes and assigns cars to them by car number, customer ID, driver or team name (wildcards), car model, car ID or iRacing class ID. You can also assign drivers in the current session from a dropdown, rename drivers and teams, set a driver's flag, or hide spectators.
+  - **Import from iRacing by league ID** pulls the league name, roster nicknames, car classes, points system and championship standings. It needs iRacing Data API access (see below).
+  - **Create from current session** builds the classes from the league session you're in, with no API needed.
+  - **Points systems** score by **class or overall position** (leagues differ). There are presets (F1, MotoGP, IndyCar, …), plus a paste-a-table option, a fastest-lap bonus and points beyond the table. Live points and the projected championship total appear in the relative and standings.
+  - Leagues import and export as JSON, so a league admin can share one file with everybody.
 - **Strategy settings** cover the fuel averaging window and safety margin, the wet/dry thresholds and crossover margin for the tyre advisor, and the battle range.
 - **Export and import** cover the whole setup.
 
-## Getting started (Windows)
+## Download and install (Windows)
 
-1. Download the latest build from the CI artifacts (`apex-overlays-windows`). It contains the installer (`bundle/nsis/*.exe`), the
-   desktop app `apex-overlays.exe` and the headless `apex-server.exe`.
+The **Code → Download ZIP** button on GitHub only gives you the source code, which has to be built first. Use one of these instead:
+
+- **GitHub Releases (easiest):** when a version is tagged (e.g. `v0.2.0`), the *Release* workflow publishes
+  `Apex Overlays_x.y.z_x64-setup.exe` (installer), `ApexOverlays-portable.exe` and `apex-server.exe` on the repository's **Releases** page.
+- **Latest CI build:** open the **Actions** tab, pick the newest green *CI* run, and download the `apex-overlays-windows` artifact (zip).
+  You need to be signed in to GitHub to download artifacts.
+
+The app isn't code-signed yet, so Windows SmartScreen may say *"Windows protected your PC"*. Click **More info → Run anyway**.
+
+## Getting started
+
+1. Run the installer, or start the portable exe.
 2. Start **Apex Overlays**. The settings window opens. The app lives in the system tray, and closing the settings window keeps the overlays running.
 3. Press **Ctrl+Shift+E** (or *Edit mode* in settings) to drag and resize the overlays, then press it again to lock them. Locked overlays are click-through.
    Press **Ctrl+Shift+H** to show or hide everything. Both hotkeys can be changed.
@@ -55,6 +86,20 @@ WebView2 is already present on Windows 10/11. The installer fetches it if it is 
 Every overlay is a URL such as `http://127.0.0.1:8182/o/relative`. Add it as an OBS **Browser Source** with the overlay's size
 (the *Streaming / OBS* page lists every URL). It has the same data, the same settings and a transparent background. To use a second streaming PC,
 enable *Allow other PCs on my network* and use this PC's IP address.
+
+### iRacing league import (Data API access)
+
+iRacing only allows API access through OAuth. To import a league by ID you need a **client ID and secret** from iRacing
+(request a "password limited" client from iRacing support) plus your iRacing email and password. Enter them under
+*League builder → Import a league from iRacing*. The password and secret are stored only in the masked form iRacing's login expects.
+iRacing's points-system endpoint only returns a name and description, so the points table is read from that description when it
+lists the points. Otherwise pick a preset or type it in.
+
+### Corner names
+
+Corner names and turn numbers come from the community [Lovely Track Data](https://github.com/Lovely-Sim-Racing/lovely-track-data)
+project. They are downloaded the first time you drive a track and cached. For any track you can edit them, or add your own
+("Add corner at my car's position"), under *General → Track map & corners*.
 
 ### Without iRacing: the built-in simulator
 

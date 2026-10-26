@@ -1,48 +1,8 @@
 import { h, text, toggle } from '../lib/dom';
-import * as f from '../lib/format';
 import type { OverlayDef } from '../lib/overlay';
-import { columns, enabledColumns } from '../lib/settings';
+import { FIELD_LABELS, fieldValue, flagKind, headerFields } from '../lib/sessionFields';
+import { enabledColumns } from '../lib/settings';
 import type { Session } from '../lib/types';
-
-const FIELDS = [
-  { id: 'track', label: 'Track' },
-  { id: 'session', label: 'Session' },
-  { id: 'time', label: 'Time / laps left' },
-  { id: 'lap', label: 'Leader lap' },
-  { id: 'clock', label: 'Time of day (in sim)' },
-  { id: 'trackTemp', label: 'Track temperature' },
-  { id: 'airTemp', label: 'Air temperature' },
-  { id: 'wetness', label: 'Track wetness' },
-  { id: 'rain', label: 'Rain' },
-  { id: 'declared', label: 'Declared wet' },
-  { id: 'skies', label: 'Sky' },
-  { id: 'wind', label: 'Wind' },
-  { id: 'humidity', label: 'Humidity' },
-  { id: 'sof', label: 'Strength of field' },
-  { id: 'cars', label: 'Cars' },
-  { id: 'incidents', label: 'Incidents' },
-  { id: 'flags', label: 'Flags' },
-];
-
-const LABELS: Record<string, string> = {
-  track: 'TRACK',
-  session: 'SESSION',
-  time: 'REMAINING',
-  lap: 'LAP',
-  clock: 'TIME',
-  trackTemp: 'TRACK',
-  airTemp: 'AIR',
-  wetness: 'SURFACE',
-  rain: 'RAIN',
-  declared: 'DECLARED WET',
-  skies: 'SKY',
-  wind: 'WIND',
-  humidity: 'HUMIDITY',
-  sof: 'SOF',
-  cars: 'CARS',
-  incidents: 'INC',
-  flags: 'FLAG',
-};
 
 export const session: OverlayDef = {
   kind: 'session',
@@ -51,7 +11,7 @@ export const session: OverlayDef = {
   topics: ['session'],
   size: [900, 52],
   settings: [
-    { key: 'fields', label: 'Fields', type: 'columns', ...columns(FIELDS, ['session', 'time', 'clock', 'trackTemp', 'airTemp', 'wetness', 'rain', 'wind', 'sof', 'incidents']), group: 'Fields' },
+    { key: 'fields', label: 'Fields', type: 'columns', ...headerFields(['session', 'time', 'clock', 'trackTemp', 'airTemp', 'wetness', 'rain', 'wind', 'sof', 'incidents']), group: 'Fields' },
     { key: 'layout', label: 'Layout', type: 'select', default: 'bar', options: [['bar', 'Horizontal bar'], ['stack', 'Vertical list']], group: 'Layout' },
     { key: 'showLabels', label: 'Show labels', type: 'bool', default: true, group: 'Layout' },
     { key: 'clock24', label: '24-hour clock', type: 'bool', default: true, group: 'Format' },
@@ -63,7 +23,7 @@ export const session: OverlayDef = {
     const cells: Record<string, HTMLElement> = {};
     for (const id of enabledColumns(s.fields)) {
       const item = h('div', `item f-${id}`);
-      if (s.showLabels) item.append(h('div', 'label', LABELS[id] ?? id));
+      if (s.showLabels) item.append(h('div', 'label', FIELD_LABELS[id] ?? id));
       const v = h('div', 'value');
       item.append(v);
       root.append(item);
@@ -74,33 +34,12 @@ export const session: OverlayDef = {
         if (topic !== 'session') return;
         const d = data as Session;
         const u = ctx.units;
-        const set = (k: string, v: string) => cells[k] && text(cells[k], v);
-        set('track', d.trackName + (d.trackConfig ? ` – ${d.trackConfig}` : ''));
-        set('session', d.sessionName || d.sessionType || '–');
-        set('time', d.timeRemain != null ? f.duration(d.timeRemain) : d.lapsRemain != null ? `${d.lapsRemain} laps` : '–');
-        set('lap', d.leaderLap ? `${d.leaderLap}${d.lapsTotal ? ' / ' + d.lapsTotal : ''}` : '–');
-        set('clock', f.clock(d.timeOfDay, s.clock24 as boolean));
-        const trend = s.showTempTrend && Math.abs(d.trackTempDelta) >= 0.3 ? (d.trackTempDelta > 0 ? ' ▲' : ' ▼') : '';
-        set('trackTemp', f.temp(d.trackTemp, u) + trend);
-        set('airTemp', f.temp(d.airTemp, u));
-        set('wetness', d.wetnessLabel);
-        set('declared', d.declaredWet ? 'Yes' : 'No');
+        for (const [id, el] of Object.entries(cells)) text(el, fieldValue(id, d, u, { clock24: s.clock24 as boolean, tempTrend: s.showTempTrend as boolean }) || '–');
         if (cells.wetness) {
           toggle(cells.wetness, 'wet', d.wetness >= 4);
           toggle(cells.wetness, 'damp', d.wetness === 2 || d.wetness === 3);
         }
-        set('rain', d.precipitation > 0 ? `${Math.round(d.precipitation * 100)}%` : 'None');
-        set('skies', d.skies);
-        set('wind', `${Math.round(f.speed(d.windSpeed, u))} ${f.speedUnit(u)} ${f.compass(d.windDir)}`);
-        set('humidity', `${Math.round(d.humidity * 100)}%`);
-        set('sof', d.sof ? String(d.sof) : '–');
-        set('cars', String(d.numCars));
-        set('incidents', d.incidentLimit ? `${d.incidents} / ${d.incidentLimit}` : `${d.incidents}x`);
-        set('flags', d.flags.length ? d.flags.map((x) => x.replace(/([A-Z])/g, ' $1').toLowerCase()).join(', ') : '–');
-        if (cells.flags) {
-          const fl = d.flags;
-          cells.flags.dataset.flag = fl.includes('red') ? 'red' : fl.some((x) => x.startsWith('yellow') || x.startsWith('caution')) ? 'yellow' : fl.includes('blue') ? 'blue' : fl.includes('white') ? 'white' : fl.includes('checkered') ? 'checkered' : fl.includes('green') ? 'green' : '';
-        }
+        if (cells.flags) cells.flags.dataset.flag = flagKind(d);
       },
     };
   },

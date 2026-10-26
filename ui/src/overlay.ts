@@ -80,7 +80,7 @@ function applyConfig(c: Config) {
 function rebuild() {
   if (!config || !inst || !def) return;
   key = `${JSON.stringify([settings, config.theme])}|${units()}`;
-  const theme = applyTheme(config.theme, document.documentElement, { scale: settings.scale as number, bgOpacity: settings.bgOpacity as number });
+  const theme = applyTheme(config.theme, document.documentElement, { scale: settings.scale as number, bgOpacity: settings.bgOpacity as number, opacity: settings.opacity as number });
   custom.textContent = settings.customCss as string;
   panel.className = `panel kind-${def.kind}`;
   panel.replaceChildren();

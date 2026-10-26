@@ -23,4 +23,8 @@ pub trait Source: Send {
     fn track_map(&self, _track_id: i64) -> Option<crate::engine::trackmap::TrackMap> {
         None
     }
+    /// Corner list for sources that know their track (the mock does).
+    fn corners(&self) -> Option<Vec<crate::config::Corner>> {
+        None
+    }
 }

@@ -1,3 +1,12 @@
+/* Country flags: Windows has no flag emoji, so a tiny flags-only font is bundled
+   (Twemoji Country Flags, CC-BY 4.0 — see THIRD_PARTY_NOTICES.md). */
+@font-face {
+  font-family: 'Twemoji Country Flags';
+  unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
+  src: url('/assets/fonts/TwemojiCountryFlags.woff2') format('woff2');
+  font-display: swap;
+}
+
 /* Overlay styling. Everything is driven by CSS variables set from the theme
    (see src/lib/theme.ts) so users can restyle without touching this file. */
 
@@ -33,7 +42,7 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-body.hidden .panel { opacity: 0; }
+body.hidden .panel { opacity: 0 !important; }
 body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f38 0 50%) 0 0 / 24px 24px; }
 
 .panel {
@@ -45,6 +54,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
   border: var(--border);
   border-radius: var(--radius);
   overflow: hidden;
+  opacity: var(--opacity, 1);
   transition: opacity 0.25s;
 }
 .panel.transparent { background: transparent; border: none; }
@@ -154,7 +164,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
   align-items: baseline;
   padding: 0.25em 0.6em;
   border-left: 4px solid var(--class, var(--accent));
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--subtle);
   margin-top: 1px;
 }
 .class-name { font-weight: 700; }
@@ -164,7 +174,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .kv { display: grid; grid-template-columns: 1fr auto; gap: 0.18em 1em; padding: 0.45em 0.7em; }
 .kv .k { color: var(--dim); }
 .kv .v { text-align: right; font-weight: 700; }
-.gauge { height: 0.5em; margin: 0.5em 0.7em 0; background: rgba(255, 255, 255, 0.1); border-radius: 0.25em; overflow: hidden; }
+.gauge { height: 0.5em; margin: 0.5em 0.7em 0; background: var(--track); border-radius: 0.25em; overflow: hidden; }
 .gauge .fill { height: 100%; background: var(--good); transform-origin: left; transition: transform 0.2s linear; }
 .gauge.low .fill { background: var(--bad); }
 .history { display: flex; align-items: flex-end; gap: 2px; height: 2.2em; margin: 0 0.7em 0.5em; }
@@ -175,7 +185,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .panel.inputs { flex-direction: row; gap: 0.5em; padding: 0.4em; align-items: stretch; }
 .inputs .trace { flex: 1; min-width: 0; height: 100%; background: rgba(0, 0, 0, 0.25); border-radius: calc(var(--radius) - 2px); }
 .inputs .bars { display: flex; gap: 0.3em; }
-.inputs .bar { position: relative; width: 1.1em; background: rgba(255, 255, 255, 0.08); border-radius: 3px; overflow: hidden; }
+.inputs .bar { position: relative; width: 1.1em; background: var(--track); border-radius: 3px; overflow: hidden; }
 .inputs .bar .fill { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); }
 .inputs .bar.abs .fill { filter: brightness(1.4) saturate(0.4); }
 .inputs .bar .val { position: absolute; bottom: 2px; width: 100%; text-align: center; font-size: 0.65em; }
@@ -188,7 +198,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 
 /* Battle box */
 .panel.battle { padding: 0.35em; gap: 0.35em; }
-.battle .card { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.2em; padding: 0.3em 0.55em; background: rgba(255, 255, 255, 0.04); border-radius: calc(var(--radius) - 2px); border-left: 3px solid transparent; }
+.battle .card { flex: 1; display: flex; flex-direction: column; justify-content: center; gap: 0.2em; padding: 0.3em 0.55em; background: var(--subtle); border-radius: calc(var(--radius) - 2px); border-left: 3px solid transparent; }
 .battle .card.close { border-left-color: var(--warn); }
 .battle .card.empty { opacity: 0.5; }
 .battle .card.pit { opacity: 0.6; }
@@ -197,7 +207,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .battle .name { flex: 1; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
 .battle .big { font-size: 1.35em; font-weight: 800; }
 .battle .bottom { display: flex; gap: 0.9em; font-size: 0.85em; white-space: nowrap; }
-.battle .gapbar { height: 3px; background: rgba(255, 255, 255, 0.08); border-radius: 2px; overflow: hidden; }
+.battle .gapbar { height: 3px; background: var(--track); border-radius: 2px; overflow: hidden; }
 .battle .gapbar .fill { height: 100%; background: var(--warn); transform-origin: left; }
 
 /* Session info */
@@ -225,7 +235,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .tyres .banner.flash { animation: flash 0.9s steps(2, start) infinite; }
 @keyframes flash { to { background: rgba(255, 92, 92, 0.35); } }
 .wet-gauge { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.wet-gauge .seg { height: 0.45em; background: rgba(255, 255, 255, 0.1); border-radius: 2px; }
+.wet-gauge .seg { height: 0.45em; background: var(--track); border-radius: 2px; }
 .wet-gauge .seg.on.s1 { background: #d9c27a; }
 .wet-gauge .seg.on.s2 { background: #b9c48a; }
 .wet-gauge .seg.on.s3 { background: #8fc0a8; }
@@ -248,3 +258,13 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .g61-row .p { color: var(--dim); }
 .g61-row.me { color: var(--player); }
 .g61-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* Extra columns */
+.c-flag { font-size: 1.05em; line-height: 1; overflow: visible; }
+.make-logo { height: 1.15em; max-width: 100%; object-fit: contain; vertical-align: middle; }
+.make-badge { display: inline-block; padding: 0 0.3em; border-radius: 3px; background: var(--subtle); color: var(--dim); font-size: 0.75em; font-weight: 700; letter-spacing: 0.03em; text-shadow: none; }
+.c-stint.outlap { color: var(--warn); font-size: 0.8em; font-weight: 700; }
+.c-stint.inpit { color: var(--pit); font-size: 0.8em; font-weight: 700; }
+.c-irDelta, .c-srDelta, .c-points { font-variant-numeric: tabular-nums; }
+.header .info[data-flag='yellow'] { color: #ffd400; }
+.header .info[data-flag='red'] { color: var(--bad); }

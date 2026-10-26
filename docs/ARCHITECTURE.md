@@ -41,8 +41,13 @@
 - `topics`: serialises each topic. Payloads are rounded so unchanged data serialises identically, and the hub drops duplicates.
 - `hub`: topic fan-out, subscriber counts (a topic is only built while someone watches it) and host events for the desktop app.
 - `server` (axum): serves the embedded UI and `/o/<id>` pages, plus the `/ws` protocol:
-  - client → server: `sub`, `unsub`, `setEditMode`, `setVisible`, `drag`, `resize`, `setConfig`, `patchOverlay`, `resetTrackMap`
+  - client → server: `sub`, `unsub`, `setEditMode`, `setVisible`, `drag`, `resize`, `setConfig`, `patchOverlay`, `resetTrackMap`,
+    `setIracingApi`, `importLeague` (progress comes back on the `leagueImport` topic)
   - server → client: `{"t": topic, "d": payload}`
+- `engine::ratings`: the live iRating estimate (community formula, computed per iRacing class), a rough SR estimate, and league points.
+- `corners`: a background worker that downloads corner data for the current track from Lovely Track Data and caches it. Corners you edit in the config take precedence.
+- `iracing_api`: the iRacing Data API client (OAuth password-limited grant with masked secrets, following the S3 `link` indirection) and the league importer.
+- `lookup`: flair → ISO country code (for flags) and car → manufacturer.
 - `garage61`: a background worker that maps the current iRacing car and track to Garage 61 IDs and fetches your PB and your teams' best laps.
 
 ### `apps/desktop` (Tauri 2)

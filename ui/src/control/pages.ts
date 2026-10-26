@@ -1,6 +1,6 @@
 import { h } from '../lib/dom';
 import { COMMON, merge, type SettingDef } from '../lib/settings';
-import { THEME } from '../lib/theme';
+import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
 import type { OverlayInstance } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
 import { form } from './form';
@@ -123,11 +123,32 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
   preview.append(frame);
 
   const values = merge([...COMMON, ...def.settings], o.settings);
-  const settings = form([...def.settings, ...COMMON], values, (k, v) => {
-    o.settings = { ...o.settings, [k]: v };
-    save();
-  });
-  wrap.append(head, h('p', 'dim', def.description), geo, preview, settings);
+  const transparencyKeys = ['opacity', 'bgOpacity'];
+  const quick = h('div', 'quick');
+  quick.append(
+    form(
+      COMMON.filter((x) => transparencyKeys.includes(x.key)),
+      values,
+      (k, v) => {
+        o.settings = { ...o.settings, [k]: v };
+        save();
+      },
+    ),
+    button('Apply this transparency to all overlays', () => {
+      for (const other of state.config!.overlays) other.settings = { ...other.settings, opacity: values.opacity, bgOpacity: values.bgOpacity };
+      save();
+    }),
+  );
+  const settings = form(
+    [...def.settings, ...COMMON.filter((x) => !transparencyKeys.includes(x.key))],
+    values,
+    (k, v) => {
+      values[k] = v;
+      o.settings = { ...o.settings, [k]: v };
+      save();
+    },
+  );
+  wrap.append(head, h('p', 'dim', def.description), geo, quick, preview, settings);
   return wrap;
 }
 
@@ -183,25 +204,113 @@ const overlaysPage: Page = {
   },
 };
 
+function swatch(name: string, theme: Record<string, unknown>, onApply: () => void, onDelete?: () => void) {
+  const t = merge(THEME, theme);
+  const el = h('button', 'swatch');
+  el.style.background = t.background as string;
+  el.style.color = t.textColor as string;
+  const bars = h('div', 'swatch-bars');
+  for (const k of ['accent', 'playerColor', 'goodColor', 'badColor', 'lapBehindColor']) {
+    const b = h('span');
+    b.style.background = t[k] as string;
+    bars.append(b);
+  }
+  el.append(h('span', 'swatch-name', name), bars);
+  el.onclick = (e) => {
+    e.preventDefault();
+    onApply();
+  };
+  if (onDelete) {
+    const x = h('span', 'swatch-x', '✕');
+    x.title = 'Delete';
+    x.onclick = (e) => {
+      e.stopPropagation();
+      onDelete();
+    };
+    el.append(x);
+  }
+  return el;
+}
+
+const COLOUR_KEYS = THEME.filter((x) => x.type === 'color').map((x) => x.key);
+
 const themePage: Page = {
   id: 'theme',
   title: 'Theme',
   render(el) {
     const cfg = state.config!;
+    const rerender = () => this.render(el);
+    applyUiTheme(cfg.theme, document.documentElement);
     const values = merge(THEME, cfg.theme);
+    cfg.savedThemes ??= [];
+    const apply = (theme: Record<string, unknown>, coloursOnly: boolean) => {
+      // Presets only carry colours, so fonts and sizes the user picked survive.
+      const base = coloursOnly ? Object.fromEntries(Object.entries(cfg.theme).filter(([k]) => !COLOUR_KEYS.includes(k) && k !== 'backgroundOpacity' && k !== 'shadow')) : {};
+      cfg.theme = { ...base, ...theme };
+      save();
+      rerender();
+    };
+    const presets = h('div', 'swatches');
+    for (const p of PRESETS) presets.append(swatch(p.name, p.values, () => apply(p.values, true)));
+    const saved = h('div', 'swatches');
+    cfg.savedThemes.forEach((t, i) =>
+      saved.append(
+        swatch(
+          t.name,
+          t.theme,
+          () => apply(t.theme, false),
+          () => {
+            cfg.savedThemes.splice(i, 1);
+            save();
+            rerender();
+          },
+        ),
+      ),
+    );
+    if (!cfg.savedThemes.length) saved.append(h('p', 'dim small', 'No saved themes yet.'));
+    const nameInput = h('input');
+    nameInput.placeholder = 'Theme name';
+    const saveRow = h('div', 'toolbar');
+    saveRow.append(
+      nameInput,
+      button(
+        'Save current theme',
+        () => {
+          const name = nameInput.value.trim() || `Theme ${cfg.savedThemes.length + 1}`;
+          cfg.savedThemes = cfg.savedThemes.filter((t) => t.name !== name);
+          cfg.savedThemes.push({ name, theme: { ...cfg.theme } });
+          save();
+          rerender();
+        },
+        'primary',
+      ),
+      button('Export theme', () => download('apex-theme.json', { name: nameInput.value.trim() || 'My theme', theme: cfg.theme })),
+      button('Import theme', async () => {
+        const t = (await upload()) as { name?: string; theme?: Record<string, unknown> };
+        if (!t?.theme) return alert('That file is not an Apex theme.');
+        cfg.savedThemes.push({ name: t.name || 'Imported theme', theme: t.theme });
+        save();
+        rerender();
+      }),
+    );
     el.replaceChildren(
       card(
-        'Look & feel',
-        h('p', 'dim', 'Applies to every overlay. Individual overlays can still override scale, opacity and add custom CSS.'),
+        'Colour themes',
+        h('p', 'dim', 'A theme colours every overlay and this settings window. Pick a preset, tweak it below, then save it as your own.'),
+        h('h3', '', 'Presets'),
+        presets,
+        h('h3', '', 'My themes'),
+        saved,
+        saveRow,
+      ),
+      card(
+        'Customise',
         form(THEME, values, (k, v) => {
           cfg.theme = { ...cfg.theme, [k]: v };
           save();
+          applyUiTheme(cfg.theme, document.documentElement);
         }),
-        button('Reset theme', () => {
-          cfg.theme = {};
-          save();
-          this.render(el);
-        }),
+        button('Reset to default', () => apply({}, false)),
       ),
     );
   },
@@ -314,6 +423,123 @@ const garage61Page: Page = {
   },
 };
 
+/** Track outline + corner list editor for the current track. */
+function cornersCard(rerender: () => void): HTMLElement {
+  const cfg = state.config!;
+  const tm = state.trackmap;
+  const c = card('Track map & corners');
+  if (!tm?.trackId) {
+    c.append(h('p', 'dim', 'Join a session to manage the track outline and corner names for that track.'));
+    return c;
+  }
+  const key = String(tm.trackId);
+  const custom = cfg.trackCorners?.[key];
+  const sourceText: Record<string, string> = { custom: 'your custom list', lovely: 'Lovely Track Data (community)', mock: 'the built-in simulator', none: 'none found yet' };
+  c.append(
+    h('p', 'dim', `${tm.trackName}: outline ${tm.source ?? (tm.recording ? 'recording…' : 'not recorded')}. Corners from ${sourceText[tm.cornersSource] ?? tm.cornersSource}.`),
+    button('Re-record track outline', () => client.send({ op: 'resetTrackMap' })),
+  );
+  const list = custom ?? tm.corners;
+  const table = h('table', 'corners');
+  const head = h('tr');
+  for (const t of ['Turn', 'Name', 'Start %', 'End %', '']) head.append(h('th', '', t));
+  table.append(head);
+  list.forEach((corner, i) => {
+    const tr = h('tr');
+    const cell = (node: Node) => {
+      const td = h('td');
+      td.append(node);
+      tr.append(td);
+    };
+    if (!custom) {
+      tr.append(h('td', '', String(corner.number)), h('td', '', corner.name || '–'), h('td', '', (corner.start * 100).toFixed(1)), h('td', '', (corner.end * 100).toFixed(1)), h('td'));
+      table.append(tr);
+      return;
+    }
+    const num = h('input');
+    num.type = 'number';
+    num.value = String(corner.number);
+    num.oninput = () => {
+      corner.number = parseInt(num.value, 10) || 0;
+      save();
+    };
+    const name = h('input', 'cname');
+    name.value = corner.name;
+    name.placeholder = 'e.g. Eau Rouge';
+    name.oninput = () => {
+      corner.name = name.value;
+      save();
+    };
+    const pct = (field: 'start' | 'end') => {
+      const inp = h('input');
+      inp.type = 'number';
+      inp.step = '0.1';
+      inp.value = (corner[field] * 100).toFixed(1);
+      inp.oninput = () => {
+        const v = parseFloat(inp.value);
+        if (Number.isFinite(v)) {
+          corner[field] = Math.min(1, Math.max(0, v / 100));
+          save();
+        }
+      };
+      return inp;
+    };
+    cell(num);
+    cell(name);
+    cell(pct('start'));
+    cell(pct('end'));
+    cell(
+      button(
+        '✕',
+        () => {
+          custom.splice(i, 1);
+          save();
+          rerender();
+        },
+        'mini',
+      ),
+    );
+    table.append(tr);
+  });
+  const bar = h('div', 'toolbar');
+  if (!custom) {
+    bar.append(
+      button(
+        list.length ? 'Edit these corners' : 'Create a corner list',
+        () => {
+          cfg.trackCorners = { ...(cfg.trackCorners ?? {}), [key]: list.map((x) => ({ ...x })) };
+          save();
+          rerender();
+        },
+        'primary',
+      ),
+    );
+  } else {
+    bar.append(
+      button(
+        'Add corner at my car’s position',
+        () => {
+          const p = state.player?.lapPct ?? 0;
+          custom.push({ name: '', number: (custom.reduce((m, x) => Math.max(m, x.number), 0) || 0) + 1, start: Math.max(0, p - 0.005), end: Math.min(1, p + 0.005) });
+          custom.sort((a, b) => a.start - b.start);
+          save();
+          rerender();
+        },
+        'primary',
+      ),
+      button('Revert to downloaded corners', () => {
+        const next = { ...cfg.trackCorners };
+        delete next[key];
+        cfg.trackCorners = next;
+        save();
+        rerender();
+      }),
+    );
+  }
+  c.append(table, bar, h('p', 'dim small', 'Tip: drive to a corner, then click “Add corner at my car’s position”. Corner labels are switched on in the Track map overlay settings.'));
+  return c;
+}
+
 const generalPage: Page = {
   id: 'general',
   title: 'General',
@@ -325,6 +551,7 @@ const generalPage: Page = {
       lanAccess: cfg.server.lanAccess,
       toggleEdit: cfg.hotkeys.toggleEdit,
       toggleVisibility: cfg.hotkeys.toggleVisibility,
+      ratingsOfficialOnly: cfg.ratingsOfficialOnly,
     };
     el.replaceChildren(
       card(
@@ -332,6 +559,14 @@ const generalPage: Page = {
         form(
           [
             { key: 'units', label: 'Units', type: 'select', default: 'auto', options: [['auto', 'Same as iRacing'], ['metric', 'Metric'], ['imperial', 'Imperial']], group: 'Display' },
+            {
+              key: 'ratingsOfficialOnly',
+              label: 'Only estimate iRating / SR in official races',
+              type: 'bool',
+              default: true,
+              help: 'Leagues and hosted sessions do not change iRating or SR',
+              group: 'Display',
+            },
             { key: 'toggleEdit', label: 'Toggle edit mode', type: 'text', default: 'CmdOrCtrl+Shift+E', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'toggleVisibility', label: 'Show / hide overlays', type: 'text', default: 'CmdOrCtrl+Shift+H', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'port', label: 'Port', type: 'number', default: 8182, min: 1024, max: 65535, group: 'Server (restart to apply)' },
@@ -344,15 +579,12 @@ const generalPage: Page = {
             if (k === 'lanAccess') cfg.server.lanAccess = v as boolean;
             if (k === 'toggleEdit') cfg.hotkeys.toggleEdit = v as string;
             if (k === 'toggleVisibility') cfg.hotkeys.toggleVisibility = v as string;
+            if (k === 'ratingsOfficialOnly') cfg.ratingsOfficialOnly = v as boolean;
             save();
           },
         ),
       ),
-      card(
-        'Track maps',
-        h('p', 'dim', `Track outlines are recorded from your first clean lap at each track and cached. ${state.trackmap?.trackName ? `Current track: ${state.trackmap.trackName} (${state.trackmap.source ?? (state.trackmap.recording ? 'recording' : 'not recorded')}).` : ''}`),
-        button('Re-record current track', () => client.send({ op: 'resetTrackMap' })),
-      ),
+      cornersCard(() => this.render(el)),
       card(
         'Backup',
         h('p', 'dim', 'Export everything (overlays, theme, leagues) to a file, or import a file shared by someone else. Your Garage 61 token is never exported.'),

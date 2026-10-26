@@ -1,31 +1,74 @@
 // Column renderers shared by relative, standings and battle.
 
-import { text } from '../lib/dom';
+import { h, text, toggle } from '../lib/dom';
 import * as f from '../lib/format';
+import type { Values } from '../lib/settings';
 import { chip, type Col } from '../lib/table';
-import type { Driver } from '../lib/types';
+import type { Driver, Extras } from '../lib/types';
 
-export function driverCols<R extends Driver>(nameStyle: string): Col<R>[] {
+/** ISO code → flag emoji (rendered by the bundled flag font). Handles GB-SCT style UK nations. */
+export function flagEmoji(code: string): string {
+  if (!code) return '';
+  if (code.toUpperCase().startsWith('GB-')) {
+    const tag = `gb${code.slice(3).toLowerCase()}`;
+    return `\u{1F3F4}${[...tag].map((c) => String.fromCodePoint(0xe0000 + c.charCodeAt(0))).join('')}\u{E007F}`;
+  }
+  if (!/^[A-Za-z]{2}$/.test(code)) return '';
+  return [...code.toUpperCase()].map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65)).join('');
+}
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+
+/** Logo lookup: user images in <data dir>/logos/<make>.svg|png|webp, probed once per make. */
+const logos = new Map<string, string | null>();
+function probeLogo(make: string, done: () => void) {
+  const key = slug(make);
+  if (logos.has(key)) return;
+  logos.set(key, null);
+  const exts = ['svg', 'png', 'webp'];
+  const next = (i: number) => {
+    if (i >= exts.length) return;
+    const img = new Image();
+    img.onload = () => {
+      logos.set(key, img.src);
+      done();
+    };
+    img.onerror = () => next(i + 1);
+    img.src = `/logos/${key}.${exts[i]}`;
+  };
+  next(0);
+}
+
+function makeCell(c: HTMLElement, make: string, style: string) {
+  if (!make) return text(c, '');
+  const url = style === 'logo' ? logos.get(slug(make)) : null;
+  if (style === 'logo' && !logos.has(slug(make))) probeLogo(make, () => c.replaceChildren());
+  if (url) {
+    let img = c.firstElementChild as HTMLImageElement | null;
+    if (!img || img.tagName !== 'IMG') {
+      img = h('img', 'make-logo');
+      c.replaceChildren(img);
+    }
+    if (img.getAttribute('src') !== url) img.src = url;
+    img.alt = make;
+    return;
+  }
+  let b = c.firstElementChild as HTMLElement | null;
+  if (!b || b.tagName !== 'SPAN') {
+    b = h('span', 'make-badge');
+    c.replaceChildren(b);
+  }
+  text(b, style === 'full' ? make : make.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase());
+}
+
+export function driverCols<R extends Driver>(s: Values): Col<R>[] {
+  const nameStyle = s.nameStyle as string;
   return [
-    {
-      id: 'number',
-      label: '#',
-      width: '2.9em',
-      align: 'center',
-      render: (c, r) => chip(c, r.number, r.classColor),
-    },
-    {
-      id: 'name',
-      label: 'Driver',
-      width: 'minmax(4em, 1fr)',
-      render: (c, r) => text(c, f.name(r.name, nameStyle)),
-    },
-    {
-      id: 'team',
-      label: 'Team',
-      width: 'minmax(3em, 0.8fr)',
-      render: (c, r) => text(c, r.team === r.name ? '' : r.team),
-    },
+    { id: 'number', label: '#', width: '2.9em', align: 'center', render: (c, r) => chip(c, r.number, r.classColor) },
+    { id: 'flag', label: '', width: '1.6em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
+    { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => text(c, f.name(r.name, nameStyle)) },
+    { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
+    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '2.6em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string) },
     {
       id: 'license',
       label: 'Lic',
@@ -33,28 +76,66 @@ export function driverCols<R extends Driver>(nameStyle: string): Col<R>[] {
       align: 'center',
       render: (c, r) => chip(c, r.license.split(' ')[0] + ' ' + (r.license.split(' ')[1] ?? '').slice(0, 3), r.licenseColor),
     },
-    {
-      id: 'irating',
-      label: 'iR',
-      width: '3em',
-      align: 'right',
-      render: (c, r) => text(c, r.irating > 0 ? f.iRating(r.irating) : ''),
-    },
-    {
-      id: 'car',
-      label: 'Car',
-      width: 'minmax(3em, 0.7fr)',
-      render: (c, r) => text(c, r.car),
-    },
-    {
-      id: 'class',
-      label: 'Class',
-      width: '3.6em',
-      align: 'center',
-      render: (c, r) => chip(c, r.className, r.classColor),
-    },
+    { id: 'irating', label: 'iR', width: '3em', align: 'right', render: (c, r) => text(c, r.irating > 0 ? f.iRating(r.irating) : '') },
+    { id: 'car', label: 'Car', width: 'minmax(3em, 0.7fr)', render: (c, r) => text(c, r.car) },
+    { id: 'class', label: 'Class', width: '3.6em', align: 'center', render: (c, r) => chip(c, r.className, r.classColor) },
   ];
 }
+
+function signedCell(c: HTMLElement, v: number | null, digits: number) {
+  text(c, v == null ? '' : f.signed(v, digits) || '0');
+  toggle(c, 'good', v != null && v > 0);
+  toggle(c, 'bad', v != null && v < 0);
+}
+
+/** Columns from the per-car extras (stint, ratings, points, ...). */
+export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
+  return [
+    { id: 'lap', label: 'Lap', width: '2.6em', align: 'right', render: (c, r) => text(c, r.lap ? String(r.lap) : '') },
+    {
+      id: 'stint',
+      label: 'Stint',
+      width: '3.6em',
+      align: 'center',
+      render: (c, r) => {
+        text(c, r.stintState === 'pit' ? 'PIT' : r.stintState === 'out' ? (s.outLapText as string) : String(r.stintLap ?? ''));
+        toggle(c, 'outlap', r.stintState === 'out');
+        toggle(c, 'inpit', r.stintState === 'pit');
+      },
+    },
+    { id: 'bestLap', label: 'Best', width: '4.6em', align: 'right', render: (c, r) => text(c, r.bestLap ? f.lapTime(r.bestLap) : '') },
+    { id: 'incidents', label: 'Inc', width: '2.4em', align: 'right', render: (c, r) => text(c, r.incidents == null ? '' : `${r.incidents}x`) },
+    { id: 'irDelta', label: 'iR±', width: '3em', align: 'right', render: (c, r) => signedCell(c, r.irDelta, 0) },
+    { id: 'srDelta', label: 'SR±', width: '3.2em', align: 'right', render: (c, r) => signedCell(c, r.srDelta, 2) },
+    {
+      id: 'points',
+      label: 'Pts',
+      width: '2.8em',
+      align: 'right',
+      render: (c, r) => {
+        text(c, r.points == null ? '' : `${s.pointsPlus ? '+' : ''}${+r.points.toFixed(1)}`);
+        toggle(c, 'good', r.points != null && r.points > 0);
+      },
+    },
+    { id: 'seasonPoints', label: 'Champ', width: '3.2em', align: 'right', render: (c, r) => text(c, r.seasonPoints == null ? '' : String(+r.seasonPoints.toFixed(1))) },
+  ];
+}
+
+/** Settings shared by every column-based overlay. */
+export const COLUMN_STYLE_SETTINGS = [
+  { key: 'flagStyle', label: 'Flag style', type: 'select' as const, default: 'emoji', options: [['emoji', 'Flag'], ['code', 'Country code']] as [string, string][], group: 'Columns' },
+  {
+    key: 'makeStyle',
+    label: 'Manufacturer style',
+    type: 'select' as const,
+    default: 'logo',
+    options: [['logo', 'Logo (falls back to short name)'], ['short', 'Short name'], ['full', 'Full name']] as [string, string][],
+    help: 'Put your own logo images in the data folder under logos/ (e.g. porsche.png)',
+    group: 'Columns',
+  },
+  { key: 'outLapText', label: 'Out-lap label', type: 'text' as const, default: 'OUTLAP', group: 'Columns' },
+  { key: 'pointsPlus', label: 'Show points as gains (+25)', type: 'bool' as const, default: true, group: 'Columns' },
+];
 
 export function tireCell(c: HTMLElement, wet: boolean | null) {
   text(c, wet == null ? '' : wet ? 'W' : 'D');

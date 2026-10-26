@@ -235,6 +235,12 @@ pub struct Driver {
     pub lic_string: String,
     pub lic_color: u32,
     pub club: String,
+    /// The country flag ("flair") the driver chose on their iRacing account.
+    pub flair: String,
+    /// ISO 3166 alpha-2 code derived from the flair (or a single-country club), "" if unknown.
+    pub country: String,
+    /// Manufacturer derived from the car name, e.g. "Porsche".
+    pub make: String,
     pub is_spectator: bool,
     pub is_pace_car: bool,
     pub is_ai: bool,
@@ -291,6 +297,8 @@ pub struct SessionInfo {
     pub track_city: String,
     pub track_country: String,
     pub series_id: i64,
+    /// Official (ranked) session: iRating and SR change.
+    pub official: bool,
     pub subsession_id: i64,
     pub league_id: i64,
     pub event_type: String,
@@ -369,6 +377,9 @@ impl SessionInfo {
                 lic_string: d.get("LicString").string(),
                 lic_color: d.get("LicColor").i64().unwrap_or(0xffffff) as u32,
                 club: d.get("ClubName").string(),
+                flair: d.get("FlairName").string(),
+                country: crate::lookup::country_code(&d.get("FlairName").string(), &d.get("ClubName").string()).to_string(),
+                make: crate::lookup::make(&d.get("CarScreenName").string(), &d.get("CarPath").string()),
                 is_spectator: d.get("IsSpectator").i32_or(0) != 0,
                 is_pace_car: d.get("CarIsPaceCar").i32_or(0) != 0,
                 is_ai: d.get("CarIsAI").i32_or(0) != 0,
@@ -384,6 +395,7 @@ impl SessionInfo {
             track_city: wi.get("TrackCity").string(),
             track_country: wi.get("TrackCountry").string(),
             series_id: wi.get("SeriesID").i64().unwrap_or(0),
+            official: wi.get("Official").i32_or(0) != 0,
             subsession_id: wi.get("SubSessionID").i64().unwrap_or(0),
             league_id: wi.get("LeagueID").i64().unwrap_or(0),
             event_type: wi.get("EventType").string(),
@@ -428,6 +440,15 @@ impl SessionInfo {
 
     pub fn has_wet_tires(&self) -> bool {
         self.tires.iter().any(|t| t.is_wet())
+    }
+}
+
+impl Driver {
+    /// Licence class letter and safety rating from e.g. "A 3.45".
+    pub fn licence(&self) -> (char, f32) {
+        let mut it = self.lic_string.split_whitespace();
+        let class = it.next().and_then(|c| c.chars().next()).unwrap_or('R');
+        (class, it.next().and_then(|v| v.parse().ok()).unwrap_or(0.0))
     }
 }
 

@@ -56,13 +56,7 @@ struct Client {
 
 impl Client {
     fn new(token: &str) -> Self {
-        let builder = ureq::AgentBuilder::new().timeout(Duration::from_secs(15)).user_agent(concat!("ApexOverlays/", env!("CARGO_PKG_VERSION")));
-        #[cfg(windows)]
-        let builder = match native_tls::TlsConnector::new() {
-            Ok(c) => builder.tls_connector(Arc::new(c)),
-            Err(_) => builder,
-        };
-        let agent = builder.build();
+        let agent = crate::net::agent();
         Self { agent, token: token.to_string(), cars: None, tracks: None, me: None }
     }
 

@@ -3,11 +3,15 @@
 //! overlays over a local WebSocket.
 
 pub mod config;
+pub mod corners;
 pub mod engine;
 pub mod garage61;
 pub mod hub;
+pub mod iracing_api;
 pub mod league;
+pub mod lookup;
 pub mod model;
+pub mod net;
 pub mod server;
 pub mod source;
 pub mod topics;
@@ -63,7 +67,7 @@ pub fn start(opts: Options) -> std::io::Result<App> {
     listener.set_nonblocking(true)?;
     let addr = listener.local_addr()?;
 
-    let state = server::AppState { hub: hub.clone(), config: config.clone(), ui_dir: opts.ui_dir.clone() };
+    let state = server::AppState { hub: hub.clone(), config: config.clone(), ui_dir: opts.ui_dir.clone(), data_dir: opts.data_dir.clone() };
     std::thread::Builder::new().name("http".into()).spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("tokio runtime");
         rt.block_on(async move {
@@ -87,6 +91,10 @@ pub fn start(opts: Options) -> std::io::Result<App> {
 
     let combo = Arc::new(Mutex::new(garage61::Combo::default()));
     garage61::spawn(hub.clone(), config.clone(), combo.clone());
+    let track = Arc::new(Mutex::new((0i64, String::new())));
+    if !opts.mock {
+        corners::spawn(hub.clone(), opts.data_dir.clone(), track.clone());
+    }
 
     let (cmd_tx, cmd_rx) = mpsc::channel();
     hub.set_command_sender(cmd_tx);
@@ -94,12 +102,21 @@ pub fn start(opts: Options) -> std::io::Result<App> {
     *hub.source.lock().unwrap() = source.name();
     hub.publish_status();
     let (h, c, d) = (hub.clone(), config.clone(), opts.data_dir.clone());
-    std::thread::Builder::new().name("telemetry".into()).spawn(move || run(source, h, c, combo, cmd_rx, d))?;
+    std::thread::Builder::new().name("telemetry".into()).spawn(move || run(source, h, c, combo, track, cmd_rx, d))?;
 
     Ok(App { hub, config, addr, data_dir: opts.data_dir })
 }
 
-fn run(mut source: Box<dyn Source>, hub: Arc<Hub>, config: ConfigStore, combo: Arc<Mutex<garage61::Combo>>, cmds: mpsc::Receiver<Command>, data_dir: PathBuf) {
+#[allow(clippy::too_many_arguments)]
+fn run(
+    mut source: Box<dyn Source>,
+    hub: Arc<Hub>,
+    config: ConfigStore,
+    combo: Arc<Mutex<garage61::Combo>>,
+    track: Arc<Mutex<(i64, String)>>,
+    cmds: mpsc::Receiver<Command>,
+    data_dir: PathBuf,
+) {
     let mut e = Engine::new(config.get(), Some(data_dir));
     e.source = source.name();
     let mut cfg_rx = config.subscribe();
@@ -111,6 +128,7 @@ fn run(mut source: Box<dyn Source>, hub: Arc<Hub>, config: ConfigStore, combo: A
         }
         while let Ok(cmd) = cmds.try_recv() {
             match cmd {
+                Command::SetCorners { track_id, corners, source } => e.set_remote_corners(track_id, corners, source),
                 Command::ResetTrackMap => {
                     e.map.clear();
                     if let Some(m) = source.track_map(e.info.track_id) {
@@ -143,6 +161,10 @@ fn run(mut source: Box<dyn Source>, hub: Arc<Hub>, config: ConfigStore, combo: A
                             e.map.set(m);
                         }
                     }
+                    if let Some(c) = source.corners() {
+                        e.set_remote_corners(e.info.track_id, c, "mock");
+                    }
+                    *track.lock().unwrap() = (e.info.track_id, e.info.track_name.clone());
                     let me = e.info.driver(e.info.player_car_idx.max(0) as usize);
                     *combo.lock().unwrap() = garage61::Combo {
                         car_id: me.map(|d| d.car_id).unwrap_or(0),

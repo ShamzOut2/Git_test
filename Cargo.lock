@@ -49,22 +49,24 @@ checksum = "330a5ed07fa54e4702c9d6c4174f74427fc0ef6e214bbd677ae50a5099946470"
 
 [[package]]
 name = "apex-core"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "apex-irsdk",
  "axum",
+ "base64 0.22.1",
  "log",
  "native-tls",
  "rust-embed",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tokio",
  "ureq",
 ]
 
 [[package]]
 name = "apex-desktop"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "apex-core",
  "log",
@@ -79,14 +81,14 @@ dependencies = [
 
 [[package]]
 name = "apex-irsdk"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "windows-sys 0.59.0",
 ]
 
 [[package]]
 name = "apex-server"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "apex-core",
  "log",

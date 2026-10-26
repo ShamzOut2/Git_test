@@ -108,6 +108,33 @@ impl Circuit {
         self.tref[((pct.rem_euclid(1.0)) * SAMPLES as f64) as usize % SAMPLES]
     }
 
+    /// Corners are the stretches where the speed profile drops well below top speed.
+    pub fn corners(&self) -> Vec<crate::config::Corner> {
+        const NAMES: [&str; 8] = ["La Première", "", "Lakeside", "The Kink", "", "Hairpin", "", "Last Chance"];
+        let slow = |i: usize| self.vref[i] < 62.0;
+        let mut out = vec![];
+        let mut i = 0;
+        while i < SAMPLES {
+            if slow(i) {
+                let start = i;
+                while i < SAMPLES && slow(i) {
+                    i += 1;
+                }
+                if i - start > 20 {
+                    let n = out.len();
+                    out.push(crate::config::Corner {
+                        name: NAMES.get(n).unwrap_or(&"").to_string(),
+                        number: n as i32 + 1,
+                        start: start as f32 / SAMPLES as f32,
+                        end: i as f32 / SAMPLES as f32,
+                    });
+                }
+            }
+            i += 1;
+        }
+        out
+    }
+
     pub fn map(&self, track_id: i64) -> TrackMap {
         let pts: Vec<[f64; 2]> = (0..crate::engine::trackmap::BINS).map(|b| self.xy[b * SAMPLES / crate::engine::trackmap::BINS]).collect();
         TrackMap { track_id, name: "Apex Raceway".into(), points: normalise(&pts), source: "mock".into() }
@@ -140,6 +167,7 @@ struct Car {
     wets: bool,
     wet_trigger: i32,
     pit: Pit,
+    incidents: i32,
     speed: f64,
     prev_speed: f64,
     wobble: f64,
@@ -147,9 +175,9 @@ struct Car {
 
 const CLASSES: [(&str, &str, u32, f64, f64); 3] = [
     // name, car, colour, pace factor, fuel capacity (L)
-    ("GTP", "Hypercar 963", 0xffda59, 1.00, 88.0),
-    ("LMP2", "Prototype 07", 0x33ceff, 1.07, 75.0),
-    ("GT3", "GT3 Evo", 0xff5888, 1.13, 63.6),
+    ("GTP", "Porsche 963 GTP", 0xffda59, 1.00, 88.0),
+    ("LMP2", "Dallara P217 LMP2", 0x33ceff, 1.07, 75.0),
+    ("GT3", "BMW M4 GT3", 0xff5888, 1.13, 63.6),
 ];
 const NAMES: [&str; 22] = [
     "Ayrton Vale",
@@ -175,6 +203,8 @@ const NAMES: [&str; 22] = [
     "Sam O'Neill",
     "Zoe Laurent",
 ];
+const FLAIRS: [&str; 12] =
+    ["United Kingdom", "Finland", "Germany", "France", "Italy", "Japan", "Australia", "India", "Ireland", "Brazil", "Sweden", "Netherlands"];
 const PLAYER: usize = 14;
 
 pub struct Mock {
@@ -215,6 +245,7 @@ impl Mock {
                 wets: false,
                 wet_trigger: if i == PLAYER { 5 } else { (rng.range(3.0, 5.99)) as i32 },
                 pit: Pit::None,
+                incidents: 0,
                 speed: 0.0,
                 prev_speed: 0.0,
                 wobble: rng.range(0.0, TAU),
@@ -312,11 +343,15 @@ impl Mock {
         if self.rng.next() < 0.00005 {
             self.incidents += 1;
         }
+        if self.rng.next() < 0.0004 {
+            let i = 1 + (self.rng.next() * (self.cars.len() - 1) as f64) as usize;
+            self.cars[i].incidents += if self.rng.next() < 0.7 { 1 } else { 2 };
+        }
     }
 
     fn yaml(&self) -> String {
         let mut y = format!(
-            "---\nWeekendInfo:\n TrackName: apex raceway\n TrackID: 9001\n TrackLength: {:.2} km\n TrackDisplayName: Apex Raceway\n TrackConfigName: Grand Prix\n TrackCity: Nowhere\n TrackCountry: Simland\n SeriesID: 1\n SubSessionID: 424242\n LeagueID: 0\n EventType: Race\n WeekendOptions:\n  IncidentLimit: 25\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionLaps: unlimited\n   SessionTime: {:.4} sec\n   SessionType: Race\n   SessionName: RACE\n   ResultsPositions:\n",
+            "---\nWeekendInfo:\n TrackName: apex raceway\n TrackID: 9001\n TrackLength: {:.2} km\n TrackDisplayName: Apex Raceway\n TrackConfigName: Grand Prix\n TrackCity: Nowhere\n TrackCountry: Simland\n SeriesID: 1\n SubSessionID: 424242\n LeagueID: 0\n Official: 1\n EventType: Race\n WeekendOptions:\n  IncidentLimit: 25\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionLaps: unlimited\n   SessionTime: {:.4} sec\n   SessionType: Race\n   SessionName: RACE\n   ResultsPositions:\n",
             self.track.len / 1000.0,
             RACE_SECONDS
         );
@@ -331,7 +366,7 @@ impl Mock {
             let ir = 1200 + ((i * 7919) % 4300) as i32;
             let lic = ["R", "D", "C", "B", "A", "P"][(ir as usize / 900).min(5)];
             y += &format!(
-                " - CarIdx: {i}\n   UserName: {name}\n   AbbrevName: {}\n   UserID: {}\n   TeamName: {name}\n   CarNumber: \"{}\"\n   CarID: {}\n   CarPath: {}\n   CarScreenName: {car}\n   CarScreenNameShort: {car}\n   CarClassID: {}\n   CarClassShortName: {cls}\n   CarClassColor: 0x{color:06x}\n   CarClassEstLapTime: {:.4}\n   IRating: {ir}\n   LicString: {lic} {:.2}\n   LicColor: 0x{:06x}\n   ClubName: Mock Club\n   IsSpectator: 0\n   CarIsPaceCar: 0\n",
+                " - CarIdx: {i}\n   UserName: {name}\n   AbbrevName: {}\n   UserID: {}\n   TeamName: {name}\n   CarNumber: \"{}\"\n   CarID: {}\n   CarPath: {}\n   CarScreenName: {car}\n   CarScreenNameShort: {car}\n   CarClassID: {}\n   CarClassShortName: {cls}\n   CarClassColor: 0x{color:06x}\n   CarClassEstLapTime: {:.4}\n   IRating: {ir}\n   LicString: {lic} {:.2}\n   LicColor: 0x{:06x}\n   ClubName: Mock Club\n   FlairName: {}\n   CurDriverIncidentCount: {}\n   IsSpectator: 0\n   CarIsPaceCar: 0\n",
                 abbreviate(name),
                 100000 + i,
                 if i < 10 { format!("{}", i * 3) } else { format!("{}", 100 + i) },
@@ -341,6 +376,8 @@ impl Mock {
                 self.track.lap_ref * pace,
                 1.5 + (i % 30) as f64 / 10.0,
                 [0xfc0706, 0xff8c00, 0xfeec04, 0x00c702, 0x0153db, 0x000000][(ir as usize / 900).min(5)],
+                FLAIRS[i % FLAIRS.len()],
+                if i == PLAYER { self.incidents } else { c.incidents },
             );
         }
         y += "SplitTimeInfo:\n Sectors:\n - SectorNum: 0\n   SectorStartPct: 0.000000\n - SectorNum: 1\n   SectorStartPct: 0.330000\n - SectorNum: 2\n   SectorStartPct: 0.680000\n";
@@ -491,7 +528,8 @@ impl Source for Mock {
         }
         self.step();
         self.fill(tel);
-        let session_yaml = (!self.sent_yaml).then(|| {
+        // Like iRacing, re-send the session string when results/incidents change.
+        let session_yaml = (!self.sent_yaml || self.tick % (60 * 30) == 0).then(|| {
             self.sent_yaml = true;
             self.yaml()
         });
@@ -500,6 +538,10 @@ impl Source for Mock {
 
     fn track_map(&self, track_id: i64) -> Option<TrackMap> {
         Some(self.track.map(track_id))
+    }
+
+    fn corners(&self) -> Option<Vec<crate::config::Corner>> {
+        Some(self.track.corners())
     }
 }
 
@@ -514,6 +556,8 @@ mod tests {
         let c = Circuit::new();
         assert!((c.len - TARGET_LEN).abs() < 1.0);
         assert!(c.lap_ref > 60.0 && c.lap_ref < 160.0, "{}", c.lap_ref);
+        let corners = c.corners();
+        assert!((5..=20).contains(&corners.len()), "{}", corners.len());
     }
 
     #[test]

@@ -22,6 +22,7 @@ pub enum HostEvent {
 #[derive(Debug, Clone)]
 pub enum Command {
     ResetTrackMap,
+    SetCorners { track_id: i64, corners: Vec<crate::config::Corner>, source: &'static str },
 }
 
 pub struct Hub {

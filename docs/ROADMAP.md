@@ -7,11 +7,20 @@ Done in 0.1:
 - [x] Desktop host (transparent click-through windows, edit mode, tray, hotkeys) and OBS browser sources
 - [x] Built-in race simulator for development
 
+Done in 0.2:
+- [x] Per-overlay transparency (overall + background), colour themes (presets, saved custom themes) for overlays and settings
+- [x] League import from iRacing by league ID (classes, nicknames, points system, championship standings)
+- [x] Points systems by class or overall position, fastest-lap bonus, live points and projected championship
+- [x] Relative/standings: customisable session header; flags, manufacturer, iRating/SR estimates, stint lap with OUTLAP,
+      best/last lap, tyre, current lap, overall position
+- [x] Track map corner labels (turn numbers and/or names), downloadable and user-editable
+
 Next:
 - [ ] **Stream chat overlay**: Twitch chat over the anonymous IRC WebSocket (no login needed) and YouTube live chat,
       as an in-game overlay and an OBS source
 - [ ] **VR support**: render overlays into OpenXR/OpenVR overlay layers. Overlays are already plain pages with no host
       assumptions, so a VR host only needs off-screen web rendering and a texture upload
+- [ ] Code-signed installer (removes the SmartScreen warning) and auto-update
 - [ ] Delta bar (to session best, personal best and Garage 61 reference lap)
 - [ ] Pit strategy: tyre-change timing, fuel to add pre-filled to the pit service, undercut/overcut estimates
 - [ ] Flags / race control overlay, blind-spot (car left/right) indicator, radar

@@ -46,8 +46,8 @@ button, select, input, textarea {
 button { cursor: pointer; }
 button:hover { border-color: #3a4352; }
 button:disabled { opacity: 0.35; cursor: default; }
-button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
-button.primary.active { background: #fff; color: var(--accent); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text, #fff); font-weight: 600; }
+button.primary.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 button.danger { color: var(--bad); }
 button.mini { padding: 2px 7px; font-size: 12px; }
 button.tab.sel { border-color: var(--accent); }
@@ -55,7 +55,7 @@ input[type='color'] { padding: 0; width: 34px; height: 30px; }
 input[type='range'] { padding: 0; width: 140px; accent-color: var(--accent); }
 input[type='number'] { width: 84px; }
 textarea { width: 100%; min-height: 90px; font-family: Consolas, monospace; font-size: 12px; }
-.switch { appearance: none; width: 38px; height: 22px; border-radius: 11px; background: #333b48; position: relative; padding: 0; border: none; cursor: pointer; transition: background 0.15s; }
+.switch { appearance: none; width: 38px; height: 22px; border-radius: 11px; background: var(--line); position: relative; padding: 0; border: none; cursor: pointer; transition: background 0.15s; }
 .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 16px; height: 16px; border-radius: 50%; background: #fff; transition: transform 0.15s; }
 .switch:checked { background: var(--accent); }
 .switch:checked::after { transform: translateX(16px); }
@@ -93,9 +93,26 @@ legend { color: var(--dim); font-size: 12px; text-transform: uppercase; letter-s
 table { border-collapse: collapse; width: 100%; }
 td, th { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; }
 th { color: var(--dim); font-weight: 500; font-size: 12px; }
-code { font-size: 12px; color: #c9d1dd; }
+code { font-size: 12px; color: var(--dim); }
 .league-class { border: 1px solid var(--line); border-left: 4px solid var(--class); border-radius: 8px; padding: 10px 12px; margin: 10px 0; background: var(--panel-2); }
 .lc-head { display: flex; gap: 8px; align-items: center; }
 .rules { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 0 16px; margin-top: 6px; }
 .rules input { width: 170px; }
 .drivers input { width: 100%; }
+h3 { margin: 14px 0 8px; font-size: 13px; color: var(--dim); text-transform: uppercase; letter-spacing: 0.06em; }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+.swatch { position: relative; display: flex; flex-direction: column; gap: 10px; align-items: flex-start; padding: 12px; border-radius: 8px; border: 1px solid var(--line); text-align: left; }
+.swatch:hover { outline: 2px solid var(--accent); }
+.swatch-name { font-weight: 600; }
+.swatch-bars { display: flex; gap: 4px; }
+.swatch-bars span { width: 18px; height: 8px; border-radius: 2px; }
+.swatch-x { position: absolute; top: 6px; right: 8px; opacity: 0.6; }
+.quick { border: 1px solid var(--line); border-radius: 8px; padding: 0 12px 10px; margin: 8px 0; }
+.quick .form { margin: 4px 0; }
+.quick fieldset { border: none; padding: 0; }
+.points-table { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+.points-table label { display: flex; flex-direction: column; align-items: center; font-size: 11px; color: var(--dim); }
+.points-table input { width: 54px; text-align: center; }
+.notice { padding: 10px 12px; border-radius: 8px; background: var(--panel-2); border-left: 3px solid var(--accent); margin: 8px 0; }
+.corners input[type='number'] { width: 80px; }
+.corners input.cname { width: 180px; }
