@@ -120,8 +120,11 @@ drive a track and cached. For any track you can edit the corners, or add your ow
 Shift lights in the driver inputs overlay use per-gear shift points and colours from
 [Lovely Car Data](https://github.com/Lovely-Sim-Racing/lovely-car-data) when your car is listed there, and iRacing's own shift
 points otherwise. Short class names (GT3, TCR, LMP2…) come from [Lovely Car Classes](https://github.com/Lovely-Sim-Racing/lovely-car-classes)
-and Lovely Car Data; switch them off under *General*. For a logo next to a class name in the standings, put an image named
-after the class in `%APPDATA%\Apex Overlays\logos\`, e.g. `class-gt3.png`.
+and Lovely Car Data; switch them off under *General*. Class badges (GT3, LMP2, TCR, GTP, MX-5… 52 classes across sports cars, formula, oval and dirt) are built in and shown in
+the standings class headers and the class column. Their colour follows the class colour of the session: iRacing's official
+multiclass colours map to the matching badge colour (gold → yellow, light blue → sky, pink → magenta, purple → purple,
+green → lime, single-class white → white), league colours to the closest badge colour, or pick *Exactly the class colour*
+or a fixed colour. Your own image in `%APPDATA%\Apex Overlays\logos\` named after the class (e.g. `class-gt3.png`) takes priority.
 
 ### Without iRacing: the built-in simulator
 
