@@ -232,8 +232,9 @@ pub struct PlayerOut {
     pub incidents: i32,
     pub lat_g: f32,
     pub long_g: f32,
-    /// Compass heading of the car in degrees (0 = north, clockwise).
-    pub heading: f32,
+    /// Compass heading in degrees of the car being followed (the player, or the camera car
+    /// when spectating / in a replay). None when it cannot be known yet.
+    pub heading: Option<f32>,
 }
 
 pub fn player(e: &Engine) -> PlayerOut {
@@ -265,7 +266,7 @@ pub fn player(e: &Engine) -> PlayerOut {
         incidents: t.incidents,
         lat_g: round(t.lat_accel / 9.81, 2),
         long_g: round(t.long_accel / 9.81, 2),
-        heading: round(t.yaw_north.to_degrees().rem_euclid(360.0), 1),
+        heading: e.focus_heading().map(|h| round(h, 1)),
     }
 }
 
@@ -289,6 +290,18 @@ pub struct CarsOut<'a> {
     pub player: Option<usize>,
     pub sectors: &'a [f32],
     pub cars: Vec<CarDot<'a>>,
+    /// Sector times of the focus car for the track map's sector colours.
+    pub sector_times: SectorTimesOut<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SectorTimesOut<'a> {
+    pub starts: &'a [f32],
+    pub last: &'a [Option<crate::engine::sectors::SectorTime>],
+    pub lap: u32,
+    /// Seconds since the focus car last crossed the line.
+    pub lap_end_ago: Option<f64>,
 }
 
 pub fn cars(e: &Engine) -> CarsOut<'_> {
@@ -297,6 +310,12 @@ pub fn cars(e: &Engine) -> CarsOut<'_> {
         focus: t.focus_idx(),
         player: usize::try_from(t.player_idx).ok(),
         sectors: &e.info.sectors,
+        sector_times: SectorTimesOut {
+            starts: &e.sectors.starts,
+            last: &e.sectors.last,
+            lap: e.sectors.lap,
+            lap_end_ago: e.sectors.lap_end_at.map(|at| round((t.session_time - at) as f32, 1) as f64),
+        },
         cars: e
             .order
             .iter()
@@ -502,7 +521,7 @@ pub fn relative(e: &Engine) -> RelativeOut<'_> {
                 lap_diff,
                 on_pit_road: c.on_pit_road,
                 off_track: c.surface == surface::OFF_TRACK,
-                tire_wet: e.info.tire_is_wet(c.tire_compound),
+                tire_wet: e.info.tire_shown(c),
             })
         })
         .collect();
@@ -587,7 +606,7 @@ pub fn standings(e: &Engine) -> StandingsOut<'_> {
             pit_stops: h.pit_stops,
             stint_laps: (c.lap - h.stint_start_lap).max(0),
             positions_gained: (h.start_class_pos > 0 && e.is_race()).then(|| h.start_class_pos - r.class_pos),
-            tire_wet: e.info.tire_is_wet(c.tire_compound),
+            tire_wet: e.info.tire_shown(c),
             progress: round(e.progress(r.idx) as f32, 3),
         });
     }
@@ -759,7 +778,7 @@ pub fn battle_out(e: &Engine) -> BattleOut<'_> {
             last_lap: e.last_lap(idx).map(r3),
             best_lap: e.best_lap(idx).map(r3),
             on_pit_road: c.on_pit_road,
-            tire_wet: e.info.tire_is_wet(c.tire_compound),
+            tire_wet: e.info.tire_shown(c),
             in_battle: gap_laps == 0 && gap.is_some_and(|g| g <= e.cfg.battle.max_gap),
         })
     };

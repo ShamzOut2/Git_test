@@ -82,8 +82,8 @@ function rebuild() {
   key = `${JSON.stringify([settings, config.theme])}|${units()}`;
   const theme = applyTheme(config.theme, document.documentElement, { scale: settings.scale as number, bgOpacity: settings.bgOpacity as number, opacity: settings.opacity as number });
   custom.textContent = settings.customCss as string;
-  panel.className = `panel kind-${def.kind}${settings.autoHeight ? ' auto-height' : ''}`;
-  setupAutoHeight();
+  panel.className = `panel kind-${def.kind}${settings.autoHeight ? ' auto-height' : ''}${settings.autoWidth && !preview ? ' auto-width' : ''}`;
+  setupAutoSize();
   panel.replaceChildren();
   const ctx: Ctx = {
     settings,
@@ -102,23 +102,26 @@ function rebuild() {
   }
 }
 
-/** Auto-height: the panel hugs its content and asks the desktop app to fit the window to it. */
+/** Auto-size: the panel hugs its content and asks the desktop app to fit the window to it (0 = off). */
 let sizer: ResizeObserver | null = null;
-let lastHeight = -1;
-function setupAutoHeight() {
+let lastSize = { width: -1, height: -1 };
+function setupAutoSize() {
   sizer?.disconnect();
   sizer = null;
-  if (!settings.autoHeight || preview) {
-    if (lastHeight !== 0 && lastHeight !== -1) client.send({ op: 'autoSize', id, height: 0 });
-    lastHeight = 0;
+  const autoH = !!settings.autoHeight && !preview;
+  const autoW = !!settings.autoWidth && !preview;
+  const send = (width: number, height: number) => {
+    if (Math.abs(width - lastSize.width) <= 1 && Math.abs(height - lastSize.height) <= 1) return;
+    lastSize = { width, height };
+    client.send({ op: 'autoSize', id, width, height });
+  };
+  if (!autoH && !autoW) {
+    if (lastSize.width > 0 || lastSize.height > 0) send(0, 0);
     return;
   }
   sizer = new ResizeObserver(() => {
-    const height = Math.ceil(panel.getBoundingClientRect().height);
-    if (height > 0 && Math.abs(height - lastHeight) > 1) {
-      lastHeight = height;
-      client.send({ op: 'autoSize', id, height });
-    }
+    const r = panel.getBoundingClientRect();
+    if (r.width > 0 && r.height > 0) send(autoW ? Math.ceil(r.width) : 0, autoH ? Math.ceil(r.height) : 0);
   });
   sizer.observe(panel);
 }

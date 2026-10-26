@@ -84,7 +84,7 @@ export const raceControlPage: Page = {
     dl.setAttribute('href', '/api/session-info');
     dl.setAttribute('download', 'apex-session-info.yaml');
     drivers.append(
-      h('p', 'dim small', 'The Flag column shows the flair iRacing sends for each driver. If a flag is missing, download the session info and attach it to a bug report so the field can be matched.'),
+      h('p', 'dim small', 'The Flag column shows each driver’s country. It comes from the flair iRacing sends in the session; when a session has none, Apex Overlays looks drivers up through the iRacing Data API (set up under League builder → Import from iRacing) and remembers them. You can also set a driver’s flag in the League builder. If flags are still missing, download the session info and send it with a bug report.'),
       dl,
     );
     const rows = (state.standings?.classes.flatMap((c) => c.rows) ?? []).sort((a, b) => a.position - b.position);

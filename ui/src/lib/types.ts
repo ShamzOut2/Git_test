@@ -80,8 +80,8 @@ export interface Player {
   incidents: number;
   latG: number;
   longG: number;
-  /** Compass heading of the car, degrees (0 = north, clockwise). */
-  heading: number;
+  /** Compass heading of the followed car (you, or the camera car when spectating), degrees; null if unknown. */
+  heading: number | null;
 }
 
 export interface CarDot {
@@ -101,6 +101,21 @@ export interface Cars {
   player: number | null;
   sectors: number[];
   cars: CarDot[];
+  sectorTimes: SectorTimes;
+}
+
+export interface SectorTime {
+  lap: number;
+  time: number;
+  /** Against the previous best (negative = new best); null for the first time. */
+  delta: number | null;
+}
+
+export interface SectorTimes {
+  starts: number[];
+  last: (SectorTime | null)[];
+  lap: number;
+  lapEndAgo: number | null;
 }
 
 export interface Driver {
@@ -428,6 +443,7 @@ export interface Config {
   ratingsOfficialOnly: boolean;
   autoCheckUpdates: boolean;
   penalties: Penalty[];
+  moveAllTogether: boolean;
 }
 
 export interface Penalty {

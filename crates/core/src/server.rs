@@ -182,6 +182,10 @@ enum ClientMsg {
     },
     AutoSize {
         id: String,
+        /// 0 = the user sets this dimension.
+        #[serde(default)]
+        width: f64,
+        #[serde(default)]
         height: f64,
     },
     CheckUpdate,
@@ -291,7 +295,7 @@ fn handle(s: &AppState, m: ClientMsg, subs: &mut HashSet<String>, send_now: &mut
             }
         }),
         ClientMsg::ImportLeague { league_id, season_id } => import_league(s.clone(), league_id, season_id),
-        ClientMsg::AutoSize { id, height } => s.hub.host(HostEvent::AutoSize { id, height }),
+        ClientMsg::AutoSize { id, width, height } => s.hub.host(HostEvent::AutoSize { id, width, height }),
         ClientMsg::CheckUpdate | ClientMsg::InstallUpdate if !s.hub.updates_supported.load(Ordering::Relaxed) => {
             s.hub.publish("update", r#"{"status":"unsupported","message":"Updates are installed by the Apex Overlays desktop app"}"#);
         }

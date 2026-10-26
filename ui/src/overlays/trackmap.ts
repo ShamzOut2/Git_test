@@ -1,6 +1,7 @@
 import { fitCanvas, h, show, text } from '../lib/dom';
 import type { OverlayDef } from '../lib/overlay';
-import type { CarDot, Cars, TrackMap } from '../lib/types';
+import { onColor } from '../lib/theme';
+import type { CarDot, Cars, SectorTimes, TrackMap } from '../lib/types';
 
 type Pt = [number, number];
 
@@ -21,8 +22,23 @@ export const trackmap: OverlayDef = {
     { key: 'trackColor', label: 'Track colour', type: 'color', default: '#e6e9ef', group: 'Track' },
     { key: 'outlineWidth', label: 'Outline width', type: 'number', default: 3, min: 0, max: 20, unit: 'px', group: 'Track' },
     { key: 'outlineColor', label: 'Outline colour', type: 'color', default: '#000000', group: 'Track' },
-    { key: 'showSectors', label: 'Sector marks', type: 'bool', default: true, group: 'Track' },
-    { key: 'sectorColor', label: 'Sector colour', type: 'color', default: '#ffb020', group: 'Track' },
+    { key: 'showSectors', label: 'Sector lines (across the track where each sector ends)', type: 'bool', default: true, group: 'Sectors' },
+    { key: 'sectorColor', label: 'Sector line colour', type: 'color', default: '#ffb020', group: 'Sectors' },
+    { key: 'sectorLineWidth', label: 'Sector line width', type: 'number', default: 2.5, min: 1, max: 10, step: 0.5, unit: 'px', group: 'Sectors' },
+    { key: 'sectorLineLength', label: 'Sector line length', type: 'number', default: 1, min: 0.5, max: 4, step: 0.1, unit: '×', group: 'Sectors', help: 'Relative to the track width' },
+    {
+      key: 'sectorPerformance',
+      label: 'Sector performance colours',
+      type: 'bool',
+      default: true,
+      group: 'Sectors',
+      help: 'Paints each sector of your lap: purple = faster than your best, green = within the margin below, yellow = slower',
+    },
+    { key: 'sectorMargin', label: 'Green within', type: 'number', default: 0.25, min: 0, max: 2, step: 0.05, unit: 's', group: 'Sectors', help: 'Slower than your best by up to this much is still green' },
+    { key: 'sectorHold', label: 'Keep colours after the lap', type: 'number', default: 5, min: 0, max: 60, unit: 's', group: 'Sectors' },
+    { key: 'sectorBestColor', label: 'Faster than best', type: 'color', default: '#b84dff', group: 'Sectors' },
+    { key: 'sectorGoodColor', label: 'Matched / close', type: 'color', default: '#2fd36b', group: 'Sectors' },
+    { key: 'sectorSlowColor', label: 'Slower', type: 'color', default: '#ffd400', group: 'Sectors' },
     { key: 'showStartFinish', label: 'Start / finish line', type: 'bool', default: true, group: 'Track' },
     {
       key: 'cornerLabels',
@@ -145,24 +161,65 @@ export const trackmap: OverlayDef = {
       b.strokeStyle = s.trackColor as string;
       b.lineWidth = tw;
       b.stroke(path);
-      const tick = (pct: number, color: string, len: number) => {
-        for (let l = 0; l < (mode === 'flat' ? nl : 1); l++) {
-          const p = locate(pct, l, nl);
-          const q = locate(pct + 0.002, l, nl);
-          const ang = Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2;
-          b.strokeStyle = color;
-          b.lineWidth = 2.5 * dpr();
-          b.beginPath();
-          b.moveTo(p[0] - Math.cos(ang) * len, p[1] - Math.sin(ang) * len);
-          b.lineTo(p[0] + Math.cos(ang) * len, p[1] + Math.sin(ang) * len);
-          b.stroke();
-        }
-      };
       if (s.cornerLabels !== 'none' && map?.corners?.length) drawCorners(b, nl);
-      const sectors = map?.sectors ?? cars?.sectors ?? [];
-      const across = tw / 2 + ((s.outlineWidth as number) + 3) * dpr();
-      if (s.showSectors) for (const sp of sectors) if (sp > 0) tick(sp, s.sectorColor as string, across);
-      if (s.showStartFinish) tick(0, '#ffffff', across * 1.3);
+    };
+
+    /** A line across the track at a lap fraction. */
+    const tick = (b: CanvasRenderingContext2D, pct: number, color: string, len: number, width: number, nl: number) => {
+      for (let l = 0; l < (mode === 'flat' ? nl : 1); l++) {
+        const p = locate(pct, l, nl);
+        const q = locate(pct + 0.002, l, nl);
+        const ang = Math.atan2(q[1] - p[1], q[0] - p[0]) + Math.PI / 2;
+        b.strokeStyle = color;
+        b.lineWidth = width * dpr();
+        b.beginPath();
+        b.moveTo(p[0] - Math.cos(ang) * len, p[1] - Math.sin(ang) * len);
+        b.lineTo(p[0] + Math.cos(ang) * len, p[1] + Math.sin(ang) * len);
+        b.stroke();
+      }
+    };
+
+    /** Sector lines and start/finish, drawn after the sector colours so they stay on top. */
+    const drawTicks = (b: CanvasRenderingContext2D, nl: number) => {
+      const across = (s.trackWidth as number) * dpr() / 2 + ((s.outlineWidth as number) + 3) * dpr();
+      if (s.showSectors) {
+        for (const sp of sectorStarts()) if (sp > 0) tick(b, sp, s.sectorColor as string, across * (s.sectorLineLength as number), s.sectorLineWidth as number, nl);
+      }
+      if (s.showStartFinish) tick(b, 0, '#ffffff', across * 1.3, 2.5, nl);
+    };
+
+    const sectorStarts = (): number[] => {
+      const st = cars?.sectorTimes?.starts;
+      if (st?.length) return st;
+      return map?.sectors?.length ? map.sectors : (cars?.sectors ?? []);
+    };
+
+    /** Colour for each sector of the focus car's lap, or null while it has no time to show. */
+    const sectorColors = (st: SectorTimes): (string | null)[] => {
+      const holding = st.lapEndAgo != null && st.lapEndAgo < (s.sectorHold as number);
+      return st.last.map((x) => {
+        if (!x) return null;
+        if (x.lap !== st.lap && !(holding && x.lap === st.lap - 1)) return null;
+        if (x.delta == null || x.delta < 0) return s.sectorBestColor as string;
+        return x.delta <= (s.sectorMargin as number) ? (s.sectorGoodColor as string) : (s.sectorSlowColor as string);
+      });
+    };
+
+    /** Paints the track between two lap fractions. */
+    const paintSegment = (b: CanvasRenderingContext2D, from: number, to: number, color: string, nl: number) => {
+      const span = to - from;
+      const steps = Math.max(2, Math.ceil(span * (mode === 'full' ? Math.max(pts.length, 200) : 240)));
+      for (let l = 0; l < (mode === 'flat' ? nl : 1); l++) {
+        b.beginPath();
+        for (let k = 0; k <= steps; k++) {
+          const p = locate(from + (span * k) / steps - (k === steps ? 1e-6 : 0), l, nl);
+          if (k) b.lineTo(p[0], p[1]);
+          else b.moveTo(p[0], p[1]);
+        }
+        b.strokeStyle = color;
+        b.lineWidth = (s.trackWidth as number) * dpr();
+        b.stroke();
+      }
     };
 
     const cornerText = (c: { name: string; number: number }) => {
@@ -223,9 +280,19 @@ export const trackmap: OverlayDef = {
       const hh = canvas.height;
       g.clearRect(0, 0, w, hh);
       g.drawImage(base!, 0, 0);
-      if (!cars) return;
       const laneIds = lanes();
       const nl = Math.max(1, laneIds.length);
+      g.lineCap = 'butt';
+      g.lineJoin = 'round';
+      if (s.sectorPerformance && cars?.sectorTimes) {
+        const st = cars.sectorTimes;
+        const colors = sectorColors(st);
+        colors.forEach((color, i) => {
+          if (color) paintSegment(g, st.starts[i], st.starts[i + 1] ?? 1, color, nl);
+        });
+      }
+      drawTicks(g, nl);
+      if (!cars) return;
       const leaders = new Set<number>();
       const seen = new Set<string>();
       for (const c of [...cars.cars].sort((a, b) => a.pos - b.pos)) {
@@ -263,7 +330,7 @@ export const trackmap: OverlayDef = {
         const label = s.label === 'number' ? c.n : s.label === 'position' ? String(c.pos) : s.label === 'classPosition' ? String(c.cpos) : '';
         if (label) {
           g.font = `700 ${font * (isFocus ? 1.1 : 1)}px ${family}`;
-          g.fillStyle = '#0b0e13';
+          g.fillStyle = isFocus ? onColor(t.playerColor as string) : s.colorBy === 'single' ? onColor(s.carColor as string) : onColor(c.c);
           g.fillText(label, x, y + 0.5);
         }
       }

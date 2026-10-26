@@ -3,7 +3,7 @@ import * as f from '../lib/format';
 import { headerSettings, sessionHeader } from '../lib/header';
 import type { OverlayDef } from '../lib/overlay';
 import { columns, enabledColumns, NAME_STYLES } from '../lib/settings';
-import { type Col, Table } from '../lib/table';
+import { type Col, columnFitter, Table } from '../lib/table';
 import type { RelRow, Relative, Session } from '../lib/types';
 import { COLUMN_STYLE_SETTINGS, driverCols, extraCols, tireCell } from './common';
 
@@ -29,7 +29,6 @@ const COLS = [
   { id: 'tire', label: 'Tyre (wet/dry)' },
   { id: 'points', label: 'League points for position' },
   { id: 'seasonPoints', label: 'Championship total (projected)' },
-  { id: 'pit', label: 'Pit flag' },
   { id: 'gap', label: 'Gap' },
 ];
 
@@ -43,7 +42,7 @@ export const relative: OverlayDef = {
     { key: 'carsAhead', label: 'Cars ahead', type: 'number', default: 4, min: 0, max: 10, group: 'Layout' },
     { key: 'carsBehind', label: 'Cars behind', type: 'number', default: 4, min: 0, max: 10, group: 'Layout' },
     { key: 'keepEmptyRows', label: 'Keep empty rows (fixed height)', type: 'bool', default: true, group: 'Layout' },
-    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'flag', 'name', 'license', 'irating', 'lastLap', 'bestLap', 'pit', 'gap']), group: 'Columns' },
+    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'flag', 'name', 'license', 'irating', 'lastLap', 'bestLap', 'gap']), group: 'Columns' },
     { key: 'nameStyle', label: 'Name format', type: 'select', default: 'full', options: NAME_STYLES, group: 'Columns' },
     {
       key: 'gapMode',
@@ -76,7 +75,6 @@ export const relative: OverlayDef = {
       ...driverCols<RelRow>(s),
       ...extraCols<RelRow>(s),
       { id: 'tire', label: 'Tyre', width: '2.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
-      { id: 'pit', label: 'Pit', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.offTrack ? 'OFF' : '') },
       {
         id: 'gap',
         label: s.gapMode === 'leader' ? 'Leader' : s.gapMode === 'ahead' ? 'Int' : 'Gap',
@@ -98,6 +96,7 @@ export const relative: OverlayDef = {
       },
     ];
     const table = new Table<RelRow>(cols, enabledColumns(s.columns), s.showColumnTitles as boolean);
+    const fit = columnFitter();
     root.append(header.el, table.el);
     root.classList.toggle('stripe', s.classStripe as boolean);
 
@@ -123,6 +122,7 @@ export const relative: OverlayDef = {
           }),
           (row, r) => row.style.setProperty('--class', r.classColor),
         );
+        if (s.autoWidth) fit([table]);
       },
     };
   },

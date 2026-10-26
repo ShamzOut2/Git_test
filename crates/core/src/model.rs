@@ -119,6 +119,8 @@ pub struct Telemetry {
     pub player_idx: i32,
     /// Car the camera is following (used as focus when spectating).
     pub cam_car_idx: i32,
+    /// A replay is playing (the player's car is then whoever recorded it).
+    pub is_replay_playing: bool,
 
     pub speed: f32,
     pub rpm: f32,
@@ -182,6 +184,7 @@ impl Default for Telemetry {
             time_of_day: 0.0,
             player_idx: -1,
             cam_car_idx: -1,
+            is_replay_playing: false,
             speed: 0.0,
             rpm: 0.0,
             gear: 0,
@@ -232,10 +235,20 @@ impl Telemetry {
         usize::try_from(self.player_idx).ok().and_then(|i| self.cars.get(i))
     }
 
-    /// The car overlays centre on: the player's car while driving, otherwise the camera car.
+    /// The player is driving live (not spectating or watching a replay).
+    pub fn driving(&self) -> bool {
+        self.is_on_track && !self.is_replay_playing
+    }
+
+    /// The car overlays centre on: the player's car while driving, otherwise the car the
+    /// camera follows (spectating, or any car in a replay).
     pub fn focus_idx(&self) -> Option<usize> {
         let ok = |i: i32| usize::try_from(i).ok().filter(|&i| self.cars.get(i).is_some_and(|c| c.in_world()));
-        ok(self.player_idx).or_else(|| ok(self.cam_car_idx))
+        if self.driving() {
+            ok(self.player_idx).or_else(|| ok(self.cam_car_idx))
+        } else {
+            ok(self.cam_car_idx).or_else(|| ok(self.player_idx))
+        }
     }
 }
 
@@ -488,6 +501,12 @@ impl SessionInfo {
             return None;
         }
         self.tires.iter().find(|t| t.index == compound).map(|t| t.is_wet())
+    }
+
+    /// Wet (true) or dry (false) for the relative/standings tyre column. Anything that is not a
+    /// known wet compound counts as dry (cars without wets often report no compound list at all).
+    pub fn tire_shown(&self, c: &CarTel) -> Option<bool> {
+        c.in_world().then(|| self.tire_is_wet(c.tire_compound).unwrap_or(false))
     }
 
     pub fn has_wet_tires(&self) -> bool {

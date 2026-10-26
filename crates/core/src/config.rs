@@ -35,6 +35,8 @@ pub struct Config {
     pub auto_check_updates: bool,
     /// Penalties handed out by race control (shown next to the driver's name).
     pub penalties: Vec<Penalty>,
+    /// Edit mode: dragging any overlay moves all of them.
+    pub move_all_together: bool,
 }
 
 /// A penalty given by hand (iRacing does not say which penalty a black flag means).
@@ -113,6 +115,7 @@ impl Default for Config {
             ratings_official_only: true,
             auto_check_updates: true,
             penalties: vec![],
+            move_all_together: false,
         }
     }
 }

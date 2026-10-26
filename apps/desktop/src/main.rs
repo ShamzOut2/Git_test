@@ -29,10 +29,25 @@ struct Core {
     port: u16,
     /// Window geometry changes waiting to be written to the config (debounced).
     pending: Mutex<HashMap<String, Geometry>>,
-    /// Overlays that size their height to their content (label -> height).
-    auto_height: Mutex<HashMap<String, f64>>,
+    /// Overlays that size their window to their content (label -> (width, height), 0 = user-set).
+    auto_size: Mutex<HashMap<String, (f64, f64)>>,
+    /// "Move all together": the overlay being dragged, its start position and every other
+    /// overlay's start position (logical pixels).
+    group_drag: Mutex<Option<GroupDrag>>,
     /// Update found by the last check, ready to install.
     update: tokio::sync::Mutex<Option<tauri_plugin_updater::Update>>,
+}
+
+struct GroupDrag {
+    leader: String,
+    start: (f64, f64),
+    others: Vec<(String, f64, f64)>,
+}
+
+fn logical_pos(w: &WebviewWindow) -> Option<(f64, f64)> {
+    let s = w.scale_factor().unwrap_or(1.0);
+    let p: LogicalPosition<f64> = w.outer_position().ok()?.to_logical(s);
+    Some((p.x, p.y))
 }
 
 fn label_for(id: &str) -> String {
@@ -72,9 +87,18 @@ fn reconcile(app: &AppHandle) {
         wanted.push(label.clone());
         let win = match app.get_webview_window(&label) {
             Some(w) => {
-                // Auto-height overlays keep the height their content asked for.
-                let auto = core.auto_height.lock().unwrap().get(&label).copied();
-                sync_geometry(&w, o.x, o.y, o.width, auto.map(|h| h.round() as u32).unwrap_or(o.height));
+                // A position typed in settings ends a "move all together" drag of this overlay.
+                let mut group = core.group_drag.lock().unwrap();
+                if group.as_ref().is_some_and(|g| g.leader == label)
+                    && logical_pos(&w).is_some_and(|(x, y)| (x - o.x as f64).abs() > 1.0 || (y - o.y as f64).abs() > 1.0)
+                {
+                    *group = None;
+                }
+                drop(group);
+                // Auto-sized overlays keep the size their content asked for.
+                let (aw, ah) = core.auto_size.lock().unwrap().get(&label).copied().unwrap_or_default();
+                let pick = |auto: f64, set: u32| if auto > 0.0 { auto.round() as u32 } else { set };
+                sync_geometry(&w, o.x, o.y, pick(aw, o.width), pick(ah, o.height));
                 w
             }
             None => {
@@ -130,7 +154,24 @@ fn sync_geometry(w: &WebviewWindow, x: i32, y: i32, width: u32, height: u32) {
 fn handle_host_event(app: &AppHandle, ev: HostEvent) {
     match ev {
         HostEvent::Drag { id } => {
-            if let Some(w) = app.get_webview_window(&label_for(&id)) {
+            let label = label_for(&id);
+            if let Some(w) = app.get_webview_window(&label) {
+                let core = app.state::<Core>();
+                let group = core.config.read(|c| c.move_all_together);
+                *core.group_drag.lock().unwrap() = if group {
+                    logical_pos(&w).map(|start| GroupDrag {
+                        leader: label.clone(),
+                        start,
+                        others: app
+                            .webview_windows()
+                            .into_iter()
+                            .filter(|(l, _)| l.starts_with(PREFIX) && *l != label)
+                            .filter_map(|(l, ow)| logical_pos(&ow).map(|(x, y)| (l, x, y)))
+                            .collect(),
+                    })
+                } else {
+                    None
+                };
                 let _ = w.start_dragging();
             }
         }
@@ -148,22 +189,27 @@ fn handle_host_event(app: &AppHandle, ev: HostEvent) {
                 let _ = w.as_ref().window().start_resize_dragging(d);
             }
         }
-        HostEvent::EditMode { .. } | HostEvent::Visible { .. } => reconcile(app),
+        HostEvent::EditMode { .. } | HostEvent::Visible { .. } => {
+            *app.state::<Core>().group_drag.lock().unwrap() = None;
+            reconcile(app);
+        }
         HostEvent::OpenSettings => show_settings(app),
-        HostEvent::AutoSize { id, height } => {
+        HostEvent::AutoSize { id, width, height } => {
             let label = label_for(&id);
             let core = app.state::<Core>();
-            if height <= 0.0 {
-                core.auto_height.lock().unwrap().remove(&label);
+            if width <= 0.0 && height <= 0.0 {
+                core.auto_size.lock().unwrap().remove(&label);
                 return;
             }
-            core.auto_height.lock().unwrap().insert(label.clone(), height);
+            core.auto_size.lock().unwrap().insert(label.clone(), (width, height));
             if let Some(w) = app.get_webview_window(&label) {
                 let scale = w.scale_factor().unwrap_or(1.0);
                 if let Ok(size) = w.inner_size() {
                     let size: LogicalSize<f64> = size.to_logical(scale);
-                    if (size.height - height).abs() > 1.0 {
-                        let _ = w.set_size(LogicalSize::new(size.width, height.max(20.0)));
+                    let nw = if width > 0.0 { width.max(40.0) } else { size.width };
+                    let nh = if height > 0.0 { height.max(20.0) } else { size.height };
+                    if (size.width - nw).abs() > 1.0 || (size.height - nh).abs() > 1.0 {
+                        let _ = w.set_size(LogicalSize::new(nw, nh));
                     }
                 }
             }
@@ -336,7 +382,8 @@ fn main() {
             url: core.url(),
             port: core.addr.port(),
             pending: Mutex::new(HashMap::new()),
-            auto_height: Mutex::new(HashMap::new()),
+            auto_size: Mutex::new(HashMap::new()),
+            group_drag: Mutex::new(None),
             update: tokio::sync::Mutex::new(None),
         })
         .setup(|app| {
@@ -397,21 +444,31 @@ fn main() {
                     let s = window.scale_factor().unwrap_or(1.0);
                     let l: LogicalPosition<f64> = p.to_logical(s);
                     record_geometry(app, &label, Some((l.x.round() as i32, l.y.round() as i32)), None);
+                    // Move all together: the others follow the overlay being dragged.
+                    let core = app.state::<Core>();
+                    let group = core.group_drag.lock().unwrap();
+                    if let Some(g) = group.as_ref().filter(|g| g.leader == label) {
+                        let (dx, dy) = (l.x - g.start.0, l.y - g.start.1);
+                        for (other, x, y) in &g.others {
+                            if let Some(w) = app.get_webview_window(other) {
+                                let _ = w.set_position(LogicalPosition::new(x + dx, y + dy));
+                            }
+                        }
+                    }
                 }
                 WindowEvent::Resized(sz) if label.starts_with(PREFIX) => {
                     let s = window.scale_factor().unwrap_or(1.0);
                     let l: LogicalSize<f64> = sz.to_logical(s);
-                    // Auto-height overlays only remember the width the user chose.
-                    let auto = app.state::<Core>().auto_height.lock().unwrap().contains_key(&label);
-                    let h = if auto {
-                        app.state::<Core>()
-                            .config
-                            .read(|c| id_for(c, &label).and_then(|id| c.overlays.iter().find(|o| o.id == id).map(|o| o.height)))
-                            .unwrap_or(0)
-                    } else {
-                        l.height.round() as u32
-                    };
-                    record_geometry(app, &label, None, Some((l.width.round() as u32, h)));
+                    // Auto-sized overlays only remember the dimensions the user sets.
+                    let (aw, ah) = app.state::<Core>().auto_size.lock().unwrap().get(&label).copied().unwrap_or_default();
+                    let set = app
+                        .state::<Core>()
+                        .config
+                        .read(|c| id_for(c, &label).and_then(|id| c.overlays.iter().find(|o| o.id == id).map(|o| (o.width, o.height))))
+                        .unwrap_or((0, 0));
+                    let w = if aw > 0.0 { set.0 } else { l.width.round() as u32 };
+                    let h = if ah > 0.0 { set.1 } else { l.height.round() as u32 };
+                    record_geometry(app, &label, None, Some((w, h)));
                 }
                 _ => {}
             }

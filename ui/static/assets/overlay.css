@@ -82,7 +82,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
   padding: 2px 6px;
   font-size: 11px;
   background: var(--accent);
-  color: #fff;
+  color: var(--on-accent, #fff);
   border-radius: 3px;
   pointer-events: none;
 }
@@ -143,9 +143,10 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .row.lap-behind { color: var(--lap-behind); }
 .row.pit, .row.out { opacity: 0.55; }
 .row.off .c-name { color: var(--warn); }
-.c-pit { color: var(--pit); font-size: 0.8em; font-weight: 700; }
 .c-gap, .c-interval, .c-lastLap, .c-bestLap { font-variant-numeric: tabular-nums; }
-.c-tire.wet { color: var(--lap-behind); font-weight: 700; }
+.tyre { display: inline-flex; align-items: center; justify-content: center; width: 1.35em; height: 1.35em; border-radius: 50%; background: #f2f4f8; color: #0b0e13; font-size: 0.78em; font-weight: 800; line-height: 1; text-shadow: none; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.5); }
+.tyre.wet { background: #1e7bff; color: #ffffff; }
+.tyre[hidden] { display: none; }
 .chip {
   display: inline-block;
   min-width: 2.2em;
@@ -186,10 +187,13 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .panel.inputs { flex-direction: row; gap: 0.5em; padding: 0.4em; align-items: stretch; }
 .inputs .trace { flex: 1; min-width: 0; height: 100%; background: rgba(0, 0, 0, 0.25); border-radius: calc(var(--radius) - 2px); }
 .inputs .bars { display: flex; gap: 0.3em; }
-.inputs .bar { position: relative; width: 1.1em; background: var(--track); border-radius: 3px; overflow: hidden; }
+.inputs .barcol { display: flex; flex-direction: column; align-items: center; gap: 0.15em; }
+.inputs .bar { position: relative; flex: 1; width: 1.1em; background: var(--track); border-radius: 3px; overflow: hidden; }
 .inputs .bar .fill { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); }
-.inputs .bar.abs .fill { filter: brightness(1.4) saturate(0.4); }
-.inputs .bar .val { position: absolute; bottom: 2px; width: 100%; text-align: center; font-size: 0.65em; }
+.inputs .barcol.abs .fill { filter: brightness(1.4) saturate(0.4); }
+.inputs .val { font-variant-numeric: tabular-nums; text-align: center; }
+.inputs .val.top { min-width: 1.9em; font-size: 0.72em; font-weight: 700; line-height: 1.15; }
+.inputs .val.inside { position: absolute; bottom: 2px; width: 100%; font-size: 0.65em; }
 .inputs .side { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 4.6em; }
 .inputs .wheel { width: 3.2em; height: 3.2em; }
 .inputs .wheel svg { width: 100%; height: 100%; display: block; }
@@ -232,7 +236,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .tyres .banner .current { font-size: 0.75em; font-weight: 600; opacity: 0.85; }
 .tyres .banner.ok { background: rgba(61, 220, 132, 0.18); color: var(--good); }
 .tyres .banner.warn { background: rgba(255, 176, 32, 0.2); color: var(--warn); }
-.tyres .banner.box { background: var(--bad); color: #fff; }
+.tyres .banner.box { background: var(--bad); color: var(--on-bad, #fff); }
 .tyres .banner.flash { animation: flash 0.9s steps(2, start) infinite; }
 @keyframes flash { to { background: rgba(255, 92, 92, 0.35); } }
 .wet-gauge { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
@@ -273,9 +277,9 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* Header session badge, finish flag, personal-best lap colour */
 .header-left { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
 .session-badge { padding: 0.05em 0.45em; border-radius: 3px; font-size: 0.72em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: var(--subtle); color: var(--dim); text-shadow: none; }
-.session-badge[data-type='race'] { background: var(--accent); color: #fff; }
-.session-badge[data-type='qualifying'] { background: var(--best); color: #fff; }
-.session-badge[data-type='practice'], .session-badge[data-type='warmup'] { background: var(--good); color: #0b0e13; }
+.session-badge[data-type='race'] { background: var(--accent); color: var(--on-accent, #fff); }
+.session-badge[data-type='qualifying'] { background: var(--best); color: var(--on-best, #fff); }
+.session-badge[data-type='practice'], .session-badge[data-type='warmup'] { background: var(--good); color: var(--on-good, #0b0e13); }
 .c-name { display: flex; align-items: center; gap: 0.35em; }
 .c-name .nm { overflow: hidden; text-overflow: ellipsis; }
 .fin { flex: none; width: 1.05em; height: 0.75em; border-radius: 1px; background: repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0 / 0.35em 0.35em; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
@@ -286,6 +290,8 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 /* Auto-height: the panel takes its natural height and the window follows it. */
 .panel.auto-height { bottom: auto; }
 .panel.auto-height .sections { overflow: visible; }
+/* Auto-width: the panel takes the width of its widest row; the window follows. */
+.panel.auto-width { right: auto; width: max-content; min-width: 8em; }
 
 /* Flags overlay */
 .panel.flags { padding: 0.35em; gap: 0.35em; }
@@ -305,7 +311,7 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .flags.style-badge .flag-row { flex: none; }
 .flags.style-badge .flag { flex-direction: row; gap: 0.5em; padding: 0.3em 0.6em; justify-content: flex-start; }
 .flags.style-badge .face { position: static; flex: none; width: 2.2em; height: 1.5em; border-radius: 3px; }
-.flags.style-badge .label { font-size: 1em; }
+.flags.style-badge .label { font-size: 1em; color: var(--text); text-shadow: var(--shadow); }
 .flags .blink .face { animation: flag-blink 0.8s steps(2, start) infinite; }
 @keyframes flag-blink { to { opacity: 0.25; } }
 .f-green { --flag: #18c24a; --glow: #18c24a; }
@@ -368,3 +374,5 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .c-name .pen { flex: none; padding: 0 0.3em; border-radius: 2px; background: #000; color: #fff; border: 1px solid #fff; font-size: 0.72em; font-weight: 800; letter-spacing: 0.03em; line-height: 1.35; text-shadow: none; }
 .c-name .pen.served { background: transparent; color: var(--dim); border-color: var(--dim); }
 .c-name .pen[hidden] { display: none; }
+.c-name .pit-tag { flex: none; padding: 0 0.3em; border-radius: 2px; border: 1px solid currentColor; color: var(--dim); font-size: 0.68em; font-weight: 800; letter-spacing: 0.04em; line-height: 1.35; }
+.c-name .pit-tag[hidden] { display: none; }
