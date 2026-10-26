@@ -33,6 +33,8 @@ pub struct Static {
     pub lic: String,
     pub lic_color: u32,
     pub club: String,
+    /// Flair as sent by iRacing (shown where the country could not be recognised).
+    pub flair: String,
     pub country: String,
     pub make: String,
     pub hidden: bool,
@@ -71,6 +73,20 @@ pub struct CarHist {
     pub last_cross_at: f64,
     pub laps_led_overall: i32,
     pub laps_led_class: i32,
+    /// Off track or stopped on track (i.e. causing a local yellow) until this session time.
+    pub yellow_until: f64,
+    speed_at: f64,
+    speed_pct: f32,
+    tick_at: f64,
+    /// Estimated speed from track position, m/s.
+    pub speed: f32,
+    slow_since: Option<f64>,
+    /// Black flag seen; entered the pits while black-flagged; seconds stopped in the box.
+    black: bool,
+    pen_pit: bool,
+    pen_stopped: f64,
+    /// Last penalty served automatically detected ("DT" / "S&G 30s") and until when to show it.
+    pub served: Option<(String, f64)>,
     pub pitted: bool,
     pub exit_completed: i32,
 }
@@ -366,6 +382,7 @@ impl Engine {
                 lic: d.lic_string.clone(),
                 lic_color: d.lic_color,
                 club: d.club.clone(),
+                flair: d.flair.clone(),
                 country: if override_country(&self.resolver, d.user_id).is_empty() { d.country.clone() } else { override_country(&self.resolver, d.user_id) },
                 make: d.make.clone(),
                 hidden,
@@ -520,6 +537,88 @@ impl Engine {
         battle::update(self);
     }
 
+    /// Who is causing a yellow (off track, or stopped/crawling on track) and how black flags are served.
+    fn track_incidents(h: &mut CarHist, c: &crate::model::CarTel, now: f64, track_km: f32, running: bool) {
+        let tick_dt = (now - h.tick_at).clamp(0.0, 0.5);
+        h.tick_at = now;
+        let dt = now - h.speed_at;
+        if !(0.0..=0.2).contains(&dt) {
+            let mut dp = c.pct - h.speed_pct;
+            if dp < -0.5 {
+                dp += 1.0;
+            }
+            if dt > 0.0 && dt < 2.0 && h.seen {
+                h.speed = (dp.max(0.0) * track_km.max(1.0) * 1000.0) / dt as f32;
+            }
+            h.speed_at = now;
+            h.speed_pct = c.pct;
+        }
+        let off = c.surface == surface::OFF_TRACK;
+        let crawling = c.surface == surface::ON_TRACK && !c.on_pit_road && h.speed < 8.0 && running;
+        if crawling {
+            h.slow_since.get_or_insert(now);
+        } else {
+            h.slow_since = None;
+        }
+        if off || h.slow_since.is_some_and(|t| now - t > 1.5) {
+            h.yellow_until = now + YELLOW_LINGER;
+        }
+        let black = c.session_flags & flags::BLACK != 0;
+        if black {
+            h.pen_pit |= c.on_pit_road;
+            if c.on_pit_road && (c.surface == surface::IN_PIT_STALL || h.speed < 0.5) {
+                h.pen_stopped += tick_dt;
+            }
+        } else if h.black {
+            // Black flag cleared: if it was served in the pits, show how.
+            if h.pen_pit {
+                let label = if h.pen_stopped > 1.0 { format!("S&G {}s", h.pen_stopped.round()) } else { "DT".into() };
+                h.served = Some((label, now + 15.0));
+            }
+            h.pen_pit = false;
+            h.pen_stopped = 0.0;
+        }
+        h.black = black;
+    }
+
+    /// Flags to show next to a driver's name.
+    pub fn car_flags(&self, idx: usize) -> Vec<&'static str> {
+        let c = &self.tel.cars[idx];
+        let f = c.session_flags;
+        let mut out = vec![];
+        if f & flags::DISQUALIFY != 0 {
+            out.push("disqualify");
+        } else if f & flags::BLACK != 0 {
+            out.push("black");
+        }
+        if f & flags::REPAIR != 0 {
+            out.push("repair");
+        }
+        if f & flags::FURLED != 0 {
+            out.push("furled");
+        }
+        if self.tel.session_time < self.hist[idx].yellow_until {
+            out.push("yellow");
+        }
+        if f & flags::BLUE != 0 {
+            out.push("blue");
+        }
+        out
+    }
+
+    /// Penalty label: race control's penalty, how a black flag is being served, or one just served.
+    pub fn penalty(&self, idx: usize) -> Option<(String, bool)> {
+        let s = self.static_of(idx)?;
+        if let Some(p) = self.cfg.penalties.iter().find(|p| p.customer_id == s.user_id && s.user_id != 0) {
+            return Some((p.label(), false));
+        }
+        let h = &self.hist[idx];
+        if h.black && h.pen_pit {
+            return Some((if h.pen_stopped > 0.5 { format!("S&G {}s", h.pen_stopped.floor()) } else { "DT".into() }, false));
+        }
+        h.served.as_ref().filter(|(_, until)| self.tel.session_time < *until).map(|(l, _)| (l.clone(), true))
+    }
+
     fn update_hist(&mut self) {
         let now = self.tel.session_time;
         let racing = self.is_race() && self.tel.session_state >= STATE_RACING;
@@ -545,6 +644,7 @@ impl Engine {
                 }
             }
             h.prev_completed = c.lap_completed;
+            Self::track_incidents(h, c, now, self.info.track_length_km, racing || self.tel.session_state == STATE_RACING);
             h.seen = true;
             h.last_progress = c.progress();
             if c.on_pit_road {
@@ -679,6 +779,9 @@ fn override_country(r: &Resolver, user_id: i64) -> String {
     r.league().and_then(|l| l.driver_overrides.iter().find(|o| o.customer_id == user_id)).map(|o| o.country.trim().to_uppercase()).unwrap_or_default()
 }
 
+/// Penalty / flag tracking that needs history (see [`Engine::track_incidents`]).
+pub const YELLOW_LINGER: f64 = 5.0;
+
 /// iRacing's strength-of-field formula.
 pub fn sof(irs: &[i32]) -> i32 {
     let v: Vec<f64> = irs.iter().filter(|&&i| i > 0).map(|&i| i as f64).collect();
@@ -792,6 +895,47 @@ pub(crate) mod tests {
         lap(&mut e, 212.0, [(4, 0.03), (3, 0.01), (2, 0.99)]);
         assert!(e.hist[1].finished);
         assert!(!e.hist[2].finished);
+    }
+
+    #[test]
+    fn yellow_and_black_flag_penalties() {
+        let mut e = engine(2, true);
+        let step = |e: &mut Engine, t: f64, pct: f32, surf: i32, pit: bool, flags: u32| {
+            e.tel.session_time = t;
+            place(e, 0, 3, 0.5);
+            place(e, 1, 3, pct);
+            e.tel.cars[1].surface = surf;
+            e.tel.cars[1].on_pit_road = pit;
+            e.tel.cars[1].session_flags = flags;
+            e.tick();
+        };
+        // Driving normally: no flags.
+        for k in 0..10 {
+            step(&mut e, k as f64 * 0.25, 0.1 + k as f32 * 0.002, surface::ON_TRACK, false, 0);
+        }
+        assert!(e.car_flags(1).is_empty());
+        // Off track: causes a yellow that lingers after rejoining.
+        step(&mut e, 3.0, 0.13, surface::OFF_TRACK, false, 0);
+        step(&mut e, 4.0, 0.14, surface::ON_TRACK, false, 0);
+        assert_eq!(e.car_flags(1), vec!["yellow"]);
+        // Black flag served as a stop & go of ~3 seconds.
+        let mut t = 20.0;
+        step(&mut e, t, 0.98, surface::APPROACHING_PITS, true, flags::BLACK);
+        assert_eq!(e.car_flags(1), vec!["black"]);
+        for _ in 0..30 {
+            t += 0.1;
+            step(&mut e, t, 0.01, surface::IN_PIT_STALL, true, flags::BLACK);
+        }
+        assert!(e.penalty(1).unwrap().0.starts_with("S&G"));
+        step(&mut e, t + 0.1, 0.02, surface::APPROACHING_PITS, true, 0);
+        let (label, served) = e.penalty(1).unwrap();
+        assert_eq!(label, "S&G 3s");
+        assert!(served);
+        // A race-control penalty takes precedence.
+        let mut cfg = e.cfg.clone();
+        cfg.penalties = vec![crate::config::Penalty { customer_id: e.static_of(1).unwrap().user_id, kind: "sg".into(), seconds: 40.0, ..Default::default() }];
+        e.set_config(cfg);
+        assert_eq!(e.penalty(1).unwrap().0, "S&G 40s");
     }
 
     #[test]

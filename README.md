@@ -24,7 +24,10 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 | **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sectors, start/finish, class-leader rings, rotation and mirroring. |
 | **Driver inputs** | Throttle, brake and clutch bars, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
 | **Fuel calculator** | Average/last/max use per lap, laps of fuel, race laps left (lap- or time-limited, lapped-car aware), fuel to finish, fuel to add, stops, pit window and how much to save to skip a stop. |
-| **Battle box** | The car ahead and behind in your class: gap, how fast it is closing (s/lap), laps until you catch them (or they catch you), and their last lap against yours. |
+| **Battle box** | The car ahead and behind — in the race overall, in your class, or physically nearest on track (pick per overlay): gap, how fast it is closing (s/lap), laps until you catch them (or they catch you), and their last lap against yours. |
+| **Flags** | A digital (LED-style) flag panel showing the flags out right now — green, yellow and waving yellow, caution, blue, white, chequered, red, black, meatball, furled black, debris, crossed flags, one-lap-to-green, 5/10 to go and more — plus start lights. Every flag can be switched on or off. |
+| **Weather** | Live weather with a wind compass that turns with your car, showing head/tail and crosswind, plus track and air temperature, humidity, pressure, sky, rain and wetness. |
+| **Data box** | A small box with one value of your choice (speed, delta, fuel, position, gaps, track temperature, iRating change…). Add as many as you like, each with its own size and look. |
 | **Tyre advisor** | Tells you when to change between slicks and wets (**BOX FOR WETS / BOX FOR SLICKS**). It combines track wetness, the rain trend, what your class is running and the wet/dry lap-time crossover, and explains why. |
 | **Session info** | Track and air temperature (with trend), wetness, rain, declared wet, wind, humidity, sky, time or laps remaining, sim clock, SOF, incidents and flags. You can pick and order any of these fields. |
 | **Garage 61** | Your Garage 61 personal best and your teams' best laps for the current car and track, compared with your session best. |
@@ -38,6 +41,8 @@ Every column has a title (it can be switched off), and you can toggle and reorde
 - **iRating gain/loss** and **safety rating gain/loss** (live estimates), incidents
 - current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), **last lap** and **best lap** of every driver (purple = fastest of the class, green = a personal best), **tyre** (wet/dry)
 - a **chequered flag** next to each driver's name once they have taken the flag at the end of the race
+- **flags next to each driver**: a yellow when they caused one (off track or stopped on track), black flag, meatball (damage), furled black (warning) and blue flag
+- a **penalty box** next to the black flag: `DT`, `S&G 40s` or `+5s` from *Race control*. When a black-flagged car serves its penalty in the pits, the box shows `DT` or a live `S&G` timer automatically.
 - gap and interval, positions gained, pit stops
 - **league points** for the current position, and the **projected championship total**
 
@@ -49,10 +54,13 @@ The **header** of both overlays is also customisable. By default it shows the ov
 
 - **Transparency per overlay:** each overlay has its own overall opacity and background opacity, and one button copies them to all overlays. Global defaults live in the theme.
 - **Colour themes** restyle every overlay *and* the settings window. There are 8 presets (Apex Overlays default, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
+- **Any overlay can be added more than once**, each copy with its own settings, size and scale.
+- **Auto-fit height:** the window grows and shrinks with the number of rows (on by default for Standings).
 - **Every overlay** has its own scale, visibility rules (hide when iRacing isn't running, when you're not in the car, on pit road, or outside races) and **custom CSS**.
 - **Column and field overlays** (relative, standings, session info) let you toggle and reorder every column, plus set name formats, gap signs and decimals.
 - **The global theme** sets font, size and weight, every colour (player, lapped, lapping, pit, fastest, good/bad, caution), corner radius, row shading and padding, outline and text shadow.
 - **Multiple copies of the same overlay** can run side by side with different settings, for example a compact relative for VR-style layouts and a full one for streaming.
+- **Race control** (settings page) lets you hand out penalties by hand: drive-through, stop & go with its length, or added time. They're shown next to the driver's name. iRacing itself only reports *that* a black flag is out, not which penalty it is.
 - **The League builder** creates your own classes and assigns cars to them by car number, customer ID, driver or team name (wildcards), car model, car ID or iRacing class ID. You can also assign drivers in the current session from a dropdown, rename drivers and teams, set a driver's flag, or hide spectators.
   - **Import from iRacing by league ID** pulls the league name, roster nicknames, car classes, points system and championship standings. It needs iRacing Data API access (see below).
   - **Manual setup** covers league name, league ID, season, classes, points and bonuses, all typed by hand. **Pull drivers from current session** fills the driver roster automatically (names, car numbers, customer IDs). You then pick each driver's class and can add a nickname, team, flag or league car number.
@@ -70,6 +78,8 @@ The **Code → Download ZIP** button on GitHub only gives you the source code, w
   `Apex Overlays_x.y.z_x64-setup.exe` (installer), `Apex-Overlays-portable.exe` and `apex-overlays-server.exe` on the repository's **Releases** page.
 - **Latest CI build:** open the **Actions** tab, pick the newest green *CI* run, and download the `apex-overlays-windows` artifact (zip).
   You need to be signed in to GitHub to download artifacts.
+
+From version 0.4.0 the app **updates itself**: it checks for new versions on start-up and under *Settings → General → Updates* (see [docs/UPDATES.md](docs/UPDATES.md)).
 
 The app isn't code-signed yet, so Windows SmartScreen may say *"Windows protected your PC"*. Click **More info → Run anyway**.
 

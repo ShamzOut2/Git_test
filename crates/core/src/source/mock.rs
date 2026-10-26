@@ -172,6 +172,12 @@ struct Car {
     speed: f64,
     prev_speed: f64,
     wobble: f64,
+    /// Off track (causing a yellow) until this time.
+    off_until: f64,
+    /// Meatball (repair) flag until this time.
+    repair_until: f64,
+    /// Black flag: Some(stop seconds), 0 = drive-through.
+    penalty: Option<f64>,
 }
 
 const CLASSES: [(&str, &str, u32, f64, f64); 3] = [
@@ -254,6 +260,9 @@ impl Mock {
                 speed: 0.0,
                 prev_speed: 0.0,
                 wobble: rng.range(0.0, TAU),
+                off_until: 0.0,
+                repair_until: 0.0,
+                penalty: None,
             });
         }
         Self {
@@ -309,11 +318,14 @@ impl Mock {
             };
             let pace = CLASSES[c.class].3 * c.skill * grip * (1.0 + wobble);
             let mut v = self.track.vref[self.track.idx(c.dist)] / pace;
+            if self.time < c.off_until {
+                v *= 0.35;
+            }
 
             // Pit strategy: fuel or tyres.
             let laps_of_fuel = c.fuel / (CLASSES[c.class].4 / 22.0);
             let wrong_tyres = (!c.wets && wetness >= c.wet_trigger) || (c.wets && wetness <= 2);
-            if c.pit == Pit::None && (laps_of_fuel < 1.3 || wrong_tyres) && pct > 0.5 && pct < PIT_ENTRY {
+            if c.pit == Pit::None && (laps_of_fuel < 1.3 || wrong_tyres || c.penalty.is_some()) && pct > 0.5 && pct < PIT_ENTRY {
                 c.pit = Pit::Requested;
             }
             if c.pit == Pit::Requested && pct >= PIT_ENTRY {
@@ -322,18 +334,28 @@ impl Mock {
             match c.pit {
                 Pit::Lane { served } => {
                     v = v.min(PIT_SPEED);
-                    if !served && (PIT_STALL..PIT_EXIT).contains(&pct) {
+                    if !served && (PIT_STALL..PIT_EXIT).contains(&pct) && c.penalty == Some(0.0) {
+                        // Drive-through: no stop.
+                        c.pit = Pit::Lane { served: true };
+                    } else if !served && (PIT_STALL..PIT_EXIT).contains(&pct) && c.penalty.is_some() {
+                        c.pit = Pit::Stopped(self.time + c.penalty.unwrap_or(0.0));
+                        v = 0.0;
+                    } else if !served && (PIT_STALL..PIT_EXIT).contains(&pct) {
                         let refuel = (CLASSES[c.class].4 - c.fuel) / 2.6;
                         let tyres = if wrong_tyres { 12.0 } else { 0.0 };
                         c.pit = Pit::Stopped(self.time + refuel.max(4.0) + tyres);
                         v = 0.0;
                     } else if (PIT_EXIT..0.5).contains(&pct) {
                         c.pit = Pit::None;
+                        // Penalty served on pit exit.
+                        c.penalty = None;
                     }
                 }
                 Pit::Stopped(until) => {
                     v = 0.0;
-                    if self.time >= until {
+                    if self.time >= until && c.penalty.is_some() {
+                        c.pit = Pit::Lane { served: true };
+                    } else if self.time >= until {
                         c.fuel = CLASSES[c.class].4;
                         if wrong_tyres {
                             c.wets = !c.wets;
@@ -368,6 +390,21 @@ impl Mock {
         self.accel_smooth = self.accel_smooth * 0.9 + accel.clamp(-40.0, 20.0) * 0.1;
         if self.rng.next() < 0.00005 {
             self.incidents += 1;
+        }
+        // Occasional incidents so the per-driver flags can be seen.
+        if self.rng.next() < 1.0 / (60.0 * 45.0) {
+            let i = 1 + (self.rng.next() * (n - 1) as f64) as usize;
+            self.cars[i].off_until = self.time + 4.0;
+        }
+        if self.rng.next() < 1.0 / (60.0 * 90.0) {
+            let i = 1 + (self.rng.next() * (n - 1) as f64) as usize;
+            self.cars[i].repair_until = self.time + 25.0;
+        }
+        if self.rng.next() < 1.0 / (60.0 * 70.0) {
+            let i = 1 + (self.rng.next() * (n - 1) as f64) as usize;
+            if self.cars[i].penalty.is_none() && self.cars[i].pit == Pit::None {
+                self.cars[i].penalty = Some(if self.rng.next() < 0.5 { 0.0 } else { 15.0 });
+            }
         }
         if self.rng.next() < 0.0004 {
             let i = 1 + (self.rng.next() * (self.cars.len() - 1) as f64) as usize;
@@ -417,7 +454,28 @@ impl Mock {
         t.session_time = self.time;
         t.session_num = 0;
         t.session_state = if self.checkered { 5 } else { 4 };
-        t.session_flags = crate::model::flags::GREEN;
+        // A local yellow every few minutes, a blue flag when a faster class is right behind, then the chequered flag.
+        use crate::model::flags as fl;
+        let cycle = self.time.rem_euclid(180.0);
+        let mut f = if cycle < 8.0 { fl::GREEN } else { 0 };
+        if (60.0..70.0).contains(&cycle) {
+            f |= fl::YELLOW_WAVING | fl::YELLOW;
+        }
+        let me = &self.cars[PLAYER];
+        let faster_behind = self.cars.iter().enumerate().skip(1).any(|(i, c)| {
+            let d = (me.dist - c.dist).rem_euclid(len);
+            i != PLAYER && c.class < me.class && d > 0.0 && d < 60.0
+        });
+        if faster_behind {
+            f |= fl::BLUE;
+        }
+        if self.time >= self.race_seconds && !self.checkered {
+            f |= fl::WHITE;
+        }
+        if self.checkered {
+            f = fl::CHECKERED;
+        }
+        t.session_flags = f;
         t.session_time_remain = (self.race_seconds - self.time).max(0.0);
         t.session_laps_remain = 32767;
         t.time_of_day = (14.0 * 3600.0 + self.time) as f32;
@@ -461,7 +519,20 @@ impl Mock {
             ct.position = pos as i32 + 1;
             ct.class_position = class_counts[c.class];
             ct.on_pit_road = matches!(c.pit, Pit::Lane { .. } | Pit::Stopped(_)) && !(PIT_EXIT..PIT_ENTRY).contains(&pct);
-            ct.surface = if matches!(c.pit, Pit::Stopped(_)) { surface::IN_PIT_STALL } else { surface::ON_TRACK };
+            ct.surface = if matches!(c.pit, Pit::Stopped(_)) {
+                surface::IN_PIT_STALL
+            } else if self.time < c.off_until {
+                surface::OFF_TRACK
+            } else {
+                surface::ON_TRACK
+            };
+            let faster_behind = self.cars.iter().skip(1).any(|o| {
+                let d = (c.dist - o.dist).rem_euclid(len);
+                o.class < c.class && d > 0.0 && d < 60.0 && o.lap >= c.lap
+            });
+            ct.session_flags = (if c.penalty.is_some() { crate::model::flags::BLACK } else { 0 })
+                | (if self.time < c.repair_until { crate::model::flags::REPAIR } else { 0 })
+                | (if faster_behind { crate::model::flags::BLUE } else { 0 });
             ct.last_lap = c.last_lap as f32;
             ct.best_lap = c.best_lap as f32;
             ct.tire_compound = c.wets as i32;
@@ -506,7 +577,8 @@ impl Mock {
         t.on_pit_road = t.cars[PLAYER].on_pit_road;
         t.is_on_track = true;
         t.incidents = self.incidents;
-        t.yaw_north = self.track.heading[ti] as f32;
+        // iRacing's YawNorth is a compass heading (0 = north, clockwise); the circuit uses maths angles.
+        t.yaw_north = (std::f64::consts::FRAC_PI_2 - self.track.heading[ti]).rem_euclid(std::f64::consts::TAU) as f32;
         t.lat_accel = (me.speed * me.speed * self.track.curv[ti]) as f32;
         t.long_accel = accel as f32;
         t.tire_compound = me.wets as i32;
@@ -606,7 +678,8 @@ mod tests {
         let f = crate::topics::fuel_out(&e);
         assert!(f.laps_remaining.unwrap() > 1.0);
         let b = crate::topics::battle_out(&e);
-        assert!(b.ahead.is_some() || b.behind.is_some());
+        assert!(b.overall.ahead.is_some() || b.overall.behind.is_some());
+        assert!(b.track.ahead.is_some() && b.track.behind.is_some());
         // Ten minutes in, it is raining (weather cycle) and the advisor reacts.
         assert!(e.tel.track_wetness >= 3, "{}", e.tel.track_wetness);
     }

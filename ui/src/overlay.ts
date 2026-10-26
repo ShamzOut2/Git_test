@@ -4,8 +4,8 @@
 import { Client } from './lib/client';
 import { h, show, text } from './lib/dom';
 import type { Units } from './lib/format';
-import type { Ctx, OverlayDef, View } from './lib/overlay';
-import { COMMON, merge, type Values } from './lib/settings';
+import { type Ctx, type OverlayDef, schemaOf, type View } from './lib/overlay';
+import { merge, type Values } from './lib/settings';
 import { applyTheme } from './lib/theme';
 import type { Config, OverlayInstance, Player, Session, Status, TopicName } from './lib/types';
 import { byKind } from './overlays/registry';
@@ -70,7 +70,7 @@ function applyConfig(c: Config) {
     view = null;
     return;
   }
-  settings = merge([...COMMON, ...def.settings], inst.settings);
+  settings = merge(schemaOf(def), inst.settings);
   const k = `${JSON.stringify([settings, c.theme])}|${units()}`;
   text(editLabel, `${inst.name || def.name} — drag to move, corner to resize`);
   if (k !== key) rebuild();
@@ -82,7 +82,8 @@ function rebuild() {
   key = `${JSON.stringify([settings, config.theme])}|${units()}`;
   const theme = applyTheme(config.theme, document.documentElement, { scale: settings.scale as number, bgOpacity: settings.bgOpacity as number, opacity: settings.opacity as number });
   custom.textContent = settings.customCss as string;
-  panel.className = `panel kind-${def.kind}`;
+  panel.className = `panel kind-${def.kind}${settings.autoHeight ? ' auto-height' : ''}`;
+  setupAutoHeight();
   panel.replaceChildren();
   const ctx: Ctx = {
     settings,
@@ -99,6 +100,27 @@ function rebuild() {
     const d = client.latest[t];
     if (d !== undefined) view.update(t, d);
   }
+}
+
+/** Auto-height: the panel hugs its content and asks the desktop app to fit the window to it. */
+let sizer: ResizeObserver | null = null;
+let lastHeight = -1;
+function setupAutoHeight() {
+  sizer?.disconnect();
+  sizer = null;
+  if (!settings.autoHeight || preview) {
+    if (lastHeight !== 0 && lastHeight !== -1) client.send({ op: 'autoSize', id, height: 0 });
+    lastHeight = 0;
+    return;
+  }
+  sizer = new ResizeObserver(() => {
+    const height = Math.ceil(panel.getBoundingClientRect().height);
+    if (height > 0 && Math.abs(height - lastHeight) > 1) {
+      lastHeight = height;
+      client.send({ op: 'autoSize', id, height });
+    }
+  });
+  sizer.observe(panel);
 }
 
 function updateVisibility() {

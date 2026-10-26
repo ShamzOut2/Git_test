@@ -2,7 +2,7 @@
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Apex Overlays",
   "mainBinaryName": "Apex Overlays",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "identifier": "app.apexoverlays.desktop",
   "build": {
     "frontendDist": "static"
@@ -16,13 +16,37 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["nsis"],
+    "targets": [
+      "nsis"
+    ],
     "publisher": "Apex Overlays",
     "shortDescription": "Lightweight, fully customisable iRacing overlays",
-    "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.ico", "icons/icon.png"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico",
+      "icons/icon.png"
+    ],
     "windows": {
-      "webviewInstallMode": { "type": "downloadBootstrapper" },
-      "nsis": { "installMode": "currentUser" }
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser"
+      }
+    },
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDMyNDczRUU3NDlBMkVBQ0IKUldUTDZxSko1ejVITWpUY2FucXlHQjdmUU1RSUJGYzR6bUt4MlY0d3dmZHlheWk2ekF5NFBCMXIK",
+      "endpoints": [
+        "https://github.com/ShamzOut2/Apex_Overlays/releases/latest/download/latest.json"
+      ],
+      "windows": {
+        "installMode": "passive"
+      }
     }
   }
 }

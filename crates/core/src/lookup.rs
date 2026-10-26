@@ -17,30 +17,88 @@ Taiwan:TW;Thailand:TH;Trinidad and Tobago:TT;Tunisia:TN;Turkey:TR;Türkiye:TR;Uk
 United Kingdom:GB;Great Britain:GB;UK:GB;United States:US;United States of America:US;USA:US;Uruguay:UY;Uzbekistan:UZ;\
 Venezuela:VE;Vietnam:VN;Viet Nam:VN;Wales:GB-WLS;Zambia:ZM;Zimbabwe:ZW";
 
-/// Legacy iRacing clubs that cover exactly one country.
-const CLUBS: &str = "Atlantic:US;California:US;Carolina:US;Florida:US;Georgia:US;Mid-South:US;Midwest:US;New England:US;New York:US;\
-Northwest:US;Ohio:US;Pennsylvania:US;Plains:US;Texas:US;Virginias:US;West:US;Michigan:US;Illinois:US;Indiana:US;Southwest:US;\
-UK and I:GB;Brazil:BR;Italy:IT;Japan:JP;France:FR;Finland:FI;Canada:CA;Argentina:AR;Mexico:MX;Australia/NZ:AU;Australia & NZ:AU";
+/// Longer official names and alternative spellings, plus common ISO alpha-3 codes.
+const ALIASES: &str = "Korea Republic Of:KR;Republic of Korea:KR;Iran Islamic Republic Of:IR;Taiwan Province Of China:TW;Chinese Taipei:TW;\
+Hong Kong SAR:HK;Hong Kong SAR China:HK;Macao SAR China:MO;The Former Yugoslav Republic of Macedonia:MK;Bolivia Plurinational State Of:BO;\
+Venezuela Bolivarian Republic Of:VE;Moldova Republic Of:MD;Tanzania:TZ;Tanzania United Republic Of:TZ;Syria:SY;Syrian Arab Republic:SY;\
+Lao People's Democratic Republic:LA;Laos:LA;Brunei Darussalam:BN;Holland:NL;The Netherlands:NL;Netherlands The:NL;Czech:CZ;\
+Slovak Republic:SK;Britain:GB;U.K.:GB;U.S.:US;U.S.A.:US;America:US;Deutschland:DE;Espana:ES;Italia:IT;Brasil:BR;Suisse:CH;Schweiz:CH;\
+Osterreich:AT;Belgique:BE;Belgie:BE;Polska:PL;Ivory Coast:CI;Cote d'Ivoire:CI;Cape Verde:CV;Cabo Verde:CV;Myanmar:MM;Burma:MM;\
+Lebanon:LB;Uganda:UG;Senegal:SN;Rwanda:RW;Madagascar:MG;Malawi:MW;Mali:ML;Haiti:HT;Guyana:GY;Suriname:SR;Belize:BZ;Aruba:AW;\
+Curacao:CW;Bermuda:BM;Monserrat:MS;Andorra:AD;San Marino:SM;Vatican:VA;Albania:AL;Armenia:AM;Azerbaijan:AZ;Kyrgyz Republic:KG;\
+Tajikistan:TJ;Turkmenistan:TM;Afghanistan:AF;Bhutan:BT;Maldives:MV;New Caledonia:NC;French Polynesia:PF;Papua New Guinea:PG;Samoa:WS;\
+Tonga:TO;Reunion:RE;Martinique:MQ;Guadeloupe:GP;Greenland:GL;Faroe:FO;Aland Islands:AX;Palestine:PS;Yemen:YE;Libya:LY;Sudan:SD;\
+Algeria:DZ;Botswana:BW;Zambia:ZM;Angola:AO;Cameroon:CM;Ethiopia:ET;Ghana:GH;Kenya:KE;Nigeria:NG;Mozambique:MZ;Namibia:NA;Zimbabwe:ZW;\
+USA:US;GBR:GB;DEU:DE;GER:DE;FRA:FR;ITA:IT;ESP:ES;NLD:NL;NED:NL;BEL:BE;CHE:CH;SUI:CH;AUT:AT;POL:PL;CZE:CZ;SVK:SK;HUN:HU;ROU:RO;BGR:BG;\
+GRC:GR;PRT:PT;POR:PT;IRL:IE;DNK:DK;DEN:DK;SWE:SE;NOR:NO;FIN:FI;ISL:IS;EST:EE;LVA:LV;LTU:LT;UKR:UA;RUS:RU;TUR:TR;ISR:IL;ARE:AE;SAU:SA;\
+QAT:QA;IND:IN;CHN:CN;JPN:JP;KOR:KR;TWN:TW;HKG:HK;SGP:SG;MYS:MY;THA:TH;IDN:ID;PHL:PH;VNM:VN;AUS:AU;NZL:NZ;CAN:CA;MEX:MX;BRA:BR;ARG:AR;\
+CHL:CL;COL:CO;PER:PE;URY:UY;ZAF:ZA;EGY:EG;MAR:MA;HRV:HR;SVN:SI;SRB:RS;BIH:BA;LUX:LU;MLT:MT;CYP:CY";
 
-fn find(table: &'static str, name: &str) -> Option<&'static str> {
-    let name = name.trim();
-    if name.is_empty() {
-        return None;
+/// Lower case, accents removed, punctuation as single spaces, without "the" / "flag of".
+fn norm(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.trim().chars() {
+        let c = match c {
+            'á' | 'à' | 'â' | 'ä' | 'ã' | 'å' | 'Á' | 'À' | 'Â' | 'Ä' | 'Ã' | 'Å' => 'a',
+            'é' | 'è' | 'ê' | 'ë' | 'É' | 'È' | 'Ê' | 'Ë' => 'e',
+            'í' | 'ì' | 'î' | 'ï' | 'Í' | 'Ì' | 'Î' | 'Ï' => 'i',
+            'ó' | 'ò' | 'ô' | 'ö' | 'õ' | 'ø' | 'Ó' | 'Ò' | 'Ô' | 'Ö' | 'Õ' | 'Ø' => 'o',
+            'ú' | 'ù' | 'û' | 'ü' | 'Ú' | 'Ù' | 'Û' | 'Ü' => 'u',
+            'ç' | 'Ç' => 'c',
+            'ñ' | 'Ñ' => 'n',
+            '\'' | '’' => continue,
+            c if c.is_alphanumeric() => c.to_ascii_lowercase(),
+            _ => ' ',
+        };
+        if c == ' ' && (out.is_empty() || out.ends_with(' ')) {
+            continue;
+        }
+        out.push(c);
     }
-    table.split(';').find_map(|e| {
-        let (n, c) = e.trim().rsplit_once(':')?;
-        n.eq_ignore_ascii_case(name).then_some(c)
-    })
+    let out = out.trim_end().to_string();
+    let out = out.strip_prefix("flag of ").unwrap_or(&out).to_string();
+    out.strip_prefix("the ").unwrap_or(&out).to_string()
 }
 
-/// ISO country code for an iRacing flair name, falling back to a single-country club.
-pub fn country_code(flair: &str, club: &str) -> &'static str {
-    let f = flair.trim();
-    // A flair may already be an ISO code.
-    if f.len() == 2 && f.chars().all(|c| c.is_ascii_alphabetic()) {
-        return COUNTRIES.split(';').find_map(|e| e.trim().rsplit_once(':').map(|(_, c)| c).filter(|c| c.eq_ignore_ascii_case(f))).unwrap_or("");
+fn entries() -> impl Iterator<Item = (&'static str, &'static str)> {
+    COUNTRIES.split(';').chain(ALIASES.split(';')).filter_map(|e| e.trim().rsplit_once(':'))
+}
+
+/// iRacing flair IDs seen in real Data API responses (flair_id → ISO code).
+const FLAIR_IDS: &[(i64, &str)] =
+    &[(13, "AR"), (16, "AU"), (31, "BR"), (39, "CA"), (71, "FR"), (77, "DE"), (79, "GI"), (104, "JP"), (168, "PT"), (222, "GB"), (223, "US")];
+
+/// Best country for a driver from every flair field iRacing may send: an ISO country code,
+/// a three-letter short name, the flair name, or a known flair ID.
+pub fn driver_country(iso: &str, short_name: &str, name: &str, flair_id: i64) -> &'static str {
+    for candidate in [iso, short_name, name] {
+        let c = country_code(candidate);
+        if !c.is_empty() {
+            return c;
+        }
     }
-    find(COUNTRIES, f).or_else(|| find(CLUBS, club)).unwrap_or("")
+    FLAIR_IDS.iter().find(|(id, _)| *id == flair_id).map(|(_, c)| *c).unwrap_or("")
+}
+
+/// ISO country code (e.g. "GB", or "GB-SCT" for UK nations) for the flair a driver picked on
+/// their iRacing account. Returns "" when the flair is not a country, so no wrong flag is shown.
+pub fn country_code(flair: &str) -> &'static str {
+    let f = norm(flair);
+    if f.is_empty() || f == "none" {
+        return "";
+    }
+    // Exact name, alias or ISO code.
+    if let Some((_, c)) = entries().find(|(n, c)| norm(n) == f || (f.len() == 2 && c.eq_ignore_ascii_case(&f))) {
+        return c;
+    }
+    // Longest country name contained in the flair (e.g. "Flag - Germany", "Germany (DE)").
+    let padded = format!(" {f} ");
+    entries()
+        .filter(|(n, _)| n.len() >= 4)
+        .filter(|(n, _)| padded.contains(&format!(" {} ", norm(n))))
+        .max_by_key(|(n, _)| n.len())
+        .map(|(_, c)| c)
+        .unwrap_or("")
 }
 
 const MAKES: &[(&str, &str)] = &[
@@ -108,11 +166,23 @@ mod tests {
 
     #[test]
     fn countries() {
-        assert_eq!(country_code("United Kingdom", ""), "GB");
-        assert_eq!(country_code("germany", ""), "DE");
-        assert_eq!(country_code("", "California"), "US");
-        assert_eq!(country_code("", "DE-AT-CH"), "");
-        assert_eq!(country_code("NL", ""), "NL");
+        assert_eq!(country_code("United Kingdom"), "GB");
+        assert_eq!(country_code("germany"), "DE");
+        assert_eq!(country_code("NL"), "NL");
+        assert_eq!(country_code("GER"), "DE");
+        assert_eq!(country_code("Türkiye"), "TR");
+        assert_eq!(country_code("Korea, Republic Of"), "KR");
+        assert_eq!(country_code("The Netherlands"), "NL");
+        assert_eq!(country_code("United States of America"), "US");
+        assert_eq!(country_code("Flag of Scotland"), "GB-SCT");
+        assert_eq!(country_code("Brazil (BR)"), "BR");
+        assert_eq!(country_code("Côte d'Ivoire"), "CI");
+        assert_eq!(country_code("None"), "");
+        assert_eq!(country_code("iRacing"), "");
+        assert_eq!(driver_country("", "", "", 223), "US");
+        assert_eq!(driver_country("AU", "AUS", "Australia", 16), "AU");
+        assert_eq!(driver_country("", "DEU", "", 0), "DE");
+        assert_eq!(driver_country("", "", "", 0), "");
     }
 
     #[test]

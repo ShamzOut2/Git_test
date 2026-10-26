@@ -53,7 +53,13 @@ jobs:
       - run: cargo test --workspace
       - name: Build desktop app and installer
         working-directory: apps/desktop
-        run: npx --yes @tauri-apps/cli@2 build
+        shell: pwsh
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          # Without the signing key (e.g. pull requests from forks) build without update files.
+          if ($env:TAURI_SIGNING_PRIVATE_KEY) { npx --yes @tauri-apps/cli@2 build } else { npx --yes @tauri-apps/cli@2 build --config updater-off.json }
       - name: Build headless server
         run: cargo build --release -p apex-overlays-server
       - uses: actions/upload-artifact@v4

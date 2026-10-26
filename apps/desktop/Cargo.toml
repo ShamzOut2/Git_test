@@ -22,3 +22,5 @@ tauri = { version = "2", features = ["tray-icon"] }
 tauri-runtime = "2"
 tauri-plugin-global-shortcut = "2"
 tauri-plugin-single-instance = "2"
+# Windows TLS stack (no C toolchain needed) and the system proxy.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["native-tls", "system-proxy"] }

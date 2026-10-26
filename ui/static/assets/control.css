@@ -35,7 +35,7 @@ p { margin: 6px 0 12px; }
 .dim { color: var(--dim); }
 .small { font-size: 12px; }
 .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; margin-bottom: 16px; max-width: 980px; }
-button, select, input, textarea {
+button, a.button, select, input, textarea {
   font: inherit;
   color: var(--text);
   background: var(--panel-2);
@@ -43,13 +43,14 @@ button, select, input, textarea {
   border-radius: 6px;
   padding: 6px 10px;
 }
-button { cursor: pointer; }
+button, a.button { cursor: pointer; }
+a.button { display: inline-block; text-decoration: none; color: inherit; }
 button:hover { border-color: #3a4352; }
 button:disabled { opacity: 0.35; cursor: default; }
 button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text, #fff); font-weight: 600; }
 button.primary.active { background: var(--text); color: var(--bg); border-color: var(--text); }
 button.danger { color: var(--bad); }
-button.mini { padding: 2px 7px; font-size: 12px; }
+button.mini, a.button.mini { padding: 2px 7px; font-size: 12px; }
 button.tab.sel { border-color: var(--accent); }
 input[type='color'] { padding: 0; width: 34px; height: 30px; }
 input[type='range'] { padding: 0; width: 140px; accent-color: var(--accent); }
@@ -116,3 +117,10 @@ h3 { margin: 14px 0 8px; font-size: 13px; color: var(--dim); text-transform: upp
 .notice { padding: 10px 12px; border-radius: 8px; background: var(--panel-2); border-left: 3px solid var(--accent); margin: 8px 0; }
 .corners input[type='number'] { width: 80px; }
 .corners input.cname { width: 180px; }
+.pen-chip { display: inline-block; padding: 1px 6px; border-radius: 3px; background: #000; color: #fff; border: 1px solid #fff; font-size: 11px; font-weight: 800; }
+.flag-emoji { font-family: 'Twemoji Country Flags', 'Segoe UI Emoji', sans-serif; font-size: 18px; }
+@font-face {
+  font-family: 'Twemoji Country Flags';
+  unicode-range: U+1F1E6-1F1FF, U+1F3F4, U+E0062-E0063, U+E0065, U+E0067, U+E006C, U+E006E, U+E0073-E0074, U+E0077, U+E007F;
+  src: url('/assets/fonts/TwemojiCountryFlags.woff2') format('woff2');
+}
