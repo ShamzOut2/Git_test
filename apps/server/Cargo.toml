@@ -1,12 +1,12 @@
 [package]
-name = "apex-server"
-description = "Headless Apex Overlays server: use the overlays as OBS browser sources or from a second PC"
+name = "apex-overlays-server"
+description = "Apex Overlays headless server: use the overlays as OBS browser sources or from a second PC"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "apex-server"
+name = "apex-overlays-server"
 path = "src/main.rs"
 
 [dependencies]

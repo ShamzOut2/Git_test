@@ -21,7 +21,7 @@ body {
 }
 nav { display: flex; flex-direction: column; gap: 2px; padding: 16px 10px; background: var(--panel); border-right: 1px solid var(--line); }
 .brand { display: flex; align-items: baseline; gap: 6px; padding: 4px 10px 18px; font-size: 18px; }
-.brand .logo { font-weight: 900; letter-spacing: 0.06em; color: var(--accent); font-style: italic; }
+.brand .logo { font-weight: 800; letter-spacing: 0.02em; color: var(--accent); }
 nav a { padding: 8px 10px; border-radius: 6px; color: var(--dim); text-decoration: none; }
 nav a:hover { background: var(--panel-2); color: var(--text); }
 nav a.sel { background: var(--panel-2); color: var(--text); box-shadow: inset 3px 0 var(--accent); }

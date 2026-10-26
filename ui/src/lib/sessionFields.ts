@@ -6,6 +6,7 @@ import { columns, type ColumnDef } from './settings';
 import type { Session } from './types';
 
 export const SESSION_FIELDS: ColumnDef[] = [
+  { id: 'sessionType', label: 'Session type (Practice, Qualifying, Race…)' },
   { id: 'session', label: 'Session name' },
   { id: 'track', label: 'Track' },
   { id: 'time', label: 'Time / laps left' },
@@ -26,7 +27,20 @@ export const SESSION_FIELDS: ColumnDef[] = [
   { id: 'league', label: 'League name' },
 ];
 
+/** Friendly session type: iRacing reports e.g. "Lone Qualify" or "Offline Testing". */
+export function sessionType(d: Session): string {
+  const t = (d.sessionType || '').toLowerCase();
+  if (t.includes('qualify')) return 'Qualifying';
+  if (t.includes('warm')) return 'Warmup';
+  if (t.includes('test')) return 'Testing';
+  if (t.includes('heat')) return 'Heat';
+  if (t.includes('race')) return 'Race';
+  if (t.includes('practice')) return 'Practice';
+  return d.sessionType || '';
+}
+
 export const FIELD_LABELS: Record<string, string> = {
+  sessionType: 'SESSION',
   track: 'TRACK',
   session: 'SESSION',
   time: 'REMAINING',
@@ -60,6 +74,8 @@ export interface FieldOpts {
 /** Display value of a field; '' when there is nothing to show. */
 export function fieldValue(id: string, d: Session, u: f.Units, o: FieldOpts = {}): string {
   switch (id) {
+    case 'sessionType':
+      return sessionType(d);
     case 'session':
       return d.sessionName || d.sessionType || '';
     case 'track':

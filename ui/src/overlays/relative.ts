@@ -38,18 +38,31 @@ export const relative: OverlayDef = {
   name: 'Relative',
   description: 'Cars around you on track with live time gaps, lap-ahead/behind colouring and class colours.',
   topics: ['relative', 'session'],
-  size: [460, 300],
+  size: [600, 320],
   settings: [
     { key: 'carsAhead', label: 'Cars ahead', type: 'number', default: 4, min: 0, max: 10, group: 'Layout' },
     { key: 'carsBehind', label: 'Cars behind', type: 'number', default: 4, min: 0, max: 10, group: 'Layout' },
     { key: 'keepEmptyRows', label: 'Keep empty rows (fixed height)', type: 'bool', default: true, group: 'Layout' },
-    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'name', 'license', 'irating', 'pit', 'gap']), group: 'Columns' },
+    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'flag', 'name', 'license', 'irating', 'lastLap', 'bestLap', 'pit', 'gap']), group: 'Columns' },
     { key: 'nameStyle', label: 'Name format', type: 'select', default: 'full', options: NAME_STYLES, group: 'Columns' },
+    {
+      key: 'gapMode',
+      label: 'Gap shows',
+      type: 'select',
+      default: 'relative',
+      options: [
+        ['relative', 'Time to each car on track (relative)'],
+        ['leader', 'Gap to the class leader'],
+        ['ahead', 'Gap to the car ahead in class (interval)'],
+      ],
+      help: 'Leader and interval gaps are race gaps, shown in race sessions',
+      group: 'Columns',
+    },
     { key: 'gapSign', label: 'Gap sign', type: 'select', default: 'aheadNegative', options: [['abs', 'No sign'], ['aheadNegative', 'Ahead negative'], ['aheadPositive', 'Ahead positive']], group: 'Columns' },
     { key: 'gapDecimals', label: 'Gap decimals', type: 'number', default: 1, min: 0, max: 3, group: 'Columns' },
     ...COLUMN_STYLE_SETTINGS,
     ...headerSettings(['time', 'sof', 'incidents']),
-    { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: false, group: 'Header' },
+    { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: true, group: 'Header' },
     { key: 'lapColors', label: 'Colour cars a lap ahead / behind', type: 'bool', default: true, group: 'Colours' },
     { key: 'classStripe', label: 'Class colour stripe', type: 'bool', default: true, group: 'Colours' },
     { key: 'dimPitCars', label: 'Dim cars in the pits', type: 'bool', default: true, group: 'Colours' },
@@ -58,22 +71,29 @@ export const relative: OverlayDef = {
     const s = ctx.settings;
     const header = sessionHeader(s, 'Relative', () => ctx.units);
     const cols: Col<RelRow>[] = [
-      { id: 'pos', label: 'P', width: '2.2em', align: 'center', render: (c, r) => text(c, r.classPosition > 0 ? String(r.classPosition) : '') },
-      { id: 'overall', label: 'O', width: '2.2em', align: 'center', render: (c, r) => text(c, r.position > 0 ? String(r.position) : '') },
+      { id: 'pos', label: 'Pos', width: '2.4em', align: 'center', render: (c, r) => text(c, r.classPosition > 0 ? String(r.classPosition) : '') },
+      { id: 'overall', label: 'Ovr', width: '2.4em', align: 'center', render: (c, r) => text(c, r.position > 0 ? String(r.position) : '') },
       ...driverCols<RelRow>(s),
       ...extraCols<RelRow>(s),
-      { id: 'lastLap', label: 'Last', width: '4.6em', align: 'right', render: (c, r) => text(c, r.lastLap ? f.lapTime(r.lastLap) : '') },
-      { id: 'tire', label: 'T', width: '1.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
-      { id: 'pit', label: '', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.offTrack ? 'OFF' : '') },
+      { id: 'tire', label: 'Tyre', width: '2.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
+      { id: 'pit', label: 'Pit', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.offTrack ? 'OFF' : '') },
       {
         id: 'gap',
-        label: 'Gap',
-        width: '3.6em',
+        label: s.gapMode === 'leader' ? 'Leader' : s.gapMode === 'ahead' ? 'Int' : 'Gap',
+        width: '3.8em',
         align: 'right',
         render: (c, r) => {
+          const dec = s.gapDecimals as number;
+          if (s.gapMode === 'leader' || s.gapMode === 'ahead') {
+            // Race gaps: to the class leader, or to the car directly ahead in class.
+            const leader = s.gapMode === 'leader';
+            const v = leader ? r.gapLeader : r.interval;
+            const laps = leader ? r.gapLeaderLaps : r.intervalLaps;
+            return text(c, r.classPosition === 1 ? (leader ? 'Leader' : '') : f.gap(v, laps, dec));
+          }
           if (r.isFocus) return text(c, '');
           const v = s.gapSign === 'abs' ? Math.abs(r.gap) : s.gapSign === 'aheadNegative' ? -r.gap : r.gap;
-          text(c, s.gapSign === 'abs' ? v.toFixed(s.gapDecimals as number) : f.signed(v, s.gapDecimals as number));
+          text(c, s.gapSign === 'abs' ? v.toFixed(dec) : f.signed(v, dec));
         },
       },
     ];

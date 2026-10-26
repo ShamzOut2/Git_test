@@ -122,7 +122,8 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
   white-space: nowrap;
 }
 .body .row:nth-child(even) { background: var(--row-alt); }
-.row.head { color: var(--dim); font-size: 0.8em; text-transform: uppercase; }
+.row.head { color: var(--dim); text-transform: uppercase; }
+.row.head .cell { font-size: 0.75em; letter-spacing: 0.04em; }
 .cell { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .cell.right { text-align: right; }
 .cell.center { text-align: center; }
@@ -268,3 +269,16 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .c-irDelta, .c-srDelta, .c-points { font-variant-numeric: tabular-nums; }
 .header .info[data-flag='yellow'] { color: #ffd400; }
 .header .info[data-flag='red'] { color: var(--bad); }
+
+/* Header session badge, finish flag, personal-best lap colour */
+.header-left { display: flex; align-items: center; gap: 0.5em; min-width: 0; }
+.session-badge { padding: 0.05em 0.45em; border-radius: 3px; font-size: 0.72em; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; background: var(--subtle); color: var(--dim); text-shadow: none; }
+.session-badge[data-type='race'] { background: var(--accent); color: #fff; }
+.session-badge[data-type='qualifying'] { background: var(--best); color: #fff; }
+.session-badge[data-type='practice'], .session-badge[data-type='warmup'] { background: var(--good); color: #0b0e13; }
+.c-name { display: flex; align-items: center; gap: 0.35em; }
+.c-name .nm { overflow: hidden; text-overflow: ellipsis; }
+.fin { flex: none; width: 1.05em; height: 0.75em; border-radius: 1px; background: repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0 / 0.35em 0.35em; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); }
+.fin[hidden] { display: none; }
+.pb { color: var(--good) !important; }
+.c-name .nm { min-width: 0; white-space: nowrap; }

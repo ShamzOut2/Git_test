@@ -215,6 +215,14 @@ pub struct PointsConfig {
     /// "class" scores by position in class, "overall" by overall position.
     pub basis: String,
     pub fastest_lap_bonus: f32,
+    /// Bonus for the pole sitter (qualifying P1, by class or overall like the points basis).
+    pub pole_bonus: f32,
+    /// Bonus for leading at least one lap.
+    pub lap_led_bonus: f32,
+    /// Bonus for leading the most laps.
+    pub most_laps_led_bonus: f32,
+    /// Points every classified finisher receives (participation).
+    pub finish_bonus: f32,
     pub system_name: String,
     pub description: String,
 }
@@ -283,6 +291,12 @@ pub struct ClassRules {
 #[serde(rename_all = "camelCase", default)]
 pub struct DriverOverride {
     pub customer_id: i64,
+    /// iRacing name as pulled from a session or the league roster (for reference).
+    pub name: String,
+    /// League car number; replaces the number shown in overlays when set.
+    pub car_number: String,
+    /// League class this driver races in (a `LeagueClass::id`); takes priority over class rules.
+    pub class_id: String,
     pub display_name: String,
     pub team_name: String,
     /// ISO country code shown as the driver's flag, overriding their iRacing flair.
@@ -312,7 +326,13 @@ pub fn default_data_dir() -> PathBuf {
         .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from))
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
         .unwrap_or_else(|| PathBuf::from("."));
-    base.join("ApexOverlays")
+    let dir = base.join("Apex Overlays");
+    // Earlier builds used "ApexOverlays": move existing settings across once.
+    let old = base.join("ApexOverlays");
+    if !dir.exists() && old.is_dir() {
+        let _ = std::fs::rename(&old, &dir);
+    }
+    dir
 }
 
 /// Shared, observable config with atomic persistence.

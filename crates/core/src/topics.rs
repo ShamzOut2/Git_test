@@ -377,6 +377,14 @@ pub struct Extras {
     pub stint_state: &'static str,
     pub stint_lap: Option<i32>,
     pub best_lap: Option<f32>,
+    pub last_lap: Option<f32>,
+    /// Best lap is the fastest of the class.
+    pub class_best: bool,
+    /// Last lap was this driver's best so far (personal best).
+    pub last_is_pb: bool,
+    /// Has taken the chequered flag.
+    pub finished: bool,
+    pub laps_led: i32,
     pub incidents: Option<i32>,
     /// Estimated iRating change if the race finished now (official races).
     pub ir_delta: Option<i32>,
@@ -395,12 +403,21 @@ fn extras(e: &Engine, idx: usize) -> Extras {
         Stint::Lap(n) => ("lap", Some(n)),
     };
     let (points, season_points) = e.points(idx);
+    let best = e.best_lap(idx);
+    let last = e.last_lap(idx);
+    let class_id = e.static_of(idx).map(|s| s.class.id.as_str());
+    let class_best = e.classes.iter().find(|k| Some(k.key.id.as_str()) == class_id).and_then(|k| k.best_lap).map(|b| b.1);
     let ir_ok = e.info.official || !e.cfg.ratings_official_only;
     Extras {
         lap: c.lap.max(0),
         stint_state,
         stint_lap,
-        best_lap: opt_time(c.best_lap),
+        best_lap: best.map(r3),
+        last_lap: last.map(r3),
+        class_best: best.is_some() && class_best == best,
+        last_is_pb: matches!((last, best), (Some(l), Some(b)) if (l - b).abs() < 1e-3),
+        finished: e.hist[idx].finished,
+        laps_led: e.hist[idx].laps_led_overall,
         incidents: e.incidents_visible(idx).then(|| e.incidents(idx)),
         ir_delta: if ir_ok { e.ir_delta(idx).map(|v| v.round() as i32) } else { None },
         sr_delta: if ir_ok { e.sr_delta(idx).map(|v| round(v, 2)) } else { None },
@@ -416,14 +433,19 @@ pub struct RelRow<'a> {
     pub d: DriverOut<'a>,
     #[serde(flatten)]
     pub x: Extras,
+    /// On-track gap to the focus car (positive = ahead).
     pub gap: f32,
+    /// Race gap to the class leader and to the car ahead in class.
+    pub gap_leader: Option<f32>,
+    pub gap_leader_laps: i32,
+    pub interval: Option<f32>,
+    pub interval_laps: i32,
     pub position: i32,
     pub class_position: i32,
     /// +1 = lapping you (a lap ahead), -1 = you are lapping them.
     pub lap_diff: i32,
     pub on_pit_road: bool,
     pub off_track: bool,
-    pub last_lap: Option<f32>,
     pub tire_wet: Option<bool>,
 }
 
@@ -456,12 +478,15 @@ pub fn relative(e: &Engine) -> RelativeOut<'_> {
                 d: driver(e, s),
                 x: extras(e, r.idx),
                 gap: r3(gap),
+                gap_leader: r.gap.map(r3),
+                gap_leader_laps: r.gap_laps,
+                interval: r.interval.map(r3),
+                interval_laps: r.interval_laps,
                 position: r.pos,
                 class_position: r.class_pos,
                 lap_diff,
                 on_pit_road: c.on_pit_road,
                 off_track: c.surface == surface::OFF_TRACK,
-                last_lap: opt_time(c.last_lap),
                 tire_wet: e.info.tire_is_wet(c.tire_compound),
             })
         })
@@ -487,7 +512,6 @@ pub struct StandRow<'a> {
     pub gap_laps: i32,
     pub interval: Option<f32>,
     pub interval_laps: i32,
-    pub last_lap: Option<f32>,
     pub is_class_best: bool,
     pub laps: i32,
     pub on_pit_road: bool,
@@ -541,7 +565,6 @@ pub fn standings(e: &Engine) -> StandingsOut<'_> {
             gap_laps: r.gap_laps,
             interval: r.interval.map(r3),
             interval_laps: r.interval_laps,
-            last_lap: opt_time(c.last_lap),
             is_class_best: e.classes[ci].best_lap.is_some_and(|b| b.0 == r.idx),
             laps: c.lap_completed.max(0),
             on_pit_road: c.on_pit_road,

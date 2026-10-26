@@ -33,7 +33,18 @@ const POINT_PRESETS: [string, number[]][] = [
 ];
 
 const emptyRules = (): ClassRules => ({ carIds: [], carNames: [], carNumbers: [], customerIds: [], teamNames: [], driverNames: [], iracingClassIds: [] });
-const emptyPoints = (): PointsConfig => ({ table: [], defaultPoints: 0, basis: 'class', fastestLapBonus: 0, systemName: '', description: '' });
+const emptyPoints = (): PointsConfig => ({
+  table: [],
+  defaultPoints: 0,
+  basis: 'class',
+  fastestLapBonus: 0,
+  poleBonus: 0,
+  lapLedBonus: 0,
+  mostLapsLedBonus: 0,
+  finishBonus: 0,
+  systemName: '',
+  description: '',
+});
 const newLeague = (name: string): League => ({
   id: uid('league'),
   name,
@@ -140,13 +151,13 @@ function classEditor(l: League, c: LeagueClass, i: number, rerender: () => void)
 }
 
 /** Login + league ID import from the iRacing Data API. */
-function importCard(rerender: () => void) {
+function importCard(rerender: () => void, league?: League) {
   const cfg = state.config!;
   const api = cfg.iracingApi;
   const configured = !!(api.clientId && api.username && api.clientSecretMasked && api.passwordMasked);
   const c = h('section', 'card');
   c.append(
-    h('h2', '', 'Import a league from iRacing'),
+    h('h2', '', 'Import a league from iRacing (optional)'),
     h('p', 'dim', 'Enter a league ID to pull its name, roster nicknames, car classes, points system and championship standings straight from iRacing.'),
   );
   const creds = h('details');
@@ -187,7 +198,7 @@ function importCard(rerender: () => void) {
   id.type = 'number';
   id.placeholder = 'League ID';
   id.style.width = '140px';
-  id.value = importLeagueId || (state.session?.leagueId ? String(state.session.leagueId) : '');
+  id.value = importLeagueId || (league?.iracingLeagueId ? String(league.iracingLeagueId) : '') || (state.session?.leagueId ? String(state.session.leagueId) : '');
   id.oninput = () => (importLeagueId = id.value);
   const imp = state.leagueImport;
   const season = h('select');
@@ -264,14 +275,17 @@ function pointsCard(l: League, rerender: () => void) {
     };
     return i;
   };
+  const scope = 'in the class (or overall, matching the setting above)';
   c.append(
     labeled('Points are scored by', basis, 'Leagues differ: some score by class finishing position, some overall'),
-    labeled(
-      'Fastest lap bonus',
-      num(p.fastestLapBonus, (v) => (p.fastestLapBonus = v)),
-      'Given to the fastest lap of the class (or overall, matching the setting above)',
-    ),
-    labeled('Points beyond the table', num(p.defaultPoints, (v) => (p.defaultPoints = v)), 'For positions after the last one listed'),
+    h('h3', '', 'Bonus points (optional)'),
+    labeled('Fastest lap', num(p.fastestLapBonus ?? 0, (v) => (p.fastestLapBonus = v)), `Fastest lap ${scope}`),
+    labeled('Pole position', num(p.poleBonus ?? 0, (v) => (p.poleBonus = v)), `Qualifying P1 ${scope}`),
+    labeled('Led a lap', num(p.lapLedBonus ?? 0, (v) => (p.lapLedBonus = v)), `Leading ${scope} across the line at least once`),
+    labeled('Most laps led', num(p.mostLapsLedBonus ?? 0, (v) => (p.mostLapsLedBonus = v)), `Most laps led ${scope}`),
+    labeled('Every finisher', num(p.finishBonus ?? 0, (v) => (p.finishBonus = v)), 'Participation points added for every classified driver'),
+    labeled('Positions beyond the table', num(p.defaultPoints, (v) => (p.defaultPoints = v)), 'Points for positions after the last one listed below'),
+    h('h3', '', 'Points per position'),
   );
   const table = h('div', 'points-table');
   p.table.forEach((v, i) => {
@@ -333,64 +347,116 @@ function pointsCard(l: League, rerender: () => void) {
   return c;
 }
 
-function sessionDrivers(l: League, rerender: () => void) {
-  const rows = state.standings?.classes.flatMap((c) => c.rows) ?? [];
-  if (!rows.length) return h('p', 'dim', 'Join a session (or run the mock) to assign the drivers in it to classes with one click.');
-  const table = h('table', 'drivers');
-  const head = h('tr');
-  for (const t of ['#', '', 'Driver', 'Car', 'Customer ID', 'Class']) head.append(h('th', '', t));
-  table.append(head);
-  for (const r of rows.sort((a, b) => a.position - b.position)) {
-    const tr = h('tr');
-    const sel = h('select');
-    sel.append(h('option', '', '—'));
-    for (const c of l.classes) {
-      const o = h('option', '', c.name || '(unnamed)');
-      o.value = c.id;
-      if (c.rules.customerIds.includes(r.userId)) o.selected = true;
-      sel.append(o);
-    }
-    sel.onchange = () => {
-      for (const c of l.classes) c.rules.customerIds = c.rules.customerIds.filter((x) => x !== r.userId);
-      l.classes.find((c) => c.id === sel.value)?.rules.customerIds.push(r.userId);
-      save();
-      rerender();
-    };
-    const tdSel = h('td');
-    tdSel.append(sel);
-    tr.append(h('td', '', r.number), h('td', 'flag', flagEmoji(r.country)), h('td', '', r.name), h('td', '', r.car), h('td', 'dim', String(r.userId)), tdSel);
-    table.append(tr);
-  }
-  return table;
+/** Drivers of the session in progress (name, number, customer ID, flag). */
+function sessionRows() {
+  return (state.standings?.classes.flatMap((c) => c.rows) ?? []).sort((a, b) => a.position - b.position);
 }
 
-function overridesEditor(l: League, rerender: () => void) {
-  const wrap = h('div');
-  const table = h('table', 'drivers');
+/** League roster: drivers pulled automatically from the session (names, numbers), editable by hand. */
+function rosterCard(l: League, rerender: () => void) {
+  const c = h('section', 'card');
+  c.append(
+    h('h2', '', 'Drivers'),
+    h(
+      'p',
+      'dim',
+      'Pull every driver in the current session with one click (names, car numbers and customer IDs fill in automatically), then pick each driver’s class and optionally rename them, set a team, flag or league car number, or hide spectators/admins.',
+    ),
+  );
+  const bar = h('div', 'toolbar');
+  bar.append(
+    btn(
+      'Pull drivers from current session',
+      () => {
+        const rows = sessionRows();
+        if (!rows.length) return alert('Join a session (or run the simulator) first.');
+        let added = 0;
+        for (const r of rows) {
+          const existing = l.driverOverrides.find((o) => o.customerId === r.userId);
+          if (existing) {
+            existing.name ||= r.name;
+            existing.carNumber ||= r.number;
+            continue;
+          }
+          const cls = l.classes.find((k) => k.rules.customerIds.includes(r.userId));
+          l.driverOverrides.push({ customerId: r.userId, name: r.name, carNumber: r.number, classId: cls?.id ?? '', displayName: '', teamName: '', country: '', hidden: false });
+          added++;
+        }
+        save();
+        rerender();
+        if (!added) alert('Every driver in this session is already on the roster.');
+      },
+      'primary',
+    ),
+    btn('Add driver manually', () => {
+      l.driverOverrides.push({ customerId: 0, name: '', carNumber: '', classId: '', displayName: '', teamName: '', country: '', hidden: false });
+      save();
+      rerender();
+    }),
+  );
+  if (l.driverOverrides.length) {
+    bar.append(
+      btn(
+        'Clear roster',
+        () => {
+          if (!confirm('Remove every driver from this league roster?')) return;
+          l.driverOverrides = [];
+          save();
+          rerender();
+        },
+        'danger',
+      ),
+    );
+  }
+  const table = h('table', 'drivers roster');
   const head = h('tr');
-  for (const t of ['Customer ID', 'Display name', 'Team name', 'Flag (ISO code)', 'Hide', '']) head.append(h('th', '', t));
+  for (const t of ['Car #', 'Flag', 'iRacing name', 'Customer ID', 'Class', 'Display name', 'Team', 'Hide', '']) head.append(h('th', '', t));
   table.append(head);
+  const live = new Map(sessionRows().map((r) => [r.userId, r]));
   l.driverOverrides.forEach((o, i) => {
+    o.name ??= '';
+    o.carNumber ??= '';
+    o.classId ??= '';
+    o.country ??= '';
     const tr = h('tr');
-    const cell = (el: HTMLElement) => {
+    const cell = (el: HTMLElement | string) => {
       const td = h('td');
       td.append(el);
       tr.append(td);
     };
-    const input = (value: string, set: (v: string) => void, placeholder = '') => {
+    const input = (value: string, set: (v: string) => void, placeholder = '', width = '') => {
       const el = h('input');
       el.value = value;
       el.placeholder = placeholder;
+      if (width) el.style.width = width;
       el.oninput = () => {
         set(el.value);
         save();
       };
       return el;
     };
-    cell(input(o.customerId ? String(o.customerId) : '', (v) => (o.customerId = parseInt(v, 10) || 0)));
-    cell(input(o.displayName, (v) => (o.displayName = v)));
-    cell(input(o.teamName, (v) => (o.teamName = v)));
-    cell(input(o.country ?? '', (v) => (o.country = v.trim().toUpperCase()), 'GB, DE, US…'));
+    const r = live.get(o.customerId);
+    cell(input(o.carNumber, (v) => (o.carNumber = v.trim()), r?.number ?? '#', '56px'));
+    cell(input(o.country, (v) => (o.country = v.trim().toUpperCase()), r?.country ? `${flagEmoji(r.country)} ${r.country}` : 'GB', '64px'));
+    cell(input(o.name, (v) => (o.name = v), 'Name'));
+    cell(input(o.customerId ? String(o.customerId) : '', (v) => (o.customerId = parseInt(v, 10) || 0), 'ID', '90px'));
+    const cls = h('select');
+    const none = h('option', '', 'By class rules');
+    none.value = '';
+    cls.append(none);
+    for (const k of l.classes) {
+      const opt = h('option', '', k.name || '(unnamed)');
+      opt.value = k.id;
+      cls.append(opt);
+    }
+    cls.value = o.classId;
+    cls.onchange = () => {
+      o.classId = cls.value;
+      save();
+    };
+    cell(cls);
+    cell(input(o.displayName, (v) => (o.displayName = v), 'Nickname'));
+    cell(input(o.teamName, (v) => (o.teamName = v), 'Team'));
     const hide = h('input');
     hide.type = 'checkbox';
     hide.checked = o.hidden;
@@ -412,15 +478,8 @@ function overridesEditor(l: League, rerender: () => void) {
     );
     table.append(tr);
   });
-  wrap.append(
-    table,
-    btn('Add driver override', () => {
-      l.driverOverrides.push({ customerId: 0, displayName: '', teamName: '', country: '', hidden: false });
-      save();
-      rerender();
-    }),
-  );
-  return wrap;
+  c.append(bar, l.driverOverrides.length ? table : h('p', 'dim', 'No drivers on the roster yet.'));
+  return c;
 }
 
 /** A league built from the session you are in: its iRacing classes and league ID. */
@@ -438,6 +497,12 @@ function fromSession(): League | null {
       color: c.color && c.color !== '#ffffff' ? c.color : PALETTE[i % PALETTE.length],
       rules: { ...emptyRules(), iracingClassIds: irClass ? [Number(irClass[1])] : [], carIds: irClass ? [] : carIds },
     });
+  });
+  // Roster: every driver with their name, number and class.
+  st.classes.forEach((c, i) => {
+    for (const r of c.rows) {
+      l.driverOverrides.push({ customerId: r.userId, name: r.name, carNumber: r.number, classId: l.classes[i].id, displayName: '', teamName: '', country: '', hidden: false });
+    }
   });
   l.points.basis = l.classes.length > 1 ? 'class' : 'overall';
   return l;
@@ -509,6 +574,7 @@ export const leaguesPage: Page = {
     const ed = h('section', 'card');
     const name = h('input', 'title-input');
     name.value = l.name;
+    name.className = '';
     name.oninput = () => {
       l.name = name.value;
       save();
@@ -543,21 +609,44 @@ export const leaguesPage: Page = {
         rerender();
       }, 'danger'),
     );
-    const meta = l.iracingLeagueId ? h('p', 'dim small', `iRacing league ${l.iracingLeagueId}${l.seasonName ? ` · ${l.seasonName}` : ''}${l.importedAt ? ` · imported ${new Date(Number(l.importedAt) * 1000).toLocaleString()}` : ''}`) : h('span');
+    const meta = l.importedAt ? h('p', 'dim small', `Last imported from iRacing ${new Date(Number(l.importedAt) * 1000).toLocaleString()}`) : h('span');
+    const leagueId = h('input');
+    leagueId.type = 'number';
+    leagueId.placeholder = 'optional';
+    leagueId.style.width = '140px';
+    name.style.width = '260px';
+    leagueId.value = l.iracingLeagueId ? String(l.iracingLeagueId) : '';
+    leagueId.oninput = () => {
+      l.iracingLeagueId = parseInt(leagueId.value, 10) || 0;
+      importLeagueId = leagueId.value;
+      save();
+    };
+    const season = h('input');
+    season.placeholder = 'e.g. Season 3';
+    season.style.width = '260px';
+    season.value = l.seasonName ?? '';
+    season.oninput = () => {
+      l.seasonName = season.value;
+      save();
+    };
     ed.append(
-      h('h2', '', 'League'),
-      name,
+      h('h2', '', 'League info'),
+      h('p', 'dim', 'Everything here can be entered by hand — importing from iRacing is optional.'),
+      labeled('League name', name),
+      labeled('iRacing league ID', leagueId, 'Only needed for importing from iRacing'),
+      labeled('Season', season),
       meta,
       labeled('Cars matching no class', fallback),
+      h('h3', '', 'Classes'),
       actions,
-      h('p', 'dim small', 'A car joins the first class (top to bottom) where any rule matches. Text rules are case-insensitive; use * as a wildcard. Separate values with commas.'),
+      h(
+        'p',
+        'dim small',
+        'A driver’s class comes from the roster below when picked there; otherwise the first class (top to bottom) whose rules match. Text rules are case-insensitive; use * as a wildcard. Separate values with commas.',
+      ),
     );
     l.classes.forEach((c, i) => ed.append(classEditor(l, c, i, rerender)));
 
-    const assign = h('section', 'card');
-    assign.append(h('h2', '', 'Assign drivers from the current session'), sessionDrivers(l, rerender));
-    const ov = h('section', 'card');
-    ov.append(h('h2', '', 'Driver overrides'), h('p', 'dim', 'Rename drivers or teams (e.g. league nicknames), set the flag shown for a driver, or hide spectators/admins from every overlay.'), overridesEditor(l, rerender));
-    el.replaceChildren(top, importCard(rerender), ed, pointsCard(l, rerender), assign, ov);
+    el.replaceChildren(top, ed, rosterCard(l, rerender), pointsCard(l, rerender), importCard(rerender, l));
   },
 };

@@ -1,5 +1,5 @@
 [package]
-name = "apex-desktop"
+name = "apex-overlays-desktop"
 description = "Apex Overlays desktop app: transparent, click-through overlay windows on top of iRacing"
 version.workspace = true
 edition.workspace = true

@@ -130,6 +130,14 @@ export interface Extras {
   stintState: 'pit' | 'out' | 'lap';
   stintLap: number | null;
   bestLap: number | null;
+  lastLap: number | null;
+  /** Best lap is the fastest of the class. */
+  classBest: boolean;
+  /** Last lap was the driver's personal best. */
+  lastIsPb: boolean;
+  /** Has taken the chequered flag. */
+  finished: boolean;
+  lapsLed: number;
   incidents: number | null;
   irDelta: number | null;
   srDelta: number | null;
@@ -138,13 +146,17 @@ export interface Extras {
 }
 
 export interface RelRow extends Driver, Extras {
+  /** On-track gap to the focus car (positive = ahead). */
   gap: number;
+  gapLeader: number | null;
+  gapLeaderLaps: number;
+  interval: number | null;
+  intervalLaps: number;
   position: number;
   classPosition: number;
   lapDiff: number;
   onPitRoad: boolean;
   offTrack: boolean;
-  lastLap: number | null;
   tireWet: boolean | null;
 }
 
@@ -159,7 +171,6 @@ export interface StandRow extends Driver, Extras {
   gapLaps: number;
   interval: number | null;
   intervalLaps: number;
-  lastLap: number | null;
   isClassBest: boolean;
   laps: number;
   onPitRoad: boolean;
@@ -323,6 +334,12 @@ export interface LeagueClass {
 
 export interface DriverOverride {
   customerId: number;
+  /** iRacing name, pulled from a session (reference only). */
+  name: string;
+  /** League car number; replaces the sim number in overlays when set. */
+  carNumber: string;
+  /** League class id this driver races in (overrides class rules). */
+  classId: string;
   displayName: string;
   teamName: string;
   country: string;
@@ -334,6 +351,10 @@ export interface PointsConfig {
   defaultPoints: number;
   basis: 'class' | 'overall';
   fastestLapBonus: number;
+  poleBonus: number;
+  lapLedBonus: number;
+  mostLapsLedBonus: number;
+  finishBonus: number;
   systemName: string;
   description: string;
 }

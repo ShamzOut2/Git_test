@@ -16,7 +16,7 @@ impl log::Log for Logger {
     fn flush(&self) {}
 }
 
-const HELP: &str = "apex-server [--mock] [--port N] [--data-dir DIR] [--ui-dir DIR]
+const HELP: &str = "apex-overlays-server [--mock] [--port N] [--data-dir DIR] [--ui-dir DIR]
 
   --mock          run the built-in race simulator instead of reading iRacing
   --port N        override the configured port (default 8182)

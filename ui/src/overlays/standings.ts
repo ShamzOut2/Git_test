@@ -51,20 +51,20 @@ export const standings: OverlayDef = {
   name: 'Standings',
   description: 'Multi-class leaderboard with gaps, intervals, lap times, pit stops and positions gained. Respects league classes.',
   topics: ['standings', 'session'],
-  size: [560, 320],
+  size: [700, 380],
   settings: [
     { key: 'mode', label: 'Show', type: 'select', default: 'multiclass', options: [['multiclass', 'All classes'], ['myClass', 'My class only'], ['overall', 'Single overall list']], group: 'Layout' },
     { key: 'maxRows', label: 'Rows in my class', type: 'number', default: 10, min: 1, max: 64, group: 'Layout' },
     { key: 'otherClassRows', label: 'Rows in other classes', type: 'number', default: 3, min: 0, max: 64, group: 'Layout' },
     { key: 'topRows', label: 'Always show top', type: 'number', default: 3, min: 0, max: 20, group: 'Layout', help: 'The rest of the rows follow the car you are watching' },
-    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'name', 'irating', 'gap', 'lastLap', 'pit']), group: 'Columns' },
+    { key: 'columns', label: 'Columns', type: 'columns', ...columns(COLS, ['pos', 'number', 'flag', 'name', 'irating', 'gap', 'interval', 'lastLap', 'bestLap', 'pit']), group: 'Columns' },
     { key: 'nameStyle', label: 'Name format', type: 'select', default: 'full', options: NAME_STYLES, group: 'Columns' },
     { key: 'gapDecimals', label: 'Gap decimals', type: 'number', default: 1, min: 0, max: 3, group: 'Columns' },
     ...COLUMN_STYLE_SETTINGS,
     ...headerSettings(['time', 'lap', 'cars']),
     { key: 'showClassHeader', label: 'Show class headers', type: 'bool', default: true, group: 'Header' },
-    { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: false, group: 'Header' },
-    { key: 'highlightBest', label: 'Highlight fastest lap of class', type: 'bool', default: true, group: 'Colours' },
+    { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: true, group: 'Header' },
+    { key: 'columnTitlesEveryClass', label: 'Repeat column titles for every class', type: 'bool', default: false, group: 'Header' },
     { key: 'dimPitCars', label: 'Dim cars in the pits', type: 'bool', default: true, group: 'Colours' },
     { key: 'dimDisconnected', label: 'Dim disconnected cars', type: 'bool', default: true, group: 'Colours' },
   ],
@@ -76,13 +76,13 @@ export const standings: OverlayDef = {
     root.append(header.el, body);
 
     const cols: Col<StandRow>[] = [
-      { id: 'pos', label: 'P', width: '2.2em', align: 'center', render: (c, r) => text(c, String(r.classPosition)) },
-      { id: 'overall', label: 'O', width: '2.2em', align: 'center', render: (c, r) => text(c, String(r.position)) },
+      { id: 'pos', label: 'Pos', width: '2.4em', align: 'center', render: (c, r) => text(c, String(r.classPosition)) },
+      { id: 'overall', label: 'Ovr', width: '2.4em', align: 'center', render: (c, r) => text(c, String(r.position)) },
       ...driverCols<StandRow>(s),
       {
         id: 'gained',
-        label: '±',
-        width: '2.4em',
+        label: '+/−',
+        width: '2.6em',
         align: 'center',
         render: (c, r) => {
           const g = r.positionsGained ?? 0;
@@ -93,35 +93,24 @@ export const standings: OverlayDef = {
       },
       { id: 'gap', label: 'Gap', width: '3.8em', align: 'right', render: (c, r) => text(c, r.classPosition === 1 ? 'Leader' : f.gap(r.gap, r.gapLaps, dec)) },
       { id: 'interval', label: 'Int', width: '3.6em', align: 'right', render: (c, r) => text(c, r.classPosition === 1 ? '' : f.gap(r.interval, r.intervalLaps, dec)) },
-      { id: 'lastLap', label: 'Last', width: '4.6em', align: 'right', render: (c, r) => text(c, r.lastLap ? f.lapTime(r.lastLap) : '') },
-      {
-        id: 'bestLap',
-        label: 'Best',
-        width: '4.6em',
-        align: 'right',
-        render: (c, r) => {
-          text(c, r.bestLap ? f.lapTime(r.bestLap) : '');
-          toggle(c, 'best', (s.highlightBest as boolean) && r.isClassBest);
-        },
-      },
-      { id: 'laps', label: 'L', width: '2.4em', align: 'right', render: (c, r) => text(c, String(r.laps)) },
-      { id: 'pits', label: 'Pit', width: '2.2em', align: 'center', render: (c, r) => text(c, r.pitStops ? String(r.pitStops) : '') },
-      { id: 'tire', label: 'T', width: '1.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
-      { id: 'pit', label: '', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.inWorld ? '' : 'OUT') },
+      { id: 'laps', label: 'Laps', width: '2.6em', align: 'right', render: (c, r) => text(c, String(r.laps)) },
+      { id: 'pits', label: 'Stops', width: '2.8em', align: 'center', render: (c, r) => text(c, r.pitStops ? String(r.pitStops) : '') },
+      { id: 'tire', label: 'Tyre', width: '2.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
+      { id: 'pit', label: 'Pit', width: '2.4em', align: 'center', render: (c, r) => text(c, r.onPitRoad ? 'PIT' : r.inWorld ? '' : 'OUT') },
       ...extraCols<StandRow>(s),
     ];
     const order = enabledColumns(s.columns);
     let sections: Section[] = [];
     let key = '';
 
-    const section = (id: string): Section => {
+    const section = (id: string, first: boolean): Section => {
       const el = h('div', 'section');
       const head = h('div', 'class-head');
       const name = h('span', 'class-name');
       const meta = h('span', 'info');
       head.append(name, meta);
       show(head, s.showClassHeader as boolean);
-      const table = new Table<StandRow>(cols, order, (s.showColumnTitles as boolean) && sections.length === 0);
+      const table = new Table<StandRow>(cols, order, (s.showColumnTitles as boolean) && (first || (s.columnTitlesEveryClass as boolean)));
       el.append(head, table.el);
       return { id, el, head, name, meta, table };
     };
@@ -152,7 +141,7 @@ export const standings: OverlayDef = {
         const k = classes.map((c) => c.id).join('|');
         if (k !== key) {
           key = k;
-          sections = classes.map((c) => section(c.id));
+          sections = classes.map((c, i) => section(c.id, i === 0));
           body.replaceChildren(...sections.map((x) => x.el));
         }
         classes.forEach((c, i) => {

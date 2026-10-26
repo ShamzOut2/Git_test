@@ -12,6 +12,7 @@ use std::time::{Duration, Instant};
 const DT: f64 = 1.0 / 60.0;
 const SAMPLES: usize = 3000;
 const TARGET_LEN: f64 = 4600.0;
+/// Race length; override with APEX_OVERLAYS_MOCK_RACE_SECONDS to test race finishes.
 const RACE_SECONDS: f64 = 50.0 * 60.0;
 const PIT_ENTRY: f64 = 0.955;
 const PIT_EXIT: f64 = 0.04;
@@ -219,11 +220,15 @@ pub struct Mock {
     incidents: i32,
     /// Smoothed longitudinal acceleration of the player car, drives the pedal inputs.
     accel_smooth: f64,
+    race_seconds: f64,
+    /// The leader has crossed the line after the clock ran out.
+    checkered: bool,
 }
 
 impl Mock {
     pub fn new() -> Self {
         let track = Circuit::new();
+        let race_seconds = std::env::var("APEX_OVERLAYS_MOCK_RACE_SECONDS").ok().and_then(|v| v.parse().ok()).unwrap_or(RACE_SECONDS);
         let mut rng = Rng(0x9e37_79b9_7f4a_7c15);
         let mut cars = vec![];
         for i in 0..20 {
@@ -251,7 +256,20 @@ impl Mock {
                 wobble: rng.range(0.0, TAU),
             });
         }
-        Self { track, cars, rng, time: 0.0, tick: 0, started: Instant::now(), fast_forward_until: 420.0, sent_yaml: false, incidents: 0, accel_smooth: 0.0 }
+        Self {
+            track,
+            cars,
+            rng,
+            time: 0.0,
+            tick: 0,
+            started: Instant::now(),
+            fast_forward_until: 420.0,
+            sent_yaml: false,
+            incidents: 0,
+            accel_smooth: 0.0,
+            race_seconds,
+            checkered: false,
+        }
     }
 
     pub fn circuit(&self) -> &Circuit {
@@ -275,6 +293,10 @@ impl Mock {
         let (wetness, _) = self.weather();
         let len = self.track.len;
         let n = self.cars.len();
+        let leader = (1..n).max_by(|&a, &b| {
+            let p = |c: &Car| c.lap as f64 + c.dist / len;
+            p(&self.cars[a]).total_cmp(&p(&self.cars[b]))
+        });
         for i in 0..n {
             let wobble = (self.time * 0.05 + self.cars[i].wobble).sin() * 0.004;
             let c = &mut self.cars[i];
@@ -335,6 +357,10 @@ impl Mock {
                     }
                 }
                 c.lap_start = self.time;
+                // The chequered flag comes out when the leader crosses the line after the clock runs out.
+                if Some(i) == leader && self.time >= self.race_seconds {
+                    self.checkered = true;
+                }
             }
         }
         let me = &self.cars[PLAYER];
@@ -353,7 +379,7 @@ impl Mock {
         let mut y = format!(
             "---\nWeekendInfo:\n TrackName: apex raceway\n TrackID: 9001\n TrackLength: {:.2} km\n TrackDisplayName: Apex Raceway\n TrackConfigName: Grand Prix\n TrackCity: Nowhere\n TrackCountry: Simland\n SeriesID: 1\n SubSessionID: 424242\n LeagueID: 0\n Official: 1\n EventType: Race\n WeekendOptions:\n  IncidentLimit: 25\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionLaps: unlimited\n   SessionTime: {:.4} sec\n   SessionType: Race\n   SessionName: RACE\n   ResultsPositions:\n",
             self.track.len / 1000.0,
-            RACE_SECONDS
+            self.race_seconds
         );
         y += &format!(
             "DriverInfo:\n DriverCarIdx: {PLAYER}\n PaceCarIdx: 0\n DriverCarFuelMaxLtr: 106.000\n DriverCarMaxFuelPct: 0.600\n DriverCarEstLapTime: {:.4}\n DriverCarSLShiftRPM: 7800.000\n DriverCarRedLine: 8500.000\n DriverTires:\n - TireIndex: 0\n   TireCompoundType: \"Hard\"\n - TireIndex: 1\n   TireCompoundType: \"Wet\"\n Drivers:\n",
@@ -390,9 +416,9 @@ impl Mock {
         t.tick = self.tick;
         t.session_time = self.time;
         t.session_num = 0;
-        t.session_state = if self.time >= RACE_SECONDS { 5 } else { 4 };
+        t.session_state = if self.checkered { 5 } else { 4 };
         t.session_flags = crate::model::flags::GREEN;
-        t.session_time_remain = (RACE_SECONDS - self.time).max(0.0);
+        t.session_time_remain = (self.race_seconds - self.time).max(0.0);
         t.session_laps_remain = 32767;
         t.time_of_day = (14.0 * 3600.0 + self.time) as f32;
         t.player_idx = PLAYER as i32;

@@ -1,7 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Apex Overlays",
-  "version": "0.2.0",
+  "mainBinaryName": "Apex Overlays",
+  "version": "0.3.0",
   "identifier": "app.apexoverlays.desktop",
   "build": {
     "frontendDist": "static"

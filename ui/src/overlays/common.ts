@@ -61,14 +61,28 @@ function makeCell(c: HTMLElement, make: string, style: string) {
   text(b, style === 'full' ? make : make.replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase());
 }
 
-export function driverCols<R extends Driver>(s: Values): Col<R>[] {
+/** Driver name with an optional chequered flag once they have finished the race. */
+function nameCell(c: HTMLElement, name: string, finished: boolean) {
+  let flag = c.firstElementChild as HTMLElement | null;
+  let label = c.lastElementChild as HTMLElement | null;
+  if (!flag || flag === label) {
+    flag = h('span', 'fin');
+    label = h('span', 'nm');
+    c.replaceChildren(flag, label);
+  }
+  flag.title = 'Finished';
+  if (flag.hidden !== !finished) flag.hidden = !finished;
+  text(label!, name);
+}
+
+export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R>[] {
   const nameStyle = s.nameStyle as string;
   return [
     { id: 'number', label: '#', width: '2.9em', align: 'center', render: (c, r) => chip(c, r.number, r.classColor) },
-    { id: 'flag', label: '', width: '1.6em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
-    { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => text(c, f.name(r.name, nameStyle)) },
+    { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
+    { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), s.finishFlag !== false && !!r.finished) },
     { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
-    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '2.6em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string) },
+    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string) },
     {
       id: 'license',
       label: 'Lic',
@@ -103,10 +117,31 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
         toggle(c, 'inpit', r.stintState === 'pit');
       },
     },
-    { id: 'bestLap', label: 'Best', width: '4.6em', align: 'right', render: (c, r) => text(c, r.bestLap ? f.lapTime(r.bestLap) : '') },
+    {
+      id: 'bestLap',
+      label: 'Best',
+      width: '4.6em',
+      align: 'right',
+      render: (c, r) => {
+        text(c, r.bestLap ? f.lapTime(r.bestLap) : '');
+        toggle(c, 'best', s.highlightBest !== false && r.classBest);
+      },
+    },
+    {
+      id: 'lastLap',
+      label: 'Last',
+      width: '4.6em',
+      align: 'right',
+      render: (c, r) => {
+        text(c, r.lastLap ? f.lapTime(r.lastLap) : '');
+        // Purple = fastest lap of the class, green = the driver's personal best.
+        toggle(c, 'best', s.highlightBest !== false && r.lastIsPb && r.classBest);
+        toggle(c, 'pb', s.highlightBest !== false && r.lastIsPb && !r.classBest);
+      },
+    },
     { id: 'incidents', label: 'Inc', width: '2.4em', align: 'right', render: (c, r) => text(c, r.incidents == null ? '' : `${r.incidents}x`) },
-    { id: 'irDelta', label: 'iR±', width: '3em', align: 'right', render: (c, r) => signedCell(c, r.irDelta, 0) },
-    { id: 'srDelta', label: 'SR±', width: '3.2em', align: 'right', render: (c, r) => signedCell(c, r.srDelta, 2) },
+    { id: 'irDelta', label: 'iR ±', width: '3em', align: 'right', render: (c, r) => signedCell(c, r.irDelta, 0) },
+    { id: 'srDelta', label: 'SR ±', width: '3.2em', align: 'right', render: (c, r) => signedCell(c, r.srDelta, 2) },
     {
       id: 'points',
       label: 'Pts',
@@ -135,6 +170,8 @@ export const COLUMN_STYLE_SETTINGS = [
   },
   { key: 'outLapText', label: 'Out-lap label', type: 'text' as const, default: 'OUTLAP', group: 'Columns' },
   { key: 'pointsPlus', label: 'Show points as gains (+25)', type: 'bool' as const, default: true, group: 'Columns' },
+  { key: 'finishFlag', label: 'Chequered flag next to drivers who have finished', type: 'bool' as const, default: true, group: 'Columns' },
+  { key: 'highlightBest', label: 'Colour lap times (purple = class best, green = personal best)', type: 'bool' as const, default: true, group: 'Colours' },
 ];
 
 export function tireCell(c: HTMLElement, wet: boolean | null) {

@@ -15,6 +15,11 @@ Done in 0.2:
       best/last lap, tyre, current lap, overall position
 - [x] Track map corner labels (turn numbers and/or names), downloadable and user-editable
 
+Done in 0.3:
+- [x] Column titles, overlay-name headers with a session type badge, chequered flag for finishers
+- [x] Relative gap modes (on track / to class leader / to car ahead), best & last lap colouring
+- [x] Manual league setup with a driver roster pulled from the session, pole / laps-led / most-laps-led / finish bonuses
+
 Next:
 - [ ] **Stream chat overlay**: Twitch chat over the anonymous IRC WebSocket (no login needed) and YouTube live chat,
       as an in-game overlay and an OBS source

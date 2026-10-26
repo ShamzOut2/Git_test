@@ -65,6 +65,12 @@ pub struct CarHist {
     pub laps: VecDeque<LapRec>,
     /// Left the pits and has not crossed the line yet.
     pub out_lap: bool,
+    /// Took the chequered flag.
+    pub finished: bool,
+    pub prev_completed: i32,
+    pub last_cross_at: f64,
+    pub laps_led_overall: i32,
+    pub laps_led_class: i32,
     pub pitted: bool,
     pub exit_completed: i32,
 }
@@ -133,6 +139,8 @@ pub struct Engine {
     pub corners: Vec<Corner>,
     pub corners_source: &'static str,
     remote_corners: Option<(i64, Vec<Corner>, &'static str)>,
+    /// Session time the leader took the chequered flag.
+    checkered_at: Option<f64>,
     last_session: (i64, i32),
     last_state: i32,
 }
@@ -157,6 +165,7 @@ impl Engine {
             corners: vec![],
             corners_source: "none",
             remote_corners: None,
+            checkered_at: None,
             last_session: (-1, -1),
             last_state: 0,
         };
@@ -252,20 +261,68 @@ impl Engine {
     }
 
     /// League points for the current running position, and the projected championship total.
+    /// Best lap this session, from telemetry or (for cars no longer in the world) the results.
+    pub fn best_lap(&self, idx: usize) -> Option<f32> {
+        let b = self.tel.cars[idx].best_lap;
+        if b > 0.0 {
+            return Some(b);
+        }
+        self.result(idx).map(|r| r.fastest_time).filter(|&t| t > 0.0)
+    }
+
+    pub fn last_lap(&self, idx: usize) -> Option<f32> {
+        let l = self.tel.cars[idx].last_lap;
+        if l > 0.0 {
+            return Some(l);
+        }
+        self.result(idx).map(|r| r.last_time).filter(|&t| t > 0.0)
+    }
+
+    fn result(&self, idx: usize) -> Option<&crate::model::ResultPos> {
+        self.session_def().and_then(|d| d.results.iter().find(|r| r.car_idx == idx))
+    }
+
+    /// Qualifying order (car indices) for pole bonuses: carried-over results, else the last qualifying session.
+    fn qualify_order(&self) -> Vec<usize> {
+        if !self.info.qualify.is_empty() {
+            return self.info.qualify.iter().map(|r| r.car_idx).collect();
+        }
+        let q = self.info.sessions.iter().rfind(|s| s.kind.to_lowercase().contains("qualify") && !s.results.is_empty());
+        let mut res: Vec<&crate::model::ResultPos> = q.map(|s| s.results.iter().collect()).unwrap_or_default();
+        res.sort_by_key(|r| r.position);
+        res.iter().map(|r| r.car_idx).collect()
+    }
+
+    /// Cars in the same points group as `idx` (its class, or everyone for overall scoring).
+    fn points_group(&self, idx: usize, overall: bool) -> Vec<usize> {
+        let class = self.static_of(idx).map(|s| s.class.id.clone());
+        self.order.iter().map(|r| r.idx).filter(|&i| overall || self.static_of(i).map(|s| &s.class.id) == class.as_ref()).collect()
+    }
+
     pub fn points(&self, idx: usize) -> (Option<f32>, Option<f32>) {
         let Some(league) = self.resolver.league() else { return (None, None) };
         let (Some(r), Some(s)) = (self.row(idx), self.static_of(idx)) else { return (None, None) };
         if !self.is_race() {
             return (None, None);
         }
-        let overall = league.points.basis == "overall";
+        let p = &league.points;
+        let overall = p.basis == "overall";
         let pos = if overall { r.pos } else { r.class_pos };
         let fastest = if overall {
             self.classes.iter().filter_map(|c| c.best_lap).min_by(|a, b| a.1.total_cmp(&b.1)).map(|b| b.0)
         } else {
             self.classes.iter().find(|c| c.key.id == s.class.id).and_then(|c| c.best_lap).map(|b| b.0)
         };
-        let pts = ratings::points(&league.points, pos, fastest == Some(idx));
+        let group = self.points_group(idx, overall);
+        let pole = self.qualify_order().into_iter().find(|i| group.contains(i));
+        let led = |i: usize| if overall { self.hist[i].laps_led_overall } else { self.hist[i].laps_led_class };
+        let most = group.iter().copied().max_by_key(|&i| led(i)).filter(|&i| led(i) > 0);
+        let pts = ratings::points(p, pos, fastest == Some(idx)).map(|base| {
+            base + if pole == Some(idx) { p.pole_bonus } else { 0.0 }
+                + if led(idx) > 0 { p.lap_led_bonus } else { 0.0 }
+                + if most == Some(idx) { p.most_laps_led_bonus } else { 0.0 }
+                + p.finish_bonus
+        });
         let season = league.season_points.iter().find(|e| e.customer_id == s.user_id).map(|e| e.points);
         let total = match (season, pts) {
             (Some(a), Some(b)) => Some(a + b),
@@ -301,7 +358,7 @@ impl Engine {
                 abbrev: if d.abbrev.is_empty() { name.clone() } else { d.abbrev.clone() },
                 name,
                 team,
-                number: d.car_number.clone(),
+                number: self.resolver.car_number(d),
                 car: if d.car_short.is_empty() { d.car_name.clone() } else { d.car_short.clone() },
                 car_id: d.car_id,
                 user_id: d.user_id,
@@ -436,9 +493,20 @@ impl Engine {
             self.hist = vec![CarHist::default(); MAX_CARS];
             self.battle = Default::default();
             self.fuel.new_session();
+            self.checkered_at = None;
         }
         self.update_hist();
         self.compute_order();
+        if self.is_race() && self.tel.session_state >= STATE_CHECKERED && self.checkered_at.is_none() {
+            // The leader just crossed the line under the chequered flag.
+            let now = self.tel.session_time;
+            self.checkered_at = Some(now);
+            if let Some(leader) = self.order.first().map(|r| r.idx) {
+                if now - self.hist[leader].last_cross_at < 2.0 {
+                    self.hist[leader].finished = true;
+                }
+            }
+        }
         if self.tel.session_state == STATE_RACING && self.last_state != STATE_RACING && self.is_race() {
             for r in &self.order {
                 self.hist[r.idx].start_class_pos = r.class_pos;
@@ -454,6 +522,11 @@ impl Engine {
 
     fn update_hist(&mut self) {
         let now = self.tel.session_time;
+        let racing = self.is_race() && self.tel.session_state >= STATE_RACING;
+        // Running order from the previous tick decides who led the lap that just ended.
+        let overall_leader = self.order.first().map(|r| r.idx);
+        let class_leaders: Vec<usize> = self.order.iter().filter(|r| r.class_pos == 1).map(|r| r.idx).collect();
+        let checkered_at = self.checkered_at;
         for i in 0..MAX_CARS {
             let c = &self.tel.cars[i];
             let wet = self.info.tire_is_wet(c.tire_compound);
@@ -461,6 +534,17 @@ impl Engine {
             if !c.in_world() {
                 continue;
             }
+            if h.seen && c.lap_completed > h.prev_completed {
+                h.last_cross_at = now;
+                if racing {
+                    h.laps_led_overall += (overall_leader == Some(i)) as i32;
+                    h.laps_led_class += class_leaders.contains(&i) as i32;
+                }
+                if checkered_at.is_some_and(|t| now >= t - 0.05) {
+                    h.finished = true;
+                }
+            }
+            h.prev_completed = c.lap_completed;
             h.seen = true;
             h.last_progress = c.progress();
             if c.on_pit_road {
@@ -570,7 +654,7 @@ impl Engine {
             };
             out[i].count += 1;
             irs[i].push(s.irating);
-            let b = self.tel.cars[r.idx].best_lap;
+            let b = self.best_lap(r.idx).unwrap_or(0.0);
             if b > 0.0 && out[i].best_lap.is_none_or(|(_, t)| b < t) {
                 out[i].best_lap = Some((r.idx, b));
             }
@@ -662,6 +746,52 @@ pub(crate) mod tests {
         place(&mut e, 1, 4, 0.05);
         assert!((e.relative_gap(0, 1) - 10.0).abs() < 1e-3);
         assert!((e.relative_gap(1, 0) + 10.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn chequered_flag_laps_led_and_bonus_points() {
+        use crate::config::{League, PointsConfig};
+        let cfg = Config {
+            leagues: vec![League {
+                id: "l".into(),
+                points: PointsConfig {
+                    table: vec![25.0, 18.0, 15.0],
+                    basis: "overall".into(),
+                    lap_led_bonus: 1.0,
+                    most_laps_led_bonus: 2.0,
+                    finish_bonus: 0.5,
+                    ..Default::default()
+                },
+                ..Default::default()
+            }],
+            active_league: Some("l".into()),
+            ..Default::default()
+        };
+        let mut e = engine(3, true);
+        e.set_config(cfg);
+        let lap = |e: &mut Engine, t: f64, cars: [(i32, f32); 3]| {
+            e.tel.session_time = t;
+            for (i, (l, p)) in cars.into_iter().enumerate() {
+                place(e, i, l, p);
+                e.tel.cars[i].lap_completed = l - 1;
+            }
+            e.tick();
+        };
+        lap(&mut e, 0.0, [(1, 0.95), (1, 0.90), (1, 0.85)]);
+        // Car 0 leads across the line twice.
+        lap(&mut e, 10.0, [(2, 0.01), (1, 0.97), (1, 0.93)]);
+        lap(&mut e, 110.0, [(3, 0.01), (2, 0.97), (2, 0.93)]);
+        assert_eq!(e.hist[0].laps_led_overall, 2);
+        assert_eq!(e.points(0).0, Some(25.0 + 1.0 + 2.0 + 0.5));
+        assert_eq!(e.points(1).0, Some(18.5));
+        // Chequered flag: the leader finishes, the others when they next cross the line.
+        e.tel.session_state = STATE_CHECKERED;
+        lap(&mut e, 210.0, [(4, 0.01), (2, 0.99), (2, 0.98)]);
+        assert!(e.hist[0].finished);
+        assert!(!e.hist[1].finished);
+        lap(&mut e, 212.0, [(4, 0.03), (3, 0.01), (2, 0.99)]);
+        assert!(e.hist[1].finished);
+        assert!(!e.hist[2].finished);
     }
 
     #[test]

@@ -156,10 +156,16 @@ pub fn build_league(league: &Value, season: Option<&Value>, sessions: &[Value], 
             }
         }
     }
+    // The whole roster: names and league car numbers, nicknames as display names.
     let driver_overrides = arr(league, "roster")
         .iter()
-        .filter(|m| !s(m, "nick_name").trim().is_empty())
-        .map(|m| DriverOverride { customer_id: i(m, "cust_id"), display_name: s(m, "nick_name"), ..Default::default() })
+        .map(|m| DriverOverride {
+            customer_id: i(m, "cust_id"),
+            name: s(m, "display_name"),
+            car_number: m.get("car_number").map(|n| n.as_str().map(String::from).unwrap_or_else(|| n.to_string())).filter(|n| n != "null").unwrap_or_default(),
+            display_name: s(m, "nick_name").trim().to_string(),
+            ..Default::default()
+        })
         .collect();
     let (system_name, description) = season.map(|x| (s(x, "points_system_name"), s(x, "points_system_desc"))).unwrap_or_default();
     let mut table = parse_points_table(&description);
@@ -256,7 +262,9 @@ mod tests {
         assert_eq!(l.classes.len(), 2);
         assert_eq!(l.classes[1].rules.car_ids, vec![11, 12]);
         assert_eq!(l.classes[1].rules.iracing_class_ids, vec![2708]);
-        assert_eq!(l.driver_overrides.len(), 1);
+        assert_eq!(l.driver_overrides.len(), 2);
+        assert_eq!(l.driver_overrides[0].display_name, "Maxi");
+        assert_eq!(l.driver_overrides[1].name, "Jo Bloggs");
         assert_eq!(l.points.table, vec![30.0, 25.0, 21.0, 18.0, 16.0]);
         assert_eq!(l.points.basis, "class");
         assert_eq!(l.season_points[0].points, 120.0);

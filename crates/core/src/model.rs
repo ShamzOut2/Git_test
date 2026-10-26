@@ -314,6 +314,8 @@ pub struct SessionInfo {
     pub redline_rpm: f32,
     pub tires: Vec<TireDef>,
     pub sectors: Vec<f32>,
+    /// Qualifying order carried into the race (QualifyResultsInfo), in finishing order.
+    pub qualify: Vec<ResultPos>,
 }
 
 impl SessionInfo {
@@ -416,6 +418,18 @@ impl SessionInfo {
                 .map(|t| TireDef { index: t.get("TireIndex").i32_or(0), kind: t.get("TireCompoundType").string() })
                 .collect(),
             sectors: y.path("SplitTimeInfo.Sectors").list().iter().map(|s| s.get("SectorStartPct").f32_or(0.0)).collect(),
+            qualify: y
+                .path("QualifyResultsInfo.Results")
+                .list()
+                .iter()
+                .map(|r| ResultPos {
+                    position: r.get("Position").i32_or(0) + 1,
+                    class_position: r.get("ClassPosition").i32_or(0) + 1,
+                    car_idx: r.get("CarIdx").i32_or(0).max(0) as usize,
+                    fastest_time: r.get("FastestTime").f32_or(-1.0),
+                    ..Default::default()
+                })
+                .collect(),
         }
     }
 

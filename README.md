@@ -19,7 +19,7 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 
 | Overlay | What it shows |
 |---|---|
-| **Relative** | Cars around you on track with live gaps and colours for cars a lap ahead or behind. |
+| **Relative** | Cars around you on track with colours for cars a lap ahead or behind. The gap column shows the time to each car on track, the gap to the class leader, or the gap to the car ahead (interval). |
 | **Standings** | Multi-class leaderboard with gap to leader and interval. It shows the top rows and a window around you, per class or as one overall list. |
 | **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sectors, start/finish, class-leader rings, rotation and mirroring. |
 | **Driver inputs** | Throttle, brake and clutch bars, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
@@ -31,31 +31,33 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 
 ### Relative and standings columns
 
-You can toggle and reorder every column:
+Every column has a title (it can be switched off), and you can toggle and reorder every column:
 
 - class and overall position, car number, **country flag** (from the driver's iRacing flair), driver, team
-- **manufacturer** logo or badge (put your own logo images in `%APPDATA%\ApexOverlays\logos\`, e.g. `porsche.png`), class, car, licence, iRating
+- **manufacturer** logo or badge (put your own logo images in `%APPDATA%\Apex Overlays\logos\`, e.g. `porsche.png`), class, car, licence, iRating
 - **iRating gain/loss** and **safety rating gain/loss** (live estimates), incidents
-- current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), last lap, best lap, **tyre** (wet/dry)
+- current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), **last lap** and **best lap** of every driver (purple = fastest of the class, green = a personal best), **tyre** (wet/dry)
+- a **chequered flag** next to each driver's name once they have taken the flag at the end of the race
 - gap and interval, positions gained, pit stops
 - **league points** for the current position, and the **projected championship total**
 
-The **header** of both overlays is also customisable. Choose the title (session, track, league or your own text) and any session details next to it: time left, leader lap, track/air temperature with trend, wetness, rain, wind, SOF, incidents, flags and so on.
+The **header** of both overlays is also customisable. By default it shows the overlay's name with a coloured **session type badge** (Practice, Qualifying, Warmup, Race…). You can change the title (session, track, league or your own text) and add any session details next to it: time left, leader lap, track/air temperature with trend, wetness, rain, wind, SOF, incidents, flags and so on.
 
 > iRacing doesn't publish its rating formulas. The iRating change uses the community formula most rating calculators use, so it's usually within a few points. The SR change is a rough corners-per-incident estimate that shows direction and approximate size, nothing more. Both are only shown in official races unless you change that under *General*. Other drivers' incidents are only visible in sessions where iRacing shares them.
 
 ### Customisation
 
 - **Transparency per overlay:** each overlay has its own overall opacity and background opacity, and one button copies them to all overlays. Global defaults live in the theme.
-- **Colour themes** restyle every overlay *and* the settings window. There are 8 presets (Apex, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
+- **Colour themes** restyle every overlay *and* the settings window. There are 8 presets (Apex Overlays default, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
 - **Every overlay** has its own scale, visibility rules (hide when iRacing isn't running, when you're not in the car, on pit road, or outside races) and **custom CSS**.
 - **Column and field overlays** (relative, standings, session info) let you toggle and reorder every column, plus set name formats, gap signs and decimals.
 - **The global theme** sets font, size and weight, every colour (player, lapped, lapping, pit, fastest, good/bad, caution), corner radius, row shading and padding, outline and text shadow.
 - **Multiple copies of the same overlay** can run side by side with different settings, for example a compact relative for VR-style layouts and a full one for streaming.
 - **The League builder** creates your own classes and assigns cars to them by car number, customer ID, driver or team name (wildcards), car model, car ID or iRacing class ID. You can also assign drivers in the current session from a dropdown, rename drivers and teams, set a driver's flag, or hide spectators.
   - **Import from iRacing by league ID** pulls the league name, roster nicknames, car classes, points system and championship standings. It needs iRacing Data API access (see below).
-  - **Create from current session** builds the classes from the league session you're in, with no API needed.
-  - **Points systems** score by **class or overall position** (leagues differ). There are presets (F1, MotoGP, IndyCar, …), plus a paste-a-table option, a fastest-lap bonus and points beyond the table. Live points and the projected championship total appear in the relative and standings.
+  - **Manual setup** covers league name, league ID, season, classes, points and bonuses, all typed by hand. **Pull drivers from current session** fills the driver roster automatically (names, car numbers, customer IDs). You then pick each driver's class and can add a nickname, team, flag or league car number.
+  - **Create from current session** builds the classes *and* the roster from the session you're in, with no API needed.
+  - **Points systems** score by **class or overall position** (leagues differ). There are presets (F1, MotoGP, IndyCar, …) or you can type or paste the table yourself. Optional bonus points cover fastest lap, pole position, leading a lap, most laps led and finishing (participation), plus points beyond the table. Live points and the projected championship total appear in the relative and standings.
   - Leagues import and export as JSON, so a league admin can share one file with everybody.
 - **Strategy settings** cover the fuel averaging window and safety margin, the wet/dry thresholds and crossover margin for the tyre advisor, and the battle range.
 - **Export and import** cover the whole setup.
@@ -65,7 +67,7 @@ The **header** of both overlays is also customisable. Choose the title (session,
 The **Code → Download ZIP** button on GitHub only gives you the source code, which has to be built first. Use one of these instead:
 
 - **GitHub Releases (easiest):** when a version is tagged (e.g. `v0.2.0`), the *Release* workflow publishes
-  `Apex Overlays_x.y.z_x64-setup.exe` (installer), `ApexOverlays-portable.exe` and `apex-server.exe` on the repository's **Releases** page.
+  `Apex Overlays_x.y.z_x64-setup.exe` (installer), `Apex-Overlays-portable.exe` and `apex-overlays-server.exe` on the repository's **Releases** page.
 - **Latest CI build:** open the **Actions** tab, pick the newest green *CI* run, and download the `apex-overlays-windows` artifact (zip).
   You need to be signed in to GitHub to download artifacts.
 
@@ -103,7 +105,7 @@ project. They are downloaded the first time you drive a track and cached. For an
 
 ### Without iRacing: the built-in simulator
 
-`apex-overlays.exe --mock` (or `apex-server --mock`) runs a three-class race with fuel use, pit stops and a rain shower that
+`"Apex Overlays.exe" --mock` (or `apex-overlays-server --mock`) runs a three-class race with fuel use, pit stops and a rain shower that
 comes and goes. Use it to set up layouts or develop new overlays.
 
 ## Building from source
@@ -114,12 +116,12 @@ Requirements: Rust (stable) and Node.js 20 or newer. For the desktop app on Wind
 ```sh
 cd ui && npm ci && npm run build && cd ..   # overlay UI → ui/dist (embedded into the binaries)
 cargo test                                  # core + SDK reader tests
-cargo run -p apex-server -- --mock          # headless server + simulator → http://127.0.0.1:8182
+cargo run -p apex-overlays-server -- --mock  # headless server + simulator → http://127.0.0.1:8182
 # Windows desktop app:
 cd apps/desktop && npx @tauri-apps/cli@2 build
 ```
 
-For UI development, run `npm run watch` in `ui/` and `cargo run -p apex-server -- --mock --ui-dir ui/dist`, then reload the page.
+For UI development, run `npm run watch` in `ui/` and `cargo run -p apex-overlays-server -- --mock --ui-dir ui/dist`, then reload the page.
 
 ## Project layout
 

@@ -10,7 +10,7 @@ const pages: Page[] = [PAGES[0], PAGES[1], PAGES[2], leaguesPage, ...PAGES.slice
 
 const nav = h('nav');
 const brand = h('div', 'brand');
-brand.append(h('span', 'logo', 'APEX'), h('span', '', 'Overlays'));
+brand.append(h('span', 'logo', 'Apex Overlays'));
 const conn = h('div', 'conn');
 const main = h('main');
 nav.append(brand);

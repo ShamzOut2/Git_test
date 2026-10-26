@@ -33,7 +33,7 @@ type Preset = { name: string; values: Values };
 
 /** Built-in colour themes. Only colours are set; fonts and shapes are left as they are. */
 export const PRESETS: Preset[] = [
-  { name: 'Apex (default)', values: {} },
+  { name: 'Apex Overlays (default)', values: {} },
   {
     name: 'Midnight Blue',
     values: { background: '#070b14', headerBackground: '#0f1830', textColor: '#e9f0ff', dimColor: '#8ea0c4', accent: '#3d8bff', playerColor: '#7cf2ff', bestColor: '#c27bff', goodColor: '#40e0a0', badColor: '#ff6b81', lapAheadColor: '#ff8fa3', lapBehindColor: '#7fb2ff' },

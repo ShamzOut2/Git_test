@@ -284,10 +284,10 @@ const themePage: Page = {
         },
         'primary',
       ),
-      button('Export theme', () => download('apex-theme.json', { name: nameInput.value.trim() || 'My theme', theme: cfg.theme })),
+      button('Export theme', () => download('apex-overlays-theme.json', { name: nameInput.value.trim() || 'My theme', theme: cfg.theme })),
       button('Import theme', async () => {
         const t = (await upload()) as { name?: string; theme?: Record<string, unknown> };
-        if (!t?.theme) return alert('That file is not an Apex theme.');
+        if (!t?.theme) return alert('That file is not an Apex Overlays theme.');
         cfg.savedThemes.push({ name: t.name || 'Imported theme', theme: t.theme });
         save();
         rerender();

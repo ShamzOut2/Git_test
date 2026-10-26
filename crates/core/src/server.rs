@@ -292,7 +292,7 @@ fn import_league(s: AppState, league_id: i64, season_id: Option<i64>) {
                 league.imported_at = format!("{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0));
                 let id = league.id.clone();
                 let msg = format!(
-                    "Imported {}: {} classes, {} nicknames, {} points positions, {} drivers in the standings",
+                    "Imported {}: {} classes, {} drivers, {} points positions, {} drivers in the standings",
                     league.name,
                     league.classes.len(),
                     league.driver_overrides.len(),
@@ -308,9 +308,23 @@ fn import_league(s: AppState, league_id: i64, season_id: Option<i64>) {
                                 class.name = old.name.clone();
                             }
                         }
-                        for o in &existing.driver_overrides {
-                            if !league.driver_overrides.iter().any(|n| n.customer_id == o.customer_id) {
-                                league.driver_overrides.push(o.clone());
+                        // Keep everything the user set on the roster; fill in names/numbers from iRacing.
+                        let imported = std::mem::take(&mut league.driver_overrides);
+                        league.driver_overrides = existing.driver_overrides.clone();
+                        for n in imported {
+                            match league.driver_overrides.iter_mut().find(|o| o.customer_id == n.customer_id) {
+                                Some(o) => {
+                                    if o.name.is_empty() {
+                                        o.name = n.name;
+                                    }
+                                    if o.car_number.is_empty() {
+                                        o.car_number = n.car_number;
+                                    }
+                                    if o.display_name.is_empty() {
+                                        o.display_name = n.display_name;
+                                    }
+                                }
+                                None => league.driver_overrides.push(n),
                             }
                         }
                         if league.points.table.is_empty() {
@@ -318,6 +332,10 @@ fn import_league(s: AppState, league_id: i64, season_id: Option<i64>) {
                         }
                         league.points.basis = existing.points.basis.clone();
                         league.points.fastest_lap_bonus = existing.points.fastest_lap_bonus;
+                        league.points.pole_bonus = existing.points.pole_bonus;
+                        league.points.lap_led_bonus = existing.points.lap_led_bonus;
+                        league.points.most_laps_led_bonus = existing.points.most_laps_led_bonus;
+                        league.points.finish_bonus = existing.points.finish_bonus;
                         league.points.default_points = existing.points.default_points;
                         league.fallback = existing.fallback.clone();
                         league.id = existing.id.clone();

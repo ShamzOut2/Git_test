@@ -1,11 +1,11 @@
 [workspace]
 resolver = "2"
 members = ["crates/irsdk", "crates/core", "apps/server", "apps/desktop"]
-# The desktop app needs the Windows WebView2 toolchain; build it with `cargo build -p apex-desktop`.
+# The desktop app needs the Windows WebView2 toolchain; build it with `cargo build -p apex-overlays-desktop`.
 default-members = ["crates/irsdk", "crates/core", "apps/server"]
 
 [workspace.package]
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT"
 

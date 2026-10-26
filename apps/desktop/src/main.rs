@@ -1,4 +1,4 @@
-//! Desktop host: runs the Apex core in-process and shows every enabled overlay
+//! Apex Overlays desktop host: runs the core in-process and shows every enabled overlay
 //! as its own transparent, always-on-top, click-through window. In edit mode the
 //! windows accept the mouse so they can be dragged and resized; their geometry
 //! is written back to the config.
@@ -236,7 +236,7 @@ fn main() {
     let data_dir = apex_core::config::default_data_dir();
     let opts = |port| apex_core::Options { data_dir: data_dir.clone(), mock, ui_dir: None, port };
     // If the configured port is taken, fall back to any free port so the app still works.
-    let core = apex_core::start(opts(None)).or_else(|_| apex_core::start(opts(Some(0)))).expect("failed to start Apex core");
+    let core = apex_core::start(opts(None)).or_else(|_| apex_core::start(opts(Some(0)))).expect("failed to start Apex Overlays");
 
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| show_settings(app)))

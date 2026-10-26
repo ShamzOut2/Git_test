@@ -39,9 +39,21 @@ impl Resolver {
             order: 1000.0 + if d.class_est_lap > 0.0 { d.class_est_lap } else { 999.0 },
         };
         let Some(league) = &self.league else { return iracing() };
+        let key = |i: usize, c: &LeagueClass| ClassKey {
+            id: format!("lg{}", c.id),
+            name: c.name.clone(),
+            color: parse_color(&c.color).unwrap_or(0xffffff),
+            order: i as f32,
+        };
+        // A class picked for the driver on the league roster wins over the rules.
+        if let Some(o) = league.driver_overrides.iter().find(|o| o.customer_id == d.user_id && !o.class_id.is_empty()) {
+            if let Some((i, c)) = league.classes.iter().enumerate().find(|(_, c)| c.id == o.class_id) {
+                return key(i, c);
+            }
+        }
         for (i, c) in league.classes.iter().enumerate() {
             if matches(c, d) {
-                return ClassKey { id: format!("lg{}", c.id), name: c.name.clone(), color: parse_color(&c.color).unwrap_or(0xffffff), order: i as f32 };
+                return key(i, c);
             }
         }
         if league.fallback == "other" {
@@ -49,6 +61,15 @@ impl Resolver {
         } else {
             iracing()
         }
+    }
+
+    /// League car number for a driver, if the roster sets one.
+    pub fn car_number(&self, d: &Driver) -> String {
+        self.league
+            .as_ref()
+            .and_then(|l| l.driver_overrides.iter().find(|o| o.customer_id == d.user_id && !o.car_number.trim().is_empty()))
+            .map(|o| o.car_number.trim().to_string())
+            .unwrap_or_else(|| d.car_number.clone())
     }
 
     /// (display name, team name, hidden)
