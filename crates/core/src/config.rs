@@ -23,6 +23,9 @@ pub struct Config {
     pub battle: BattleConfig,
     pub leagues: Vec<League>,
     pub active_league: Option<String>,
+    /// "auto": use the league whose iRacing league ID matches the session (none otherwise);
+    /// "always": always use `active_league`, whatever the session.
+    pub league_mode: String,
     pub garage61: Garage61Config,
     /// Colour themes the user saved (name + theme values), shared by overlays and the settings window.
     pub saved_themes: Vec<serde_json::Value>,
@@ -108,6 +111,7 @@ impl Default for Config {
             battle: BattleConfig::default(),
             leagues: vec![],
             active_league: None,
+            league_mode: "auto".into(),
             garage61: Garage61Config::default(),
             saved_themes: vec![],
             track_corners: Default::default(),

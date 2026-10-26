@@ -436,6 +436,8 @@ export interface Config {
   battle: { maxGap: number };
   leagues: League[];
   activeLeague: string | null;
+  /** 'auto': the league matching the session's iRacing league ID (none otherwise); 'always': activeLeague. */
+  leagueMode: 'auto' | 'always';
   garage61: { enabled: boolean; token: string; includeTeam: boolean; refreshMinutes: number };
   savedThemes: SavedTheme[];
   trackCorners: Record<string, Corner[]>;

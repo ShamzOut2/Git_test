@@ -47,6 +47,7 @@ function renderStatus() {
 
 let lastLive = 0;
 window.addEventListener('hashchange', render);
+let leagueKey = '';
 listen((t) => {
   if (t === 'config') render();
   if (t === 'status') {
@@ -54,7 +55,16 @@ listen((t) => {
     // Edit-mode / visibility buttons live on the overlays page.
     if (current().id === 'overlays') render();
   }
-  if (t === 'session') renderStatus();
+  if (t === 'session') {
+    renderStatus();
+    // The league builder says which league applies to the session you are in.
+    const s = state.session;
+    const k = `${s?.connected}|${s?.leagueId}|${s?.league}`;
+    if (k !== leagueKey) {
+      leagueKey = k;
+      if (current().id === 'leagues' && !(document.activeElement instanceof HTMLInputElement)) render();
+    }
+  }
   if (t === 'garage61' && current().id === 'garage61') render();
   if (t === 'leagueImport' && current().id === 'leagues') render();
   if (t === 'trackmap' && current().id === 'general') render();

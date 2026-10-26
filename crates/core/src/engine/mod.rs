@@ -196,11 +196,21 @@ impl Engine {
     }
 
     pub fn set_config(&mut self, cfg: Config) {
-        let league = cfg.active_league.as_ref().and_then(|id| cfg.leagues.iter().find(|l| &l.id == id)).cloned();
-        self.resolver = Resolver::new(league);
         self.cfg = cfg;
+        self.resolver = Resolver::new(self.pick_league());
         self.rebuild_statics();
         self.refresh_corners();
+    }
+
+    /// The league to apply to this session. Automatic: the league built for the session's
+    /// iRacing league ID, or none (official races, other leagues). Otherwise the one picked.
+    pub fn pick_league(&self) -> Option<crate::config::League> {
+        let cfg = &self.cfg;
+        if cfg.league_mode == "always" {
+            return cfg.active_league.as_ref().and_then(|id| cfg.leagues.iter().find(|l| &l.id == id)).cloned();
+        }
+        let id = self.info.league_id;
+        (id > 0).then(|| cfg.leagues.iter().find(|l| l.iracing_league_id == id)).flatten().cloned()
     }
 
     /// Corner data fetched or generated outside the engine for `track_id`.
@@ -372,7 +382,11 @@ impl Engine {
 
     pub fn set_session(&mut self, info: SessionInfo) {
         let track_changed = info.track_id != self.info.track_id;
+        let league_changed = info.league_id != self.info.league_id;
         self.info = info;
+        if league_changed {
+            self.resolver = Resolver::new(self.pick_league());
+        }
         if track_changed {
             self.map.load(self.info.track_id, &self.info.track_display_name);
         }
@@ -895,6 +909,7 @@ pub(crate) mod tests {
                 ..Default::default()
             }],
             active_league: Some("l".into()),
+            league_mode: "always".into(),
             ..Default::default()
         };
         let mut e = engine(3, true);
@@ -922,6 +937,29 @@ pub(crate) mod tests {
         lap(&mut e, 212.0, [(4, 0.03), (3, 0.01), (2, 0.99)]);
         assert!(e.hist[1].finished);
         assert!(!e.hist[2].finished);
+    }
+
+    #[test]
+    fn league_follows_the_session() {
+        use crate::config::League;
+        let league = |id: &str, lid: i64| League { id: id.into(), name: id.into(), iracing_league_id: lid, ..Default::default() };
+        let cfg = Config { leagues: vec![league("a", 111), league("b", 0)], active_league: Some("b".into()), ..Default::default() };
+        let mut e = engine(2, true);
+        e.set_config(cfg.clone());
+        // Official race (no league ID): no league, even though one is selected.
+        assert!(e.resolver.league().is_none());
+        let mut info = e.info.clone();
+        info.league_id = 111;
+        e.set_session(info);
+        assert_eq!(e.resolver.league_name(), Some("a"));
+        // Another league's session: none of ours.
+        let mut info = e.info.clone();
+        info.league_id = 222;
+        e.set_session(info);
+        assert!(e.resolver.league().is_none());
+        // "Always use" keeps the selected league whatever the session.
+        e.set_config(Config { league_mode: "always".into(), ..cfg });
+        assert_eq!(e.resolver.league_name(), Some("b"));
     }
 
     #[test]

@@ -521,6 +521,22 @@ export const leaguesPage: Page = {
       h('h2', '', 'League builder'),
       h('p', 'dim', 'Create your own classes for league racing — group cars by number, driver, team or car model and give each class its name and colour, set the points system, and see live points in the relative and standings. The active league replaces iRacing’s classes in every overlay.'),
     );
+    cfg.leagueMode ??= 'auto';
+    const mode = h('select');
+    for (const [v, t] of [
+      ['auto', 'Automatic — match the session’s iRacing league ID'],
+      ['always', 'Always use one league'],
+    ]) {
+      const o = h('option', '', t);
+      o.value = v;
+      mode.append(o);
+    }
+    mode.value = cfg.leagueMode;
+    mode.onchange = () => {
+      cfg.leagueMode = mode.value as 'auto' | 'always';
+      save(true);
+      rerender();
+    };
     const active = h('select');
     const none = h('option', '', 'None (use iRacing classes)');
     none.value = '';
@@ -535,6 +551,16 @@ export const leaguesPage: Page = {
       cfg.activeLeague = active.value || null;
       save();
     };
+    // What applies to the session you are in right now.
+    const sess = state.session;
+    const sid = sess?.leagueId ?? 0;
+    const match = sid > 0 ? cfg.leagues.find((x) => x.iracingLeagueId === sid) : undefined;
+    let now: string;
+    if (!sess?.connected) now = 'Not in a session.';
+    else if (cfg.leagueMode === 'always') now = `Using ${sess.league ? `“${sess.league}”` : 'no league'} in every session.`;
+    else if (!sid) now = 'This session is not a league session (e.g. an official race), so no league is used.';
+    else if (match) now = `This session belongs to iRacing league ${sid} → using “${match.name || 'unnamed league'}”.`;
+    else now = `This session belongs to iRacing league ${sid}, but none of your leagues has that ID — no league is used. Import it below, or set the ID on one of your leagues.`;
     const bar = h('div', 'toolbar');
     const add = (l: League) => {
       cfg.leagues.push(l);
@@ -563,7 +589,12 @@ export const leaguesPage: Page = {
         }, `tab${l.id === selected ? ' sel' : ''}`),
       );
     }
-    top.append(labeled('Active league', active), bar);
+    top.append(
+      labeled('Which league to use', mode, 'Automatic switches the league on in sessions of that league and off everywhere else'),
+      cfg.leagueMode === 'always' ? labeled('League', active) : h('span'),
+      h('p', `small ${match || cfg.leagueMode === 'always' ? '' : 'dim'}`, now),
+      bar,
+    );
 
     const l = cfg.leagues.find((x) => x.id === selected);
     if (!l) {
@@ -633,7 +664,7 @@ export const leaguesPage: Page = {
       h('h2', '', 'League info'),
       h('p', 'dim', 'Everything here can be entered by hand — importing from iRacing is optional.'),
       labeled('League name', name),
-      labeled('iRacing league ID', leagueId, 'Only needed for importing from iRacing'),
+      labeled('iRacing league ID', leagueId, 'Used automatically in sessions of this league, and for importing from iRacing'),
       labeled('Season', season),
       meta,
       labeled('Cars matching no class', fallback),
