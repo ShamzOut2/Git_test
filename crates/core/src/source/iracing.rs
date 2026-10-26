@@ -35,7 +35,7 @@ vars! {
     car_lap = "CarIdxLap", car_lap_completed = "CarIdxLapCompleted", car_pct = "CarIdxLapDistPct",
     car_est = "CarIdxEstTime", car_f2 = "CarIdxF2Time", car_pos = "CarIdxPosition", car_class_pos = "CarIdxClassPosition",
     car_pit = "CarIdxOnPitRoad", car_surface = "CarIdxTrackSurface", car_last = "CarIdxLastLapTime",
-    car_best = "CarIdxBestLapTime", car_tire = "CarIdxTireCompound", car_gear = "CarIdxGear", car_rpm = "CarIdxRPM",
+    car_best = "CarIdxBestLapTime", car_tire = "CarIdxTireCompound", car_gear = "CarIdxGear", car_rpm = "CarIdxRPM", car_flags = "CarIdxSessionFlags",
 }
 
 /// Copy one telemetry row into the normalised model.
@@ -105,6 +105,7 @@ pub fn fill(v: &Vars, r: Row, t: &mut Telemetry) {
         c.tire_compound = r.i32_at(v.car_tire, i);
         c.gear = r.i32_at(v.car_gear, i);
         c.rpm = r.f32_at(v.car_rpm, i);
+        c.session_flags = r.i32_at(v.car_flags, i) as u32;
     }
 }
 

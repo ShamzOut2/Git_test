@@ -41,6 +41,8 @@ Every column has a title (it can be switched off), and you can toggle and reorde
 - **iRating gain/loss** and **safety rating gain/loss** (live estimates), incidents
 - current lap, **stint lap** (shows `PIT`, then `OUTLAP`, then 1, 2, 3… for the flying laps), **last lap** and **best lap** of every driver (purple = fastest of the class, green = a personal best), **tyre** (wet/dry)
 - a **chequered flag** next to each driver's name once they have taken the flag at the end of the race
+- **flags next to each driver**: a yellow when they caused one (off track or stopped on track), black flag, meatball (damage), furled black (warning) and blue flag
+- a **penalty box** next to the black flag: `DT`, `S&G 40s` or `+5s` from *Race control*. When a black-flagged car serves its penalty in the pits, the box shows `DT` or a live `S&G` timer automatically.
 - gap and interval, positions gained, pit stops
 - **league points** for the current position, and the **projected championship total**
 
@@ -58,6 +60,7 @@ The **header** of both overlays is also customisable. By default it shows the ov
 - **Column and field overlays** (relative, standings, session info) let you toggle and reorder every column, plus set name formats, gap signs and decimals.
 - **The global theme** sets font, size and weight, every colour (player, lapped, lapping, pit, fastest, good/bad, caution), corner radius, row shading and padding, outline and text shadow.
 - **Multiple copies of the same overlay** can run side by side with different settings, for example a compact relative for VR-style layouts and a full one for streaming.
+- **Race control** (settings page) lets you hand out penalties by hand: drive-through, stop & go with its length, or added time. They're shown next to the driver's name. iRacing itself only reports *that* a black flag is out, not which penalty it is.
 - **The League builder** creates your own classes and assigns cars to them by car number, customer ID, driver or team name (wildcards), car model, car ID or iRacing class ID. You can also assign drivers in the current session from a dropdown, rename drivers and teams, set a driver's flag, or hide spectators.
   - **Import from iRacing by league ID** pulls the league name, roster nicknames, car classes, points system and championship standings. It needs iRacing Data API access (see below).
   - **Manual setup** covers league name, league ID, season, classes, points and bonuses, all typed by hand. **Pull drivers from current session** fills the driver roster automatically (names, car numbers, customer IDs). You then pick each driver's class and can add a nickname, team, flag or league car number.

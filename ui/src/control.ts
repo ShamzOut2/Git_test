@@ -2,11 +2,12 @@
 
 import { h, text } from './lib/dom';
 import { leaguesPage } from './control/leagues';
+import { raceControlPage } from './control/racecontrol';
 import { PAGES, type Page } from './control/pages';
 import { listen, state } from './control/state';
 import { applyUiTheme } from './lib/theme';
 
-const pages: Page[] = [PAGES[0], PAGES[1], PAGES[2], leaguesPage, ...PAGES.slice(3)];
+const pages: Page[] = [PAGES[0], PAGES[1], PAGES[2], leaguesPage, raceControlPage, ...PAGES.slice(3)];
 
 const nav = h('nav');
 const brand = h('div', 'brand');
@@ -44,6 +45,7 @@ function renderStatus() {
   text(conn, s ? (s.connected ? `${s.source === 'mock' ? 'Mock sim' : 'iRacing'} connected${sess?.trackName ? ` · ${sess.trackName}` : ''}` : `Waiting for iRacing…`) + ` · v${s.version}` : 'Not connected to server');
 }
 
+let lastLive = 0;
 window.addEventListener('hashchange', render);
 listen((t) => {
   if (t === 'config') render();
@@ -57,5 +59,10 @@ listen((t) => {
   if (t === 'leagueImport' && current().id === 'leagues') render();
   if (t === 'trackmap' && current().id === 'general') render();
   if (t === 'update' && current().id === 'general') render();
+  // Race control lists live flags: refresh every couple of seconds unless the user is typing.
+  if (t === 'standings' && current().id === 'racecontrol' && Date.now() - lastLive > 2000 && !(document.activeElement instanceof HTMLInputElement)) {
+    lastLive = Date.now();
+    render();
+  }
 });
 render();

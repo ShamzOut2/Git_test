@@ -339,6 +339,8 @@ pub struct DriverOut<'a> {
     pub license: &'a str,
     pub license_color: String,
     pub club: &'a str,
+    /// The flair iRacing sent (country flag choice), raw.
+    pub flair: &'a str,
     /// ISO country code for the flag ("" if unknown).
     pub country: &'a str,
     pub make: &'a str,
@@ -363,6 +365,7 @@ fn driver<'a>(e: &Engine, s: &'a Static) -> DriverOut<'a> {
         license: &s.lic,
         license_color: hex(s.lic_color),
         club: &s.club,
+        flair: &s.flair,
         country: &s.country,
         make: &s.make,
         is_player: s.idx as i32 == e.tel.player_idx,
@@ -388,6 +391,11 @@ pub struct Extras {
     /// Has taken the chequered flag.
     pub finished: bool,
     pub laps_led: i32,
+    /// Flags for this car: "yellow" (caused one), "black", "disqualify", "repair", "furled", "blue".
+    pub flags: Vec<&'static str>,
+    /// "DT", "S&G 40s", "+5s" ... and whether it has just been served.
+    pub penalty: Option<String>,
+    pub penalty_served: bool,
     pub incidents: Option<i32>,
     /// Estimated iRating change if the race finished now (official races).
     pub ir_delta: Option<i32>,
@@ -406,6 +414,7 @@ fn extras(e: &Engine, idx: usize) -> Extras {
         Stint::Lap(n) => ("lap", Some(n)),
     };
     let (points, season_points) = e.points(idx);
+    let penalty = e.penalty(idx);
     let best = e.best_lap(idx);
     let last = e.last_lap(idx);
     let class_id = e.static_of(idx).map(|s| s.class.id.as_str());
@@ -421,6 +430,9 @@ fn extras(e: &Engine, idx: usize) -> Extras {
         last_is_pb: matches!((last, best), (Some(l), Some(b)) if (l - b).abs() < 1e-3),
         finished: e.hist[idx].finished,
         laps_led: e.hist[idx].laps_led_overall,
+        flags: e.car_flags(idx),
+        penalty: penalty.as_ref().map(|p| p.0.clone()),
+        penalty_served: penalty.is_some_and(|p| p.1),
         incidents: e.incidents_visible(idx).then(|| e.incidents(idx)),
         ir_delta: if ir_ok { e.ir_delta(idx).map(|v| v.round() as i32) } else { None },
         sr_delta: if ir_ok { e.sr_delta(idx).map(|v| round(v, 2)) } else { None },

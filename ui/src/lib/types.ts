@@ -119,6 +119,8 @@ export interface Driver {
   license: string;
   licenseColor: string;
   club: string;
+  /** Flair (country flag choice) exactly as iRacing sent it. */
+  flair: string;
   /** ISO country code ('' if unknown); may be 'GB-SCT' style for UK nations. */
   country: string;
   make: string;
@@ -140,6 +142,11 @@ export interface Extras {
   /** Has taken the chequered flag. */
   finished: boolean;
   lapsLed: number;
+  /** Flags for this car: yellow (caused one), black, disqualify, repair (meatball), furled, blue. */
+  flags: string[];
+  /** "DT", "S&G 40s", "+5s"…, and whether it was just served. */
+  penalty: string | null;
+  penaltyServed: boolean;
   incidents: number | null;
   irDelta: number | null;
   srDelta: number | null;
@@ -420,6 +427,16 @@ export interface Config {
   iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
   ratingsOfficialOnly: boolean;
   autoCheckUpdates: boolean;
+  penalties: Penalty[];
+}
+
+export interface Penalty {
+  id: string;
+  customerId: number;
+  name: string;
+  kind: 'dt' | 'sg' | 'time' | 'other';
+  seconds: number;
+  note: string;
 }
 
 export interface UpdateState {

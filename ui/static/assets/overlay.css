@@ -354,3 +354,17 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .databox .db-label { color: var(--dim); text-transform: uppercase; letter-spacing: 0.08em; font-weight: 600; white-space: nowrap; }
 .databox .db-value { font-weight: 800; line-height: 1.05; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .databox .db-label { overflow: hidden; text-overflow: ellipsis; min-width: 0; max-width: 100%; }
+
+/* Flags and penalty box next to driver names */
+.c-name .marks { display: inline-flex; gap: 0.2em; flex: none; }
+.c-name .marks:empty { display: none; }
+.mk { width: 1.05em; height: 0.75em; border-radius: 1px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6); flex: none; }
+.mk-yellow { background: #ffd400; }
+.mk-black { background: #000; box-shadow: 0 0 0 1px #fff; }
+.mk-disqualify { background: linear-gradient(45deg, transparent 42%, #fff 42% 58%, transparent 58%), linear-gradient(-45deg, #000 42%, #fff 42% 58%, #000 58%); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.7); }
+.mk-repair { background: radial-gradient(circle, #ff7a00 0 34%, #000 36%); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6); }
+.mk-furled { background: linear-gradient(135deg, #fff 50%, #000 50%); }
+.mk-blue { background: linear-gradient(135deg, #0057d9 38%, #ffd400 38% 55%, #0057d9 55%); }
+.c-name .pen { flex: none; padding: 0 0.3em; border-radius: 2px; background: #000; color: #fff; border: 1px solid #fff; font-size: 0.72em; font-weight: 800; letter-spacing: 0.03em; line-height: 1.35; text-shadow: none; }
+.c-name .pen.served { background: transparent; color: var(--dim); border-color: var(--dim); }
+.c-name .pen[hidden] { display: none; }

@@ -24,6 +24,7 @@ Done in 0.4:
 - [x] Flags overlay (every iRacing flag, LED style, start lights), Weather overlay with car-relative wind compass
 - [x] Data box overlay, auto-fit window height, battle box modes (overall / class / on track), lap x/∞ in timed races
 - [x] In-app updates (signed, from GitHub Releases)
+- [x] Per-driver flags (caused yellow, black, meatball, furled, blue), penalty box, race control page; tolerant country matching
 
 Next:
 - [ ] **Stream chat overlay**: Twitch chat over the anonymous IRC WebSocket (no login needed) and YouTube live chat,

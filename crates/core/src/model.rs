@@ -92,6 +92,8 @@ pub struct CarTel {
     pub tire_compound: i32,
     pub gear: i32,
     pub rpm: f32,
+    /// Flags shown to this car (irsdk_Flags): black, meatball, blue, ...
+    pub session_flags: u32,
 }
 
 impl CarTel {
@@ -404,7 +406,7 @@ impl SessionInfo {
                 lic_color: d.get("LicColor").i64().unwrap_or(0xffffff) as u32,
                 club: d.get("ClubName").string(),
                 flair: d.get("FlairName").string(),
-                country: crate::lookup::country_code(&d.get("FlairName").string(), &d.get("ClubName").string()).to_string(),
+                country: crate::lookup::country_code(&d.get("FlairName").string()).to_string(),
                 make: crate::lookup::make(&d.get("CarScreenName").string(), &d.get("CarPath").string()),
                 is_spectator: d.get("IsSpectator").i32_or(0) != 0,
                 is_pace_car: d.get("CarIsPaceCar").i32_or(0) != 0,

@@ -62,17 +62,51 @@ function makeCell(c: HTMLElement, make: string, style: string) {
 }
 
 /** Driver name with an optional chequered flag once they have finished the race. */
-function nameCell(c: HTMLElement, name: string, finished: boolean) {
-  let flag = c.firstElementChild as HTMLElement | null;
-  let label = c.lastElementChild as HTMLElement | null;
-  if (!flag || flag === label) {
-    flag = h('span', 'fin');
+const FLAG_TITLES: Record<string, string> = {
+  yellow: 'Caused a yellow (off track / stopped)',
+  black: 'Black flag',
+  disqualify: 'Disqualified',
+  repair: 'Meatball — damage, must pit',
+  furled: 'Furled black — warning',
+  blue: 'Blue flag — being lapped',
+};
+
+/**
+ * Driver name with the chequered flag once finished, flags for this car (caused a yellow,
+ * black, meatball, blue, ...) and a penalty box (DT / S&G 40s / +5s).
+ */
+function nameCell(c: HTMLElement, name: string, r: Partial<Extras>, s: Values) {
+  let fin = c.querySelector(':scope > .fin') as HTMLElement | null;
+  let marks = c.querySelector(':scope > .marks') as HTMLElement | null;
+  let pen = c.querySelector(':scope > .pen') as HTMLElement | null;
+  let label = c.querySelector(':scope > .nm') as HTMLElement | null;
+  if (!fin || !marks || !pen || !label) {
+    fin = h('span', 'fin');
+    fin.title = 'Finished';
+    marks = h('span', 'marks');
+    pen = h('span', 'pen');
     label = h('span', 'nm');
-    c.replaceChildren(flag, label);
+    c.replaceChildren(fin, marks, pen, label);
   }
-  flag.title = 'Finished';
-  if (flag.hidden !== !finished) flag.hidden = !finished;
-  text(label!, name);
+  const finished = s.finishFlag !== false && !!r.finished;
+  if (fin.hidden !== !finished) fin.hidden = !finished;
+  const flags = s.driverFlags !== false ? (r.flags ?? []) : [];
+  const key = flags.join();
+  if (marks.dataset.k !== key) {
+    marks.dataset.k = key;
+    marks.replaceChildren(
+      ...flags.map((f) => {
+        const m = h('span', `mk mk-${f}`);
+        m.title = FLAG_TITLES[f] ?? f;
+        return m;
+      }),
+    );
+  }
+  const penalty = s.penaltyBox !== false ? (r.penalty ?? '') : '';
+  text(pen, penalty);
+  if (pen.hidden !== !penalty) pen.hidden = !penalty;
+  toggle(pen, 'served', !!r.penaltyServed);
+  text(label, name);
 }
 
 export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R>[] {
@@ -80,7 +114,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
   return [
     { id: 'number', label: '#', width: '2.9em', align: 'center', render: (c, r) => chip(c, r.number, r.classColor) },
     { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
-    { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), s.finishFlag !== false && !!r.finished) },
+    { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), r, s) },
     { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
     { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string) },
     {
@@ -171,6 +205,14 @@ export const COLUMN_STYLE_SETTINGS = [
   { key: 'outLapText', label: 'Out-lap label', type: 'text' as const, default: 'OUTLAP', group: 'Columns' },
   { key: 'pointsPlus', label: 'Show points as gains (+25)', type: 'bool' as const, default: true, group: 'Columns' },
   { key: 'finishFlag', label: 'Chequered flag next to drivers who have finished', type: 'bool' as const, default: true, group: 'Columns' },
+  {
+    key: 'driverFlags',
+    label: 'Flags next to drivers (caused a yellow, black, meatball, blue…)',
+    type: 'bool' as const,
+    default: true,
+    group: 'Columns',
+  },
+  { key: 'penaltyBox', label: 'Penalty box next to drivers (DT, S&G 40s, +5s)', type: 'bool' as const, default: true, group: 'Columns' },
   { key: 'highlightBest', label: 'Colour lap times (purple = class best, green = personal best)', type: 'bool' as const, default: true, group: 'Colours' },
 ];
 

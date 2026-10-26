@@ -33,6 +33,40 @@ pub struct Config {
     pub ratings_official_only: bool,
     /// Desktop app: look for a new version on start-up.
     pub auto_check_updates: bool,
+    /// Penalties handed out by race control (shown next to the driver's name).
+    pub penalties: Vec<Penalty>,
+}
+
+/// A penalty given by hand (iRacing does not say which penalty a black flag means).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Penalty {
+    pub id: String,
+    pub customer_id: i64,
+    pub name: String,
+    /// "dt" drive-through, "sg" stop & go, "time" added time, "other".
+    pub kind: String,
+    pub seconds: f32,
+    pub note: String,
+}
+
+impl Penalty {
+    pub fn label(&self) -> String {
+        let s = self.seconds.round() as i32;
+        match self.kind.as_str() {
+            "dt" => "DT".into(),
+            "sg" if s > 0 => format!("S&G {s}s"),
+            "sg" => "S&G".into(),
+            "time" => format!("+{s}s"),
+            _ => {
+                if self.note.is_empty() {
+                    "PEN".into()
+                } else {
+                    self.note.clone()
+                }
+            }
+        }
+    }
 }
 
 impl Default for Config {
@@ -78,6 +112,7 @@ impl Default for Config {
             iracing_api: IracingApiConfig::default(),
             ratings_official_only: true,
             auto_check_updates: true,
+            penalties: vec![],
         }
     }
 }
