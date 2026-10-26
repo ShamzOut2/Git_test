@@ -167,6 +167,9 @@ const MAKES: &[(&str, &str)] = &[
     ("vw", "Volkswagen"),
     ("williams", "Williams"),
     ("ruf", "Ruf"),
+    ("tatuus", "Tatuus"),
+    ("fia f4", "Tatuus"),
+    ("formula 4", "Tatuus"),
 ];
 
 /// Manufacturer of a car from its screen name or path; falls back to the first word.
@@ -181,6 +184,13 @@ pub fn make(name: &str, path: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn more_makes() {
+        assert_eq!(make("FIA F4", "formulaf4"), "Tatuus");
+        assert_eq!(make("Dallara P217", "dallarap217"), "Dallara");
+        assert_eq!(make("Williams FW31", "williamsfw31"), "Williams");
+    }
 
     #[test]
     fn countries() {
