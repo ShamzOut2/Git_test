@@ -1,0 +1,431 @@
+// Payload shapes of the topics streamed by the core (see crates/core/src/topics.rs).
+
+export interface ClassInfo {
+  id: string;
+  name: string;
+  color: string;
+  count: number;
+  sof: number;
+}
+
+export interface Session {
+  connected: boolean;
+  source: string;
+  units: 'metric' | 'imperial';
+  trackId: number;
+  trackName: string;
+  trackConfig: string;
+  trackLengthKm: number;
+  trackCity: string;
+  trackCountry: string;
+  sessionType: string;
+  sessionName: string;
+  sessionState: string;
+  isRace: boolean;
+  timeRemain: number | null;
+  timeTotal: number | null;
+  lapsRemain: number | null;
+  lapsTotal: number | null;
+  leaderLap: number;
+  timeOfDay: number;
+  trackTemp: number;
+  trackTempDelta: number;
+  airTemp: number;
+  wetness: number;
+  wetnessLabel: string;
+  precipitation: number;
+  declaredWet: boolean;
+  weatherTrend: 'drying' | 'stable' | 'wetting';
+  windSpeed: number;
+  windDir: number;
+  humidity: number;
+  fog: number;
+  skies: string;
+  airPressure: number;
+  flags: string[];
+  sof: number;
+  classes: ClassInfo[];
+  incidents: number;
+  incidentLimit: number | null;
+  numCars: number;
+  league: string | null;
+  leagueId: number;
+  official: boolean;
+  subsessionId: number;
+}
+
+export interface Player {
+  onTrack: boolean;
+  speed: number;
+  rpm: number;
+  gear: number;
+  throttle: number;
+  brake: number;
+  clutch: number;
+  steering: number;
+  steeringMax: number;
+  abs: boolean;
+  shiftRpm: number;
+  redline: number;
+  lap: number;
+  lapPct: number;
+  lapTime: number;
+  lastLap: number | null;
+  bestLap: number | null;
+  deltaBest: number | null;
+  fuel: number;
+  onPitRoad: boolean;
+  position: number;
+  classPosition: number;
+  incidents: number;
+  latG: number;
+  longG: number;
+}
+
+export interface CarDot {
+  i: number;
+  p: number;
+  n: string;
+  c: string;
+  cls: string;
+  pos: number;
+  cpos: number;
+  pit: boolean;
+  off: boolean;
+}
+
+export interface Cars {
+  focus: number | null;
+  player: number | null;
+  sectors: number[];
+  cars: CarDot[];
+}
+
+export interface Driver {
+  idx: number;
+  number: string;
+  name: string;
+  abbrev: string;
+  team: string;
+  car: string;
+  classId: string;
+  className: string;
+  classColor: string;
+  userId: number;
+  carId: number;
+  irating: number;
+  license: string;
+  licenseColor: string;
+  club: string;
+  /** ISO country code ('' if unknown); may be 'GB-SCT' style for UK nations. */
+  country: string;
+  make: string;
+  isPlayer: boolean;
+  isFocus: boolean;
+}
+
+/** Per-car extras shared by relative and standings rows. */
+export interface Extras {
+  lap: number;
+  stintState: 'pit' | 'out' | 'lap';
+  stintLap: number | null;
+  bestLap: number | null;
+  lastLap: number | null;
+  /** Best lap is the fastest of the class. */
+  classBest: boolean;
+  /** Last lap was the driver's personal best. */
+  lastIsPb: boolean;
+  /** Has taken the chequered flag. */
+  finished: boolean;
+  lapsLed: number;
+  incidents: number | null;
+  irDelta: number | null;
+  srDelta: number | null;
+  points: number | null;
+  seasonPoints: number | null;
+}
+
+export interface RelRow extends Driver, Extras {
+  /** On-track gap to the focus car (positive = ahead). */
+  gap: number;
+  gapLeader: number | null;
+  gapLeaderLaps: number;
+  interval: number | null;
+  intervalLaps: number;
+  position: number;
+  classPosition: number;
+  lapDiff: number;
+  onPitRoad: boolean;
+  offTrack: boolean;
+  tireWet: boolean | null;
+}
+
+export interface Relative {
+  rows: RelRow[];
+}
+
+export interface StandRow extends Driver, Extras {
+  position: number;
+  classPosition: number;
+  gap: number | null;
+  gapLaps: number;
+  interval: number | null;
+  intervalLaps: number;
+  isClassBest: boolean;
+  laps: number;
+  onPitRoad: boolean;
+  inWorld: boolean;
+  pitStops: number;
+  stintLaps: number;
+  positionsGained: number | null;
+  tireWet: boolean | null;
+  progress: number;
+}
+
+export interface StandClass extends ClassInfo {
+  bestLap: number | null;
+  rows: StandRow[];
+}
+
+export interface Standings {
+  isRace: boolean;
+  focusClass: string | null;
+  classes: StandClass[];
+}
+
+export interface Fuel {
+  level: number;
+  capacity: number;
+  pct: number;
+  perLapAvg: number | null;
+  perLapLast: number | null;
+  perLapMax: number | null;
+  lapsSampled: number;
+  lapsInTank: number | null;
+  usePerHour: number;
+  lapsRemaining: number | null;
+  lapTime: number | null;
+  fuelToFinish: number | null;
+  fuelToAdd: number | null;
+  stops: number | null;
+  lapsPerTank: number | null;
+  targetPerLap: number | null;
+  savePerLap: number | null;
+  windowOpensLap: number | null;
+  windowClosesLap: number | null;
+  marginLaps: number;
+  history: number[];
+}
+
+export interface BattleCar extends Driver {
+  position: number;
+  classPosition: number;
+  gap: number | null;
+  gapLaps: number;
+  trend: number | null;
+  lapsToCatch: number | null;
+  lastLap: number | null;
+  bestLap: number | null;
+  onPitRoad: boolean;
+  tireWet: boolean | null;
+  inBattle: boolean;
+}
+
+export interface Battle {
+  ahead: BattleCar | null;
+  behind: BattleCar | null;
+  myLastLap: number | null;
+  myBestLap: number | null;
+  maxGap: number;
+}
+
+export type TyreRecommendation = 'stayOut' | 'considerWets' | 'boxForWets' | 'considerSlicks' | 'boxForSlicks' | 'noWets';
+
+export interface Tyres {
+  current: 'dry' | 'wet' | 'unknown';
+  carHasWets: boolean;
+  recommendation: TyreRecommendation;
+  confidence: number;
+  wetsAllowed: boolean;
+  wetness: number;
+  wetnessLabel: string;
+  precipitation: number;
+  trend: 'drying' | 'stable' | 'wetting';
+  fieldOnWets: number;
+  fieldTotal: number;
+  wetPace: number | null;
+  dryPace: number | null;
+  reasons: string[];
+}
+
+export interface TrackMap {
+  trackId: number;
+  trackName: string;
+  points: [number, number][] | null;
+  source: string | null;
+  recording: boolean;
+  progress: number;
+  sectors: number[];
+  corners: Corner[];
+  cornersSource: 'custom' | 'lovely' | 'mock' | 'none';
+}
+
+export interface Corner {
+  name: string;
+  number: number;
+  start: number;
+  end: number;
+}
+
+export interface G61Lap {
+  driver: string;
+  lapTime: number;
+  date: string;
+  isMe: boolean;
+}
+
+export interface Garage61 {
+  status: 'disabled' | 'noToken' | 'waiting' | 'loading' | 'ok' | 'unmapped' | 'error';
+  message: string;
+  user: string;
+  car: string;
+  track: string;
+  personalBest: G61Lap | null;
+  teamBest: G61Lap | null;
+  leaderboard: G61Lap[];
+}
+
+export interface Status {
+  connected: boolean;
+  source: string;
+  editMode: boolean;
+  visible: boolean;
+  version: string;
+}
+
+export interface OverlayInstance {
+  id: string;
+  kind: string;
+  name: string;
+  enabled: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  settings: Record<string, unknown>;
+}
+
+export interface ClassRules {
+  carIds: number[];
+  carNames: string[];
+  carNumbers: string[];
+  customerIds: number[];
+  teamNames: string[];
+  driverNames: string[];
+  iracingClassIds: number[];
+}
+
+export interface LeagueClass {
+  id: string;
+  name: string;
+  color: string;
+  rules: ClassRules;
+}
+
+export interface DriverOverride {
+  customerId: number;
+  /** iRacing name, pulled from a session (reference only). */
+  name: string;
+  /** League car number; replaces the sim number in overlays when set. */
+  carNumber: string;
+  /** League class id this driver races in (overrides class rules). */
+  classId: string;
+  displayName: string;
+  teamName: string;
+  country: string;
+  hidden: boolean;
+}
+
+export interface PointsConfig {
+  table: number[];
+  defaultPoints: number;
+  basis: 'class' | 'overall';
+  fastestLapBonus: number;
+  poleBonus: number;
+  lapLedBonus: number;
+  mostLapsLedBonus: number;
+  finishBonus: number;
+  systemName: string;
+  description: string;
+}
+
+export interface SeasonEntry {
+  customerId: number;
+  name: string;
+  points: number;
+  position: number;
+}
+
+export interface League {
+  id: string;
+  name: string;
+  classes: LeagueClass[];
+  driverOverrides: DriverOverride[];
+  fallback: 'iracing' | 'other';
+  iracingLeagueId: number;
+  seasonId: number;
+  seasonName: string;
+  points: PointsConfig;
+  seasonPoints: SeasonEntry[];
+  importedAt: string;
+}
+
+export interface LeagueImport {
+  status: 'working' | 'ok' | 'error';
+  message: string;
+  leagueId: number;
+  seasons: { seasonId: number; name: string; active: boolean }[];
+  id: string | null;
+}
+
+export interface SavedTheme {
+  name: string;
+  theme: Record<string, unknown>;
+}
+
+export interface Config {
+  version: number;
+  server: { port: number; lanAccess: boolean };
+  units: 'auto' | 'metric' | 'imperial';
+  theme: Record<string, unknown>;
+  overlays: OverlayInstance[];
+  hotkeys: { toggleEdit: string; toggleVisibility: string };
+  fuel: { avgLaps: number; marginLaps: number; includeCautionLaps: boolean; includePitLaps: boolean };
+  tyres: { wetThreshold: number; dryThreshold: number; useField: boolean; useCrossover: boolean; crossoverMargin: number };
+  battle: { maxGap: number; sameClassOnly: boolean };
+  leagues: League[];
+  activeLeague: string | null;
+  garage61: { enabled: boolean; token: string; includeTeam: boolean; refreshMinutes: number };
+  savedThemes: SavedTheme[];
+  trackCorners: Record<string, Corner[]>;
+  iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
+  ratingsOfficialOnly: boolean;
+}
+
+export interface TopicMap {
+  session: Session;
+  player: Player;
+  cars: Cars;
+  relative: Relative;
+  standings: Standings;
+  fuel: Fuel;
+  battle: Battle;
+  tyres: Tyres;
+  trackmap: TrackMap;
+  garage61: Garage61;
+  status: Status;
+  config: Config;
+  leagueImport: LeagueImport;
+}
+
+export type TopicName = keyof TopicMap;

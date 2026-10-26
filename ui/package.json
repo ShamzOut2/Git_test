@@ -1,0 +1,16 @@
+{
+  "name": "apex-overlays-ui",
+  "private": true,
+  "version": "0.3.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "country-flag-emoji-polyfill": "^0.1.10",
+    "esbuild": "^0.25.0",
+    "typescript": "^5.8.0"
+  }
+}

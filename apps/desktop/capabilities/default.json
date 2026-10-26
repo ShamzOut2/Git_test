@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Overlay and settings pages talk to the core over WebSocket and need no Tauri IPC.",
+  "windows": [],
+  "permissions": []
+}

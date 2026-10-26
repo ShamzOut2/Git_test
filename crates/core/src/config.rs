@@ -1,0 +1,416 @@
+//! Persistent user configuration. Overlay `settings` are free-form JSON owned by
+//! the UI (each overlay declares its own schema and defaults), so new overlay
+//! options never need a backend change. Settings that drive server-side
+//! calculations (fuel, tyres, leagues, ...) are typed here.
+
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, RwLock};
+use tokio::sync::watch;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Config {
+    pub version: u32,
+    pub server: ServerConfig,
+    /// "auto" follows the simulator's display units.
+    pub units: String,
+    pub theme: serde_json::Value,
+    pub overlays: Vec<OverlayInstance>,
+    pub hotkeys: Hotkeys,
+    pub fuel: FuelConfig,
+    pub tyres: TyreConfig,
+    pub battle: BattleConfig,
+    pub leagues: Vec<League>,
+    pub active_league: Option<String>,
+    pub garage61: Garage61Config,
+    /// Colour themes the user saved (name + theme values), shared by overlays and the settings window.
+    pub saved_themes: Vec<serde_json::Value>,
+    /// User-edited corner names per iRacing TrackID; overrides downloaded corner data.
+    pub track_corners: std::collections::BTreeMap<String, Vec<Corner>>,
+    pub iracing_api: IracingApiConfig,
+    /// Only show iRating / SR estimates in official (ranked) sessions.
+    pub ratings_official_only: bool,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        let o = |id: &str, kind: &str, x, y, w, h| OverlayInstance {
+            id: id.into(),
+            kind: kind.into(),
+            name: String::new(),
+            enabled: true,
+            x,
+            y,
+            width: w,
+            height: h,
+            settings: serde_json::json!({}),
+        };
+        Self {
+            version: 1,
+            server: ServerConfig::default(),
+            units: "auto".into(),
+            theme: serde_json::json!({}),
+            overlays: vec![
+                o("relative", "relative", 40, 380, 460, 300),
+                o("standings", "standings", 40, 40, 560, 320),
+                o("trackmap", "trackmap", 1500, 40, 340, 340),
+                o("inputs", "inputs", 760, 860, 420, 120),
+                o("fuel", "fuel", 1540, 420, 300, 230),
+                o("battle", "battle", 1200, 860, 360, 150),
+                o("session", "session", 510, 10, 900, 52),
+                o("tyres", "tyres", 1540, 680, 300, 150),
+                OverlayInstance { enabled: false, ..o("garage61", "garage61", 1540, 850, 300, 170) },
+            ],
+            hotkeys: Hotkeys::default(),
+            fuel: FuelConfig::default(),
+            tyres: TyreConfig::default(),
+            battle: BattleConfig::default(),
+            leagues: vec![],
+            active_league: None,
+            garage61: Garage61Config::default(),
+            saved_themes: vec![],
+            track_corners: Default::default(),
+            iracing_api: IracingApiConfig::default(),
+            ratings_official_only: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ServerConfig {
+    pub port: u16,
+    /// Listen on all interfaces so a second (streaming) PC can load the overlays.
+    pub lan_access: bool,
+}
+
+impl Default for ServerConfig {
+    fn default() -> Self {
+        Self { port: 8182, lan_access: false }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct OverlayInstance {
+    pub id: String,
+    pub kind: String,
+    pub name: String,
+    pub enabled: bool,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub settings: serde_json::Value,
+}
+
+impl Default for OverlayInstance {
+    fn default() -> Self {
+        Self {
+            id: String::new(),
+            kind: String::new(),
+            name: String::new(),
+            enabled: true,
+            x: 100,
+            y: 100,
+            width: 400,
+            height: 200,
+            settings: serde_json::json!({}),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Hotkeys {
+    pub toggle_edit: String,
+    pub toggle_visibility: String,
+}
+
+impl Default for Hotkeys {
+    fn default() -> Self {
+        Self { toggle_edit: "CmdOrCtrl+Shift+E".into(), toggle_visibility: "CmdOrCtrl+Shift+H".into() }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct FuelConfig {
+    /// Number of recent valid laps averaged for consumption.
+    pub avg_laps: usize,
+    /// Extra laps of fuel to carry as safety margin.
+    pub margin_laps: f32,
+    pub include_caution_laps: bool,
+    pub include_pit_laps: bool,
+}
+
+impl Default for FuelConfig {
+    fn default() -> Self {
+        Self { avg_laps: 5, margin_laps: 1.0, include_caution_laps: false, include_pit_laps: false }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct TyreConfig {
+    /// TrackWetness level (1 dry .. 7 extremely wet) at which wets are advised.
+    pub wet_threshold: i32,
+    /// TrackWetness level at or below which slicks are advised again.
+    pub dry_threshold: i32,
+    /// Use what compound the rest of the class is running.
+    pub use_field: bool,
+    /// Compare recent lap times of cars on wets vs slicks.
+    pub use_crossover: bool,
+    /// Seconds a compound must be faster before the crossover counts.
+    pub crossover_margin: f32,
+}
+
+impl Default for TyreConfig {
+    fn default() -> Self {
+        Self { wet_threshold: 4, dry_threshold: 2, use_field: true, use_crossover: true, crossover_margin: 0.5 }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct BattleConfig {
+    /// Gaps above this (seconds) are not considered a battle.
+    pub max_gap: f32,
+    /// Only consider cars in the player's class.
+    pub same_class_only: bool,
+}
+
+impl Default for BattleConfig {
+    fn default() -> Self {
+        Self { max_gap: 3.0, same_class_only: true }
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct League {
+    pub id: String,
+    pub name: String,
+    pub classes: Vec<LeagueClass>,
+    pub driver_overrides: Vec<DriverOverride>,
+    /// What to do with cars matching no class: "iracing" keeps the sim class, "other" groups them.
+    pub fallback: String,
+    /// iRacing league this was imported from (0 = built by hand).
+    pub iracing_league_id: i64,
+    pub season_id: i64,
+    pub season_name: String,
+    pub points: PointsConfig,
+    /// Championship totals before the current race, from the league's season standings.
+    pub season_points: Vec<SeasonEntry>,
+    pub imported_at: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct PointsConfig {
+    /// Points for P1, P2, ... (anything beyond the table scores `default_points`).
+    pub table: Vec<f32>,
+    pub default_points: f32,
+    /// "class" scores by position in class, "overall" by overall position.
+    pub basis: String,
+    pub fastest_lap_bonus: f32,
+    /// Bonus for the pole sitter (qualifying P1, by class or overall like the points basis).
+    pub pole_bonus: f32,
+    /// Bonus for leading at least one lap.
+    pub lap_led_bonus: f32,
+    /// Bonus for leading the most laps.
+    pub most_laps_led_bonus: f32,
+    /// Points every classified finisher receives (participation).
+    pub finish_bonus: f32,
+    pub system_name: String,
+    pub description: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct SeasonEntry {
+    pub customer_id: i64,
+    pub name: String,
+    pub points: f32,
+    pub position: i32,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Corner {
+    pub name: String,
+    pub number: i32,
+    /// Lap fractions (0..1).
+    pub start: f32,
+    pub end: f32,
+}
+
+/// Credentials for the iRacing Data API (OAuth "password limited" grant). Secrets are stored
+/// masked (base64 SHA-256, as iRacing's token endpoint expects), never in plain text.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct IracingApiConfig {
+    pub client_id: String,
+    pub client_secret_masked: String,
+    pub username: String,
+    pub password_masked: String,
+}
+
+impl IracingApiConfig {
+    pub fn configured(&self) -> bool {
+        !self.client_id.is_empty() && !self.client_secret_masked.is_empty() && !self.username.is_empty() && !self.password_masked.is_empty()
+    }
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct LeagueClass {
+    pub id: String,
+    pub name: String,
+    /// CSS hex colour, e.g. "#ff4d4d".
+    pub color: String,
+    pub rules: ClassRules,
+}
+
+/// A car joins the class if ANY populated rule matches. Text rules are
+/// case-insensitive globs (`*` and `?`).
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ClassRules {
+    pub car_ids: Vec<i64>,
+    pub car_names: Vec<String>,
+    pub car_numbers: Vec<String>,
+    pub customer_ids: Vec<i64>,
+    pub team_names: Vec<String>,
+    pub driver_names: Vec<String>,
+    pub iracing_class_ids: Vec<i64>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct DriverOverride {
+    pub customer_id: i64,
+    /// iRacing name as pulled from a session or the league roster (for reference).
+    pub name: String,
+    /// League car number; replaces the number shown in overlays when set.
+    pub car_number: String,
+    /// League class this driver races in (a `LeagueClass::id`); takes priority over class rules.
+    pub class_id: String,
+    pub display_name: String,
+    pub team_name: String,
+    /// ISO country code shown as the driver's flag, overriding their iRacing flair.
+    pub country: String,
+    pub hidden: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Garage61Config {
+    pub enabled: bool,
+    /// Personal access token from garage61.net → Developer → My applications.
+    pub token: String,
+    pub include_team: bool,
+    pub refresh_minutes: u32,
+}
+
+impl Default for Garage61Config {
+    fn default() -> Self {
+        Self { enabled: false, token: String::new(), include_team: true, refresh_minutes: 5 }
+    }
+}
+
+pub fn default_data_dir() -> PathBuf {
+    let base = std::env::var_os("APPDATA")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from))
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".config")))
+        .unwrap_or_else(|| PathBuf::from("."));
+    let dir = base.join("Apex Overlays");
+    // Earlier builds used "ApexOverlays": move existing settings across once.
+    let old = base.join("ApexOverlays");
+    if !dir.exists() && old.is_dir() {
+        let _ = std::fs::rename(&old, &dir);
+    }
+    dir
+}
+
+/// Shared, observable config with atomic persistence.
+#[derive(Clone)]
+pub struct ConfigStore {
+    inner: Arc<RwLock<Config>>,
+    path: Option<Arc<PathBuf>>,
+    tx: Arc<watch::Sender<u64>>,
+}
+
+impl ConfigStore {
+    pub fn load(dir: &Path) -> Self {
+        let path = dir.join("config.json");
+        let cfg = std::fs::read_to_string(&path)
+            .ok()
+            .and_then(|s| match serde_json::from_str::<Config>(&s) {
+                Ok(c) => Some(c),
+                Err(e) => {
+                    log::warn!("config.json is invalid ({e}); keeping a backup and using defaults");
+                    let _ = std::fs::copy(&path, dir.join("config.invalid.json"));
+                    None
+                }
+            })
+            .unwrap_or_default();
+        let s = Self::new(cfg, Some(path));
+        s.save();
+        s
+    }
+
+    pub fn new(cfg: Config, path: Option<PathBuf>) -> Self {
+        Self { inner: Arc::new(RwLock::new(cfg)), path: path.map(Arc::new), tx: Arc::new(watch::channel(0).0) }
+    }
+
+    pub fn get(&self) -> Config {
+        self.inner.read().unwrap().clone()
+    }
+
+    pub fn read<R>(&self, f: impl FnOnce(&Config) -> R) -> R {
+        f(&self.inner.read().unwrap())
+    }
+
+    pub fn update(&self, f: impl FnOnce(&mut Config)) {
+        f(&mut self.inner.write().unwrap());
+        self.save();
+        self.tx.send_modify(|v| *v += 1);
+    }
+
+    pub fn replace(&self, cfg: Config) {
+        self.update(|c| *c = cfg);
+    }
+
+    pub fn subscribe(&self) -> watch::Receiver<u64> {
+        self.tx.subscribe()
+    }
+
+    fn save(&self) {
+        let Some(path) = &self.path else { return };
+        let json = serde_json::to_string_pretty(&*self.inner.read().unwrap()).unwrap_or_default();
+        if let Some(dir) = path.parent() {
+            let _ = std::fs::create_dir_all(dir);
+        }
+        let tmp = path.with_extension("json.tmp");
+        if std::fs::write(&tmp, json).is_ok() {
+            let _ = std::fs::rename(&tmp, path.as_ref());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn partial_config_fills_defaults() {
+        let c: Config = serde_json::from_str(r#"{"units":"imperial","fuel":{"marginLaps":2}}"#).unwrap();
+        assert_eq!(c.units, "imperial");
+        assert_eq!(c.fuel.margin_laps, 2.0);
+        assert_eq!(c.fuel.avg_laps, 5);
+        assert_eq!(c.server.port, 8182);
+    }
+}
