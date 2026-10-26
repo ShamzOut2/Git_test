@@ -101,6 +101,21 @@ export interface Cars {
   player: number | null;
   sectors: number[];
   cars: CarDot[];
+  sectorTimes: SectorTimes;
+}
+
+export interface SectorTime {
+  lap: number;
+  time: number;
+  /** Against the previous best (negative = new best); null for the first time. */
+  delta: number | null;
+}
+
+export interface SectorTimes {
+  starts: number[];
+  last: (SectorTime | null)[];
+  lap: number;
+  lapEndAgo: number | null;
 }
 
 export interface Driver {

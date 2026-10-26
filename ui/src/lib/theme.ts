@@ -84,6 +84,23 @@ export function mix(a: string, b: string, t: number): string {
   return `#${x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('')}`;
 }
 
+/** WCAG relative luminance (0 = black, 1 = white). */
+function luminance(c: [number, number, number]): number {
+  const [r, g, b] = c.map((v) => {
+    const x = v / 255;
+    return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4;
+  });
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+/** Readable text colour on a coloured background: white unless it would be hard to read (e.g. on yellow). */
+export function onColor(hex: string, dark = '#0b0e13', light = '#ffffff'): string {
+  const c = rgb(hex);
+  if (!c) return light;
+  const whiteContrast = 1.05 / (luminance(c) + 0.05);
+  return whiteContrast >= 3 ? light : dark;
+}
+
 export function isLight(hex: string): boolean {
   const c = rgb(hex);
   return !!c && 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2] > 150;
@@ -112,6 +129,10 @@ export function applyTheme(stored: Values | undefined, el: HTMLElement, override
   s.setProperty('--good', t.goodColor as string);
   s.setProperty('--bad', t.badColor as string);
   s.setProperty('--warn', t.warnColor as string);
+  // Text drawn on top of theme colours (badges, banners) stays readable with bright accents.
+  for (const [v, key] of [['accent', 'accent'], ['best', 'bestColor'], ['good', 'goodColor'], ['bad', 'badColor'], ['warn', 'warnColor'], ['player', 'playerColor']]) {
+    s.setProperty(`--on-${v}`, onColor(t[key] as string));
+  }
   s.setProperty('--radius', `${t.radius}px`);
   // Shading and outlines derive from the text colour so light themes work too.
   s.setProperty('--row-alt', rgba(text, (t.rowAlt as number) / 100));
@@ -140,6 +161,6 @@ export function applyUiTheme(stored: Values | undefined, el: HTMLElement) {
   s.setProperty('--accent', t.accent as string);
   s.setProperty('--good', t.goodColor as string);
   s.setProperty('--bad', t.badColor as string);
-  s.setProperty('--accent-text', isLight(t.accent as string) ? '#0b0e13' : '#ffffff');
+  s.setProperty('--accent-text', onColor(t.accent as string));
   s.setProperty('color-scheme', light ? 'light' : 'dark');
 }

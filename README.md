@@ -21,8 +21,8 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 |---|---|
 | **Relative** | Cars around you on track with colours for cars a lap ahead or behind. The gap column shows the time to each car on track, the gap to the class leader, or the gap to the car ahead (interval). |
 | **Standings** | Multi-class leaderboard with gap to leader and interval. It shows the top rows and a window around you, per class or as one overall list. |
-| **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sectors, start/finish, class-leader rings, rotation and mirroring. |
-| **Driver inputs** | Throttle, brake and clutch bars, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
+| **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sector lines, start/finish, class-leader rings, rotation and mirroring. **Sector performance** paints each sector of your lap: purple when faster than your best, green when within 0.25 s of it (adjustable), yellow when slower. The colours stay for 5 s after you cross the line. |
+| **Driver inputs** | Throttle, brake and clutch bars with their percentage above each bar, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
 | **Fuel calculator** | Average/last/max use per lap, laps of fuel, race laps left (lap- or time-limited, lapped-car aware), fuel to finish, fuel to add, stops, pit window and how much to save to skip a stop. |
 | **Battle box** | The car ahead and behind — in the race overall, in your class, or physically nearest on track (pick per overlay): gap, how fast it is closing (s/lap), laps until you catch them (or they catch you), and their last lap against yours. |
 | **Flags** | A digital (LED-style) flag panel showing the flags out right now — green, yellow and waving yellow, caution, blue, white, chequered, red, black, meatball, furled black, debris, crossed flags, one-lap-to-green, 5/10 to go and more — plus start lights. Every flag can be switched on or off. |
@@ -53,7 +53,7 @@ The **header** of both overlays is also customisable. By default it shows the ov
 ### Customisation
 
 - **Transparency per overlay:** each overlay has its own overall opacity and background opacity, and one button copies them to all overlays. Global defaults live in the theme.
-- **Colour themes** restyle every overlay *and* the settings window. There are 8 presets (Apex Overlays default, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
+- **Colour themes** restyle every overlay *and* the settings window. Text on coloured badges switches between white and black automatically, so it stays readable on bright accents such as yellow. There are 8 presets (Apex Overlays default, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
 - **Any overlay can be added more than once**, each copy with its own settings, size and scale.
 - **Auto-fit height:** the window grows and shrinks with the number of rows (on by default for Standings).
 - **Every overlay** has its own scale, visibility rules (hide when iRacing isn't running, when you're not in the car, on pit road, or outside races) and **custom CSS**.

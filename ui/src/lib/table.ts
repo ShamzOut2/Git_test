@@ -2,6 +2,7 @@
 // created once and updated in place.
 
 import { h, show, text, toggle } from './dom';
+import { onColor } from './theme';
 
 export interface Col<R> {
   id: string;
@@ -77,10 +78,4 @@ export function chip(cell: HTMLElement, label: string, bg: string, fg?: string) 
   if (el.style.color !== color) el.style.color = color;
 }
 
-export function contrast(hex: string): string {
-  const m = /^#?([0-9a-f]{6})$/i.exec(hex);
-  if (!m) return '#fff';
-  const n = parseInt(m[1], 16);
-  const l = 0.299 * (n >> 16) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255);
-  return l > 150 ? '#0b0e13' : '#ffffff';
-}
+export const contrast = (hex: string) => onColor(hex);

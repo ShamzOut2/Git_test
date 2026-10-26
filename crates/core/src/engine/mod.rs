@@ -3,6 +3,7 @@
 pub mod battle;
 pub mod fuel;
 pub mod ratings;
+pub mod sectors;
 pub mod trackmap;
 pub mod tyres;
 pub mod weather;
@@ -151,6 +152,7 @@ pub struct Engine {
     pub weather: weather::WeatherTracker,
     pub battle: battle::BattleTracker,
     pub map: trackmap::Recorder,
+    pub sectors: sectors::SectorTracker,
     /// Corners of the current track (custom > downloaded > source-provided).
     pub corners: Vec<Corner>,
     pub corners_source: &'static str,
@@ -178,6 +180,7 @@ impl Engine {
             weather: Default::default(),
             battle: Default::default(),
             map: trackmap::Recorder::new(data_dir.map(|d| d.join("trackmaps"))),
+            sectors: Default::default(),
             corners: vec![],
             corners_source: "none",
             remote_corners: None,
@@ -509,6 +512,7 @@ impl Engine {
             self.last_session = key;
             self.hist = vec![CarHist::default(); MAX_CARS];
             self.battle = Default::default();
+            self.sectors = Default::default();
             self.fuel.new_session();
             self.checkered_at = None;
         }
@@ -534,6 +538,7 @@ impl Engine {
         self.fuel.update(&self.tel, caution, &self.cfg.fuel);
         self.weather.update(&self.tel);
         self.map.update(&self.tel, &self.info);
+        self.sectors.update(&self.tel, &self.info.sectors);
         battle::update(self);
     }
 

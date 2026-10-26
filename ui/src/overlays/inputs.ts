@@ -18,7 +18,15 @@ export const inputs: OverlayDef = {
     { key: 'showWheel', label: 'Steering wheel', type: 'bool', default: true, group: 'Elements' },
     { key: 'showGear', label: 'Gear', type: 'bool', default: true, group: 'Elements' },
     { key: 'showSpeed', label: 'Speed', type: 'bool', default: true, group: 'Elements' },
-    { key: 'showValues', label: 'Percent values on bars', type: 'bool', default: false, group: 'Elements' },
+    {
+      key: 'valuePosition',
+      label: 'Percent values',
+      type: 'select',
+      default: 'top',
+      options: [['top', 'Above each bar'], ['inside', 'Inside the bar'], ['off', 'Off']],
+      group: 'Elements',
+    },
+    { key: 'valueColored', label: 'Colour values like their bar', type: 'bool', default: true, group: 'Elements' },
     { key: 'traceSeconds', label: 'Trace length', type: 'number', default: 6, min: 1, max: 30, unit: 's', group: 'Trace' },
     { key: 'traceWidth', label: 'Trace line width', type: 'number', default: 2, min: 0.5, max: 6, step: 0.5, unit: 'px', group: 'Trace' },
     { key: 'traceSteering', label: 'Show steering in trace', type: 'bool', default: false, group: 'Trace' },
@@ -36,12 +44,20 @@ export const inputs: OverlayDef = {
     root.classList.add('inputs');
     const canvas = h('canvas', 'trace');
     const bars = h('div', 'bars');
+    const valuePos = s.valuePosition as string;
     const mk = (cls: string, color: string) => {
-      const wrap = h('div', `bar ${cls}`);
+      const wrap = h('div', `barcol ${cls}`);
+      const bar = h('div', 'bar');
       const fill = h('div', 'fill');
-      const val = h('div', 'val');
+      const val = h('div', `val ${valuePos}`);
       fill.style.background = color;
-      wrap.append(fill, val);
+      if (s.valueColored && valuePos === 'top') val.style.color = color;
+      bar.append(fill);
+      if (valuePos === 'top') wrap.append(val, bar);
+      else if (valuePos === 'inside') {
+        bar.append(val);
+        wrap.append(bar);
+      } else wrap.append(bar);
       bars.append(wrap);
       return { wrap, fill, val };
     };
@@ -123,7 +139,7 @@ export const inputs: OverlayDef = {
 
         const bar = (b: { fill: HTMLElement; val: HTMLElement }, v: number) => {
           style(b.fill, 'transform', `scaleY(${v.toFixed(3)})`);
-          if (s.showValues) text(b.val, String(Math.round(v * 100)));
+          if (valuePos !== 'off') text(b.val, String(Math.round(v * 100)));
         };
         bar(throttle, p.throttle);
         bar(brake, p.brake);

@@ -289,6 +289,18 @@ pub struct CarsOut<'a> {
     pub player: Option<usize>,
     pub sectors: &'a [f32],
     pub cars: Vec<CarDot<'a>>,
+    /// Sector times of the focus car for the track map's sector colours.
+    pub sector_times: SectorTimesOut<'a>,
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SectorTimesOut<'a> {
+    pub starts: &'a [f32],
+    pub last: &'a [Option<crate::engine::sectors::SectorTime>],
+    pub lap: u32,
+    /// Seconds since the focus car last crossed the line.
+    pub lap_end_ago: Option<f64>,
 }
 
 pub fn cars(e: &Engine) -> CarsOut<'_> {
@@ -297,6 +309,12 @@ pub fn cars(e: &Engine) -> CarsOut<'_> {
         focus: t.focus_idx(),
         player: usize::try_from(t.player_idx).ok(),
         sectors: &e.info.sectors,
+        sector_times: SectorTimesOut {
+            starts: &e.sectors.starts,
+            last: &e.sectors.last,
+            lap: e.sectors.lap,
+            lap_end_ago: e.sectors.lap_end_at.map(|at| round((t.session_time - at) as f32, 1) as f64),
+        },
         cars: e
             .order
             .iter()
