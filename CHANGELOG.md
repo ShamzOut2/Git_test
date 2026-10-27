@@ -2,6 +2,11 @@
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
 
+## 0.5.7
+
+- Shared track map library: tracks other drivers have recorded get their outline straight away, no clean lap needed (Road Atlanta, Brands Hatch, Virginia International Raceway and Charlotte Motor Speedway to start with). Your own recording always takes priority
+- iRacing's official track maps: the list used to share them is now written as soon as the app starts (for when iRacing reopens API access)
+
 ## 0.5.6
 
 - Track map: iRacing's official track maps no longer need the iRacing login — the app downloads the list of maps published with Apex Overlays, so every track has its real outline straight away instead of waiting for a clean lap (tracks missing from the list are still recorded from your driving)

@@ -415,6 +415,9 @@ pub fn build(track_id: i64, name: &str, active: &str, start_finish: Option<&str>
 /// `iracing-track-maps.json` a logged-in copy of the app writes (see `trim_index`).
 const INDEX_URL: &str = "https://raw.githubusercontent.com/ShamzOut2/Apex_Overlays/main/data/iracing-track-maps.json";
 
+/// The shared library of recorded track outlines (see data/trackmaps in the repository).
+const LIBRARY_URL: &str = "https://raw.githubusercontent.com/ShamzOut2/Apex_Overlays/main/data/trackmaps";
+
 /// The part of the Data API's track/assets that locates each track map: the SVG files
 /// themselves are public, only this index needs a login.
 pub fn trim_index(assets: &serde_json::Value) -> serde_json::Value {
@@ -448,6 +451,8 @@ pub fn spawn(
         let agent = crate::net::agent();
         let mut client: Option<crate::iracing_api::Client> = None;
         let mut done: Option<i64> = None;
+        let mut library_done: Option<i64> = None;
+        let library_dir = data_dir.join("trackmaps").join("library");
         let mut retry_at = Instant::now();
         let read = |p: &std::path::Path| std::fs::read_to_string(p).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok());
         let published = assets_file.with_file_name("iracing-track-maps.json");
@@ -484,7 +489,42 @@ pub fn spawn(
                 }
             }
             let (id, name) = track.lock().unwrap().clone();
-            if id == 0 || done == Some(id) {
+            if id == 0 {
+                continue;
+            }
+            // Shared map library: an outline for tracks the player has not recorded yet.
+            if library_done != Some(id) {
+                library_done = Some(id);
+                if !data_dir.join("trackmaps").join(format!("{id}.json")).exists() {
+                    let cached = library_dir.join(format!("{id}.json"));
+                    let map = read(&cached).and_then(|v| serde_json::from_value::<TrackMap>(v).ok()).or_else(|| {
+                        // The library's index (cached a day) says which tracks it has.
+                        let index_path = library_dir.join("index.json");
+                        let fresh = std::fs::metadata(&index_path)
+                            .and_then(|m| m.modified())
+                            .ok()
+                            .and_then(|t| SystemTime::now().duration_since(t).ok())
+                            .is_some_and(|age| age < Duration::from_secs(86_400));
+                        let index = read(&index_path).filter(|_| fresh).or_else(|| {
+                            let v = agent.get(&format!("{LIBRARY_URL}/index.json")).call().ok()?.into_json::<Value>().ok()?;
+                            let _ = std::fs::create_dir_all(&library_dir);
+                            let _ = std::fs::write(&index_path, v.to_string());
+                            Some(v)
+                        })?;
+                        index.pointer(&format!("/tracks/{id}"))?;
+                        let m = agent.get(&format!("{LIBRARY_URL}/{id}.json")).call().ok()?.into_json::<TrackMap>().ok()?;
+                        (m.track_id == id && m.points.len() >= 50).then(|| {
+                            let _ = std::fs::write(&cached, serde_json::to_string(&m).unwrap_or_default());
+                            m
+                        })
+                    });
+                    if let Some(m) = map {
+                        log::info!("track map for {id} from the shared library");
+                        hub.command(Command::SetLibraryMap(TrackMap { source: "library".into(), ..m }));
+                    }
+                }
+            }
+            if done == Some(id) {
                 continue;
             }
             let cache = dir.join(format!("{id}.json"));
