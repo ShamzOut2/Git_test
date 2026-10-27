@@ -714,7 +714,13 @@ pub fn fuel_out(e: &Engine) -> FuelOut<'_> {
         margin_laps: cfg.margin_laps,
         history: e.fuel.laps.iter().rev().filter(|l| l.valid).take(10).map(|l| r3(l.used)).collect(),
         expected,
-        estimate_from: if session_avg.is_some() { "session" } else if expected.is_some() { "history" } else { "none" },
+        estimate_from: if session_avg.is_some() {
+            "session"
+        } else if expected.is_some() {
+            "history"
+        } else {
+            "none"
+        },
     }
 }
 
