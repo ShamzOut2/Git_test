@@ -450,8 +450,39 @@ pub fn spawn(
         let mut done: Option<i64> = None;
         let mut retry_at = Instant::now();
         let read = |p: &std::path::Path| std::fs::read_to_string(p).ok().and_then(|s| serde_json::from_str::<Value>(&s).ok());
+        let published = assets_file.with_file_name("iracing-track-maps.json");
         loop {
             std::thread::sleep(Duration::from_secs(3));
+            // With the iRacing login: write the trimmed index for publishing as soon as the app
+            // runs (no session needed), from the cached asset list or a fresh one.
+            let api = config.read(|c| c.iracing_api.clone());
+            if api.configured() && !published.exists() && Instant::now() >= retry_at {
+                let assets = match read(&assets_file) {
+                    Some(v) => Some(v),
+                    None => {
+                        let c = client.get_or_insert_with(|| crate::iracing_api::Client::new(api.clone()));
+                        match c.get("track/assets", &[]) {
+                            Ok(v) => {
+                                if let Some(d) = assets_file.parent() {
+                                    let _ = std::fs::create_dir_all(d);
+                                }
+                                let _ = std::fs::write(&assets_file, v.to_string());
+                                Some(v)
+                            }
+                            Err(e) => {
+                                log::warn!("track maps: {e}");
+                                client = None;
+                                retry_at = Instant::now() + Duration::from_secs(600);
+                                None
+                            }
+                        }
+                    }
+                };
+                if let Some(a) = assets {
+                    let _ = std::fs::write(&published, serde_json::to_string_pretty(&trim_index(&a)).unwrap_or_default());
+                    log::info!("wrote {}", published.display());
+                }
+            }
             let (id, name) = track.lock().unwrap().clone();
             if id == 0 || done == Some(id) {
                 continue;
@@ -518,12 +549,6 @@ pub fn spawn(
                         retry_at = Instant::now() + Duration::from_secs(3600);
                         continue;
                     }
-                }
-            }
-            let published = assets_file.with_file_name("iracing-track-maps.json");
-            if api.configured() && !published.exists() {
-                if let Some(a) = &assets {
-                    let _ = std::fs::write(&published, serde_json::to_string_pretty(&trim_index(a)).unwrap_or_default());
                 }
             }
             let entry = assets.as_ref().and_then(|a| a.get(&key));
