@@ -162,6 +162,12 @@ pub struct Engine {
     class_names: std::collections::HashMap<String, String>,
     /// Bumped when car data arrives (the car topic is only re-sent then).
     pub car_revision: u64,
+    /// Starting grid (car indices, pole first) from qualifying, kept on disk per subsession.
+    pub grid: Vec<usize>,
+    grid_dir: Option<PathBuf>,
+    grid_saved: (i64, Vec<usize>),
+    /// Live iRating change estimate per car (races only).
+    ir: Vec<Option<f32>>,
     /// Countries from the iRacing Data API for drivers the session info has none for.
     remote_countries: std::collections::BTreeMap<i64, String>,
     /// Session time the leader took the chequered flag.
@@ -186,7 +192,11 @@ impl Engine {
             fuel: Default::default(),
             weather: Default::default(),
             battle: Default::default(),
-            map: trackmap::Recorder::new(data_dir.map(|d| d.join("trackmaps"))),
+            map: trackmap::Recorder::new(data_dir.as_ref().map(|d| d.join("trackmaps"))),
+            grid: vec![],
+            grid_dir: data_dir.map(|d| d.join("grids")),
+            grid_saved: (0, vec![]),
+            ir: vec![None; MAX_CARS],
             sectors: Default::default(),
             corners: vec![],
             corners_source: "none",
@@ -340,13 +350,58 @@ impl Engine {
     }
 
     pub fn ir_delta(&self, idx: usize) -> Option<f32> {
+        self.ir.get(idx).copied().flatten()
+    }
+
+    /// iRating change of every car if the race finished now. The field is every registered
+    /// driver of the class (also those who have not loaded in yet), in running order; before
+    /// the start, in grid order. Drivers who never took part count as non-starters.
+    fn compute_ir(&mut self) {
+        self.ir.iter_mut().for_each(|v| *v = None);
         if !self.is_race() {
-            return None;
+            return;
         }
-        let s = self.static_of(idx)?;
-        let group: Vec<usize> = self.order.iter().map(|r| r.idx).filter(|&i| self.static_of(i).is_some_and(|o| o.ir_class == s.ir_class)).collect();
-        let pos = group.iter().position(|&i| i == idx)? + 1;
-        Some(ratings::ir_change(group.len(), pos, s.ir_expected))
+        let racing = self.tel.session_state >= STATE_RACING;
+        let mut ordered: Vec<usize> = self.order.iter().map(|r| r.idx).collect();
+        let registered = (0..MAX_CARS).filter(|&i| self.statics[i].is_some());
+        for i in self.grid.iter().copied().chain(registered.collect::<Vec<_>>()) {
+            if self.statics.get(i).is_some_and(|s| s.is_some()) && !ordered.contains(&i) {
+                ordered.push(i);
+            }
+        }
+        let mut classes: std::collections::BTreeMap<i64, Vec<usize>> = Default::default();
+        for i in ordered {
+            classes.entry(self.statics[i].as_ref().unwrap().ir_class).or_default().push(i);
+        }
+        for idxs in classes.values() {
+            let expected: Vec<f32> = idxs.iter().map(|&i| self.statics[i].as_ref().unwrap().ir_expected).collect();
+            let started: Vec<bool> = idxs.iter().map(|&i| !racing || self.hist[i].seen || self.tel.cars[i].in_world()).collect();
+            for (k, c) in ratings::ir_changes(&expected, &started).into_iter().enumerate() {
+                self.ir[idxs[k]] = Some(c);
+            }
+        }
+    }
+
+    /// The starting grid: qualifying results carried into the race, else the last qualifying
+    /// session of the event, else the grid saved for this subsession (e.g. after a restart).
+    fn refresh_grid(&mut self) {
+        let sub = self.info.subsession_id;
+        let path = self.grid_dir.as_ref().filter(|_| sub > 0).map(|d| d.join(format!("{sub}.json")));
+        let order = self.qualify_order();
+        if !order.is_empty() {
+            if let Some(p) = path.filter(|_| self.grid_saved != (sub, order.clone())) {
+                if let Some(d) = p.parent() {
+                    let _ = std::fs::create_dir_all(d);
+                }
+                let _ = std::fs::write(p, serde_json::to_string(&order).unwrap_or_default());
+                self.grid_saved = (sub, order.clone());
+            }
+            self.grid = order;
+        } else if let Some(saved) = path.and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str::<Vec<usize>>(&s).ok()) {
+            self.grid = saved;
+        } else {
+            self.grid.clear();
+        }
     }
 
     pub fn sr_delta(&self, idx: usize) -> Option<f32> {
@@ -445,6 +500,7 @@ impl Engine {
             self.map.load(self.info.track_id, &self.info.track_display_name);
         }
         self.rebuild_statics();
+        self.refresh_grid();
         if track_changed {
             self.refresh_corners();
         }
@@ -612,6 +668,7 @@ impl Engine {
         }
         self.update_hist();
         self.compute_order();
+        self.compute_ir();
         if self.is_race() && self.tel.session_state >= STATE_CHECKERED && self.checkered_at.is_none() {
             // The leader just crossed the line under the chequered flag.
             let now = self.tel.session_time;
@@ -786,14 +843,19 @@ impl Engine {
             }
             results.iter().find(|r| r.car_idx == idx).map(|r| r.fastest_time).filter(|&v| v > 0.0).unwrap_or(f32::MAX)
         };
+        // Before the start the standings show the grid, including drivers still loading in.
+        let pre_start = race && t.session_state < STATE_RACING && !self.grid.is_empty();
+        let grid_pos = |i: usize| self.grid.iter().position(|&g| g == i).map(|p| p as i32 + 1).unwrap_or(i32::MAX);
         let mut idxs: Vec<usize> = (0..MAX_CARS)
             .filter(|&i| self.statics[i].as_ref().is_some_and(|s| !s.hidden))
-            .filter(|&i| t.cars[i].in_world() || self.hist[i].seen || result_pos(i) > 0)
+            .filter(|&i| t.cars[i].in_world() || self.hist[i].seen || result_pos(i) > 0 || (pre_start && self.grid.contains(&i)))
             .collect();
         let num = |i: usize| self.statics[i].as_ref().and_then(|s| s.number.parse::<i32>().ok()).unwrap_or(9999);
         let pos_or_max = |p: i32| if p > 0 { p } else { i32::MAX };
         if race && t.session_state == STATE_RACING {
             idxs.sort_by(|&a, &b| self.progress(b).total_cmp(&self.progress(a)));
+        } else if pre_start {
+            idxs.sort_by_key(|&i| (grid_pos(i), pos_or_max(t.cars[i].position), num(i)));
         } else if race {
             idxs.sort_by_key(|&i| {
                 let p = if t.cars[i].position > 0 { t.cars[i].position } else { result_pos(i) };
@@ -1020,6 +1082,31 @@ pub(crate) mod tests {
             }
             last = Some((rel, race));
         }
+    }
+
+    #[test]
+    fn grid_from_qualifying_before_the_start() {
+        use crate::model::ResultPos;
+        let mut e = engine(4, true);
+        let mut info = e.info.clone();
+        info.qualify = [3usize, 1, 0, 2].iter().enumerate().map(|(p, &car_idx)| ResultPos { position: p as i32 + 1, car_idx, ..Default::default() }).collect();
+        e.set_session(info);
+        e.tel.session_state = 3; // parade laps
+        // Only two cars have loaded in so far.
+        for i in 0..4 {
+            e.tel.cars[i] = Default::default();
+            e.tel.cars[i].pct = -1.0;
+        }
+        place(&mut e, 0, 0, 0.9);
+        place(&mut e, 2, 0, 0.95);
+        e.tick();
+        let order: Vec<usize> = e.order.iter().map(|r| r.idx).collect();
+        assert_eq!(order, [3, 1, 0, 2]);
+        // iRating estimates use the whole field from the start, not just the cars loaded in.
+        let total: f32 = (0..4).filter_map(|i| e.ir_delta(i)).sum();
+        assert!(total.abs() < 5.0, "{total}");
+        assert!(e.ir_delta(3).unwrap() > 0.0 && e.ir_delta(2).unwrap() < 0.0);
+        assert!((0..4).all(|i| e.ir_delta(i).unwrap().abs() < 150.0));
     }
 
     #[test]
