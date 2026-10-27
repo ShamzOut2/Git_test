@@ -69,10 +69,10 @@ export const standings: OverlayDef = {
       key: 'classLogo',
       label: 'Class badge in class headers',
       type: 'select',
-      default: 'withName',
+      default: 'only',
       options: [
+        ['only', 'Badge (class name only when there is no badge)'],
         ['withName', 'Badge and class name'],
-        ['only', 'Badge only'],
         ['off', 'Class name only'],
       ],
       group: 'Header',
