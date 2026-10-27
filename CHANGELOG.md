@@ -2,6 +2,14 @@
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
 
+## 0.5.3
+
+- Fuel calculator remembers what each car uses at each track: in practice (or any session) it shows the usual consumption per lap, lap time and laps counted from earlier sessions, and plans with it until you've driven a clean lap
+- Standings and other auto-sized overlays resize again after the app restarts or reconnects
+- Team themes: Gassed Up Motorsports, VCR and JWB
+- Standings class headers show just the class badge when there is one (the class name still shows for classes without a badge; the old badge-and-name look is an option)
+- Shift lights are back to each car's own lights and shift points (the extra blue shift-point lights from 0.5.2 are gone), with a new light pattern option: as the car has it, left to right, right to left, outside in, or inside out
+
 ## 0.5.2
 
 - Track map: iRacing's official track map outline, downloaded with your iRacing login (League builder → Import from iRacing), so the full circuit shows straight away; the outline recorded from your driving is still used without a login, or if you prefer it

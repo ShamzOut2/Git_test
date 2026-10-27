@@ -58,6 +58,20 @@ export const PRESETS: Preset[] = [
     name: 'High Contrast',
     values: { background: '#000000', headerBackground: '#000000', textColor: '#ffffff', dimColor: '#d0d0d0', accent: '#ffe600', playerColor: '#ffe600', bestColor: '#ff4dff', goodColor: '#00ff6a', badColor: '#ff3b3b', lapAheadColor: '#ff6b6b', lapBehindColor: '#4dc3ff', backgroundOpacity: 92, shadow: false },
   },
+  // Team themes: each team's three colours as background, accent (header line, badges) and
+  // your-car highlight, with text and status colours chosen to stay readable on them.
+  {
+    name: 'Gassed Up Motorsports',
+    values: { background: '#3e424d', headerBackground: '#30333b', textColor: '#ffffff', dimColor: '#bcc1cc', accent: '#01fddc', playerColor: '#ffb400', bestColor: '#d08cff', goodColor: '#3ddc84', badColor: '#ff5c5c', lapAheadColor: '#ff8a8a', lapBehindColor: '#7cc0ff' },
+  },
+  {
+    name: 'VCR',
+    values: { background: '#000000', headerBackground: '#140000', textColor: '#ffffff', dimColor: '#a8a8a8', accent: '#e60000', playerColor: '#e60000', bestColor: '#c27bff', goodColor: '#3ddc84', badColor: '#ff5c5c', lapAheadColor: '#ffa04d', lapBehindColor: '#6cb4ff' },
+  },
+  {
+    name: 'JWB',
+    values: { background: '#271831', headerBackground: '#1c1024', textColor: '#ffffff', dimColor: '#c4b6d0', accent: '#ffb400', playerColor: '#ffb400', bestColor: '#e08cff', goodColor: '#3ddc84', badColor: '#ff6b6b', lapAheadColor: '#ff8a8a', lapBehindColor: '#7cc0ff' },
+  },
   {
     name: 'Light',
     values: { background: '#f5f7fa', headerBackground: '#e4e8ef', textColor: '#11161d', dimColor: '#5b6472', accent: '#e10600', playerColor: '#b07a00', bestColor: '#8a2be2', goodColor: '#0f9d58', badColor: '#d93025', lapAheadColor: '#c62828', lapBehindColor: '#1565c0', pitColor: '#8a8f98', warnColor: '#c77700', backgroundOpacity: 88, shadow: false },

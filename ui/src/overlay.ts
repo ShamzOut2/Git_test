@@ -36,7 +36,12 @@ let player: Player | null = null;
 
 const units = (): Units => (config?.units === 'metric' || config?.units === 'imperial' ? config.units : (session?.units ?? 'metric'));
 
-const client = new Client(onData, () => updateVisibility());
+const client = new Client(onData, (up) => {
+  updateVisibility();
+  // The desktop app forgets auto sizes when it restarts, and messages sent while the
+  // connection was opening are lost: tell it again.
+  if (up) resendAutoSize();
+});
 client.subscribe('config', 'status', 'session', 'player');
 
 edit.addEventListener('mousedown', (e) => {
@@ -105,6 +110,11 @@ function rebuild() {
 /** Auto-size: the panel hugs its content and asks the desktop app to fit the window to it (0 = off). */
 let sizer: ResizeObserver | null = null;
 let lastSize = { width: -1, height: -1 };
+let measure: (() => void) | null = null;
+function resendAutoSize() {
+  lastSize = { width: -1, height: -1 };
+  measure?.();
+}
 function setupAutoSize() {
   sizer?.disconnect();
   sizer = null;
@@ -112,17 +122,21 @@ function setupAutoSize() {
   const autoW = !!settings.autoWidth && !preview;
   const send = (width: number, height: number) => {
     if (Math.abs(width - lastSize.width) <= 1 && Math.abs(height - lastSize.height) <= 1) return;
+    // Only remember a size the app has actually been told.
+    if (!client.connected) return;
     lastSize = { width, height };
     client.send({ op: 'autoSize', id, width, height });
   };
   if (!autoH && !autoW) {
+    measure = null;
     if (lastSize.width > 0 || lastSize.height > 0) send(0, 0);
     return;
   }
-  sizer = new ResizeObserver(() => {
+  measure = () => {
     const r = panel.getBoundingClientRect();
     if (r.width > 0 && r.height > 0) send(autoW ? Math.ceil(r.width) : 0, autoH ? Math.ceil(r.height) : 0);
-  });
+  };
+  sizer = new ResizeObserver(() => measure?.());
   sizer.observe(panel);
 }
 
