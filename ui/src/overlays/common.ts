@@ -155,7 +155,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
     {
       id: 'class',
       label: 'Class',
-      width: s.classStyle === 'badge' ? '3.4em' : '3.6em',
+      width: s.classStyle === 'badge' ? '4em' : '3.6em',
       align: 'center',
       render: (c, r) => {
         const url = s.classStyle === 'badge' ? classBadge(r.className, r.classColor, [r.car], s.classBadgeColor as string, () => c.replaceChildren()) : null;

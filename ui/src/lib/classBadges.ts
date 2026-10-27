@@ -82,6 +82,9 @@ const RULES: [RegExp, string][] = [
   [/next ?gen|nascar cup|\bnxg\b|\bcup\b/, 'CUP'],
   [/touring/, 'TOURING'],
   [/imsa/, 'IMSA'],
+  // League tiers.
+  [/\bpro[\s-]?am(ateurs?)?\b/, 'PRO-AM'],
+  [/\b(am|amz|amateurs?|amatuers?)\b/, 'AM'],
 ];
 
 /** The badge for a class, from its name (exact, then word by word) or keywords in it and its cars. */
