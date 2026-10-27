@@ -1,4 +1,5 @@
 import { h } from '../lib/dom';
+import * as f from '../lib/format';
 import { commonFor, merge, type SettingDef } from '../lib/settings';
 import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
 import type { OverlayInstance } from '../lib/types';
@@ -537,11 +538,49 @@ const garage61Page: Page = {
     el.replaceChildren(
       card(
         'Garage 61',
-        h('p', 'dim', 'Shows your Garage 61 personal best and your teams’ best laps for the car and track you are driving. Create a personal access token on garage61.net (Developer → My applications) with the “driving data” permission.'),
+        h(
+          'p',
+          'dim',
+          'Shows a live delta to your Garage 61 personal best (or your team’s best lap), sector by sector, plus your personal best and your teams’ leaderboard for the car and track you are driving. Create a personal access token on garage61.net (Developer → My applications) with the “driving data” permission.',
+        ),
         form(
           [
             { key: 'enabled', label: 'Enable integration', type: 'bool', default: false },
+            {
+              key: 'reference',
+              label: 'Live delta compares with',
+              type: 'select',
+              default: 'personal',
+              options: [
+                ['personal', 'My best lap'],
+                ['team', 'The fastest lap in my teams'],
+                ['off', 'Nothing (no live delta)'],
+              ],
+              help: 'Uses your own best if a teammate’s telemetry isn’t shared',
+            },
             { key: 'includeTeam', label: 'Include team leaderboard', type: 'bool', default: true },
+            {
+              key: 'period',
+              label: 'Laps from',
+              type: 'select',
+              default: 'all',
+              options: [
+                ['all', 'All time'],
+                ['season', 'The current iRacing season'],
+                ['seasons2', 'This and last season'],
+                ['90', 'The last 90 days'],
+                ['30', 'The last 30 days'],
+                ['7', 'The last 7 days'],
+              ],
+            },
+            {
+              key: 'matchConditions',
+              label: 'Only laps in similar conditions',
+              type: 'bool',
+              default: false,
+              help: 'Track temperature close to now, and the same dry or wet track',
+            },
+            { key: 'tempRange', label: 'Track temperature within ±', type: 'number', default: 6, min: 1, max: 30, unit: '°C' },
             { key: 'refreshMinutes', label: 'Refresh every', type: 'number', default: 5, min: 1, max: 60, unit: 'min' },
           ],
           g as unknown as Record<string, unknown>,
@@ -552,6 +591,18 @@ const garage61Page: Page = {
         ),
         tokRow,
         statusLine,
+        ...(status?.status === 'ok'
+          ? [
+              h('p', 'dim small', `Laps searched: ${status.filters || 'all'}`),
+              h(
+                'p',
+                'dim small',
+                status.reference
+                  ? `Live delta: ${status.reference.source === 'team' ? `${status.reference.driver}’s team best` : 'your best'} (${f.lapTime(status.reference.lapTime)})${status.referenceNote ? ` — ${status.referenceNote}` : ''}`
+                  : `Live delta: ${status.referenceNote || 'off'}`,
+              ),
+            ]
+          : []),
         h('p', 'dim small', 'Remember to enable the “Garage 61” overlay on the Overlays page.'),
       ),
     );

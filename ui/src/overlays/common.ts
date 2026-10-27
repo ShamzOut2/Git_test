@@ -158,7 +158,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
       width: s.classStyle === 'badge' ? '4em' : '3.6em',
       align: 'center',
       render: (c, r) => {
-        const url = s.classStyle === 'badge' ? classBadge(r.className, r.classColor, [r.car], s.classBadgeColor as string, () => c.replaceChildren()) : null;
+        const url = s.classStyle === 'badge' ? classBadge(r.className, r.classId, r.classColor, [r.car], s.classBadgeColor as string, () => c.replaceChildren()) : null;
         if (!url) {
           if (c.firstElementChild?.tagName === 'IMG') c.replaceChildren();
           return chip(c, r.className, r.classColor);

@@ -344,6 +344,14 @@ export interface G61Lap {
   isMe: boolean;
 }
 
+export interface G61Reference {
+  driver: string;
+  lapTime: number;
+  source: 'personal' | 'team';
+  /** Seconds into the lap at equal steps of lap distance (first = start, last = finish). */
+  times: number[];
+}
+
 export interface Garage61 {
   status: 'disabled' | 'noToken' | 'waiting' | 'loading' | 'ok' | 'unmapped' | 'error';
   message: string;
@@ -353,6 +361,10 @@ export interface Garage61 {
   personalBest: G61Lap | null;
   teamBest: G61Lap | null;
   leaderboard: G61Lap[];
+  /** Which laps were searched, e.g. "Current season · 25–35 °C · dry". */
+  filters: string;
+  reference: G61Reference | null;
+  referenceNote: string;
 }
 
 export interface Status {
@@ -467,7 +479,16 @@ export interface Config {
   activeLeague: string | null;
   /** 'auto': the league matching the session's iRacing league ID (none otherwise); 'always': activeLeague. */
   leagueMode: 'auto' | 'always';
-  garage61: { enabled: boolean; token: string; includeTeam: boolean; refreshMinutes: number };
+  garage61: {
+    enabled: boolean;
+    token: string;
+    includeTeam: boolean;
+    refreshMinutes: number;
+    period: string;
+    reference: 'personal' | 'team' | 'off';
+    matchConditions: boolean;
+    tempRange: number;
+  };
   savedThemes: SavedTheme[];
   trackCorners: Record<string, Corner[]>;
   iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
@@ -500,6 +521,62 @@ export interface UpdateState {
   message?: string;
 }
 
+export interface Spotter {
+  /** 'left', 'right', 'both', 'left2' (two cars left), 'right2', or '' when clear. */
+  state: '' | 'left' | 'right' | 'both' | 'left2' | 'right2';
+  /** Metres each car alongside is ahead of you (negative = behind), when known. */
+  left: number[];
+  right: number[];
+}
+
+export interface IncidentCar {
+  idx: number;
+  name: string;
+  number: string;
+  /** Metres ahead of you (negative = behind) when it happened. */
+  dist: number;
+  /** Their own incident count rose by 4 or more just after. */
+  confirmed: boolean;
+}
+
+export interface Incident {
+  points: number;
+  kind: 'offTrack' | 'lossOfControl' | 'objectContact' | 'carContact' | 'heavyContact';
+  label: string;
+  total: number;
+  lap: number;
+  sessionNum: number;
+  sessionName: string;
+  sessionTime: number;
+  involved: IncidentCar[];
+}
+
+export interface Incidents {
+  total: number;
+  limit: number | null;
+  /** A replay is playing: the replay buttons work. */
+  canReplay: boolean;
+  sessionNum: number;
+  list: Incident[];
+}
+
+export interface Pit {
+  phase: '' | 'entry' | 'lane' | 'box' | 'exit' | 'out';
+  /** Metres to the pit entry / exit line. */
+  toEntry: number | null;
+  toExit: number | null;
+  /** m/s */
+  speed: number;
+  /** Pit speed limit, m/s (0 = unknown). */
+  limit: number;
+  limiter: boolean;
+  service: '' | 'wait' | 'go';
+  repair: number;
+  optRepair: number;
+  /** Seconds since crossing the pit exit line. */
+  sinceExit: number | null;
+}
+
 export interface TopicMap {
   session: Session;
   player: Player;
@@ -511,6 +588,9 @@ export interface TopicMap {
   tyres: Tyres;
   trackmap: TrackMap;
   car: CarInfo;
+  spotter: Spotter;
+  incidents: Incidents;
+  pit: Pit;
   garage61: Garage61;
   status: Status;
   config: Config;

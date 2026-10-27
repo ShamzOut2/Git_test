@@ -2,6 +2,8 @@
 
 pub mod battle;
 pub mod fuel;
+pub mod incidents;
+pub mod pit;
 pub mod ratings;
 pub mod sectors;
 pub mod trackmap;
@@ -156,6 +158,10 @@ pub struct Engine {
     pub battle: battle::BattleTracker,
     pub map: trackmap::Recorder,
     pub sectors: sectors::SectorTracker,
+    pub incidents: incidents::IncidentTracker,
+    pub pit: pit::PitTracker,
+    /// The player's pit lane state this tick.
+    pub pit_out: pit::PitOut,
     /// Corners of the current track (custom > downloaded > source-provided).
     pub corners: Vec<Corner>,
     pub corners_source: &'static str,
@@ -198,6 +204,9 @@ impl Engine {
             weather: Default::default(),
             battle: Default::default(),
             map: trackmap::Recorder::new(data_dir.as_ref().map(|d| d.join("trackmaps"))),
+            incidents: Default::default(),
+            pit: pit::PitTracker::new(data_dir.as_ref().map(|d| d.join("pit-lines.json"))),
+            pit_out: Default::default(),
             grid: vec![],
             grid_dir: data_dir.map(|d| d.join("grids")),
             grid_saved: (0, vec![]),
@@ -721,7 +730,19 @@ impl Engine {
         self.weather.update(&self.tel);
         self.map.update(&self.tel, &self.info);
         self.sectors.update(&self.tel, &self.info.sectors);
+        self.incidents.update(&self.tel, &self.info);
+        self.pit.update(&self.tel, self.info.track_id);
+        let (entry, exit) = self.pit_lines();
+        self.pit_out = self.pit.player(&self.tel, entry, exit, self.info.track_length_km * 1000.0, self.info.pit_speed_limit_kph);
         battle::update(self);
+    }
+
+    /// Pit entry and exit lines (lap fractions): learned from cars crossing them, else from
+    /// the track data.
+    pub fn pit_lines(&self) -> (Option<f32>, Option<f32>) {
+        let (le, lx) = self.pit.learned();
+        let td = self.track_data();
+        (le.or(td.and_then(|d| d.pit_entry)), lx.or(td.and_then(|d| d.pit_exit)))
     }
 
     /// Who is causing a yellow (off track, or stopped/crawling on track) and how black flags are served.

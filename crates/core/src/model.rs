@@ -167,6 +167,22 @@ pub struct Telemetry {
     pub skies: i32,
     pub air_pressure: f32,
     pub display_metric: bool,
+    /// Spotter: irsdk_CarLeftRight (0 off, 1 clear, 2 car left, 3 car right, 4 cars left and
+    /// right, 5 two cars left, 6 two cars right).
+    pub car_left_right: i32,
+    /// irsdk_EngineWarnings bits (0x10 = pit speed limiter on).
+    pub engine_warnings: u32,
+    pub in_pit_stall: bool,
+    /// The pit crew is servicing the car.
+    pub pitstop_active: bool,
+    /// irsdk_PitSvStatus: 0 none, 1 in progress, 2 complete, 100+ problems.
+    pub pit_sv_status: i32,
+    /// Mandatory and optional repair time left (s).
+    pub pit_repair_left: f32,
+    pub pit_opt_repair_left: f32,
+    /// Camera group and camera in use (for replays).
+    pub cam_group: i32,
+    pub cam_camera: i32,
 
     pub cars: Vec<CarTel>,
 }
@@ -225,6 +241,15 @@ impl Default for Telemetry {
             skies: 0,
             air_pressure: 0.0,
             display_metric: true,
+            car_left_right: 0,
+            engine_warnings: 0,
+            in_pit_stall: false,
+            pitstop_active: false,
+            pit_sv_status: 0,
+            pit_repair_left: 0.0,
+            pit_opt_repair_left: 0.0,
+            cam_group: 0,
+            cam_camera: 0,
             cars: vec![CarTel { surface: surface::NOT_IN_WORLD, pct: -1.0, ..Default::default() }; MAX_CARS],
         }
     }
@@ -262,6 +287,8 @@ pub struct Driver {
     pub team_id: i64,
     pub team_name: String,
     pub car_number: String,
+    /// Car number as iRacing encodes it for camera commands (CarNumberRaw).
+    pub car_number_raw: i32,
     pub car_id: i64,
     pub car_path: String,
     pub car_name: String,
@@ -342,6 +369,8 @@ pub struct SessionInfo {
     pub league_id: i64,
     pub event_type: String,
     pub incident_limit: Option<i32>,
+    /// Pit lane speed limit (km/h, 0 = unknown).
+    pub pit_speed_limit_kph: f32,
     pub sessions: Vec<SessionDef>,
     pub drivers: Vec<Driver>,
     pub player_car_idx: i32,
@@ -410,6 +439,7 @@ impl SessionInfo {
                 team_id: d.get("TeamID").i64().unwrap_or(0),
                 team_name: d.get("TeamName").string(),
                 car_number: d.get("CarNumber").string(),
+                car_number_raw: d.get("CarNumberRaw").i32_or(-1),
                 car_id: d.get("CarID").i64().unwrap_or(0),
                 car_path: d.get("CarPath").string(),
                 car_name: d.get("CarScreenName").string(),
@@ -457,6 +487,15 @@ impl SessionInfo {
             league_id: wi.get("LeagueID").i64().unwrap_or(0),
             event_type: wi.get("EventType").string(),
             incident_limit: wi.path("WeekendOptions.IncidentLimit").i64().map(|v| v as i32),
+            pit_speed_limit_kph: {
+                let s = wi.get("TrackPitSpeedLimit").string();
+                let v = wi.get("TrackPitSpeedLimit").f32_or(0.0);
+                if s.contains("mph") {
+                    v * 1.609_344
+                } else {
+                    v
+                }
+            },
             sessions,
             drivers,
             player_car_idx: di.get("DriverCarIdx").i32_or(-1),

@@ -35,12 +35,22 @@ pub enum HostEvent {
     InstallUpdate,
     /// Close the update pop-up window.
     ClosePrompt,
+    /// An overlay wants mouse clicks (true) or to be click-through again (false).
+    Interactive {
+        id: String,
+        value: bool,
+    },
 }
 
 /// Commands for the telemetry thread.
 #[derive(Debug, Clone)]
 pub enum Command {
     ResetTrackMap,
+    /// Jump the replay to `session_time` (seconds) in session `session_num`, watching the player.
+    Replay {
+        session_num: i32,
+        session_time: f64,
+    },
     SetTrackData {
         track_id: i64,
         data: crate::corners::TrackData,

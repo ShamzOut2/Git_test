@@ -54,7 +54,7 @@ export const inputs: OverlayDef = {
     { key: 'traceWidth', label: 'Trace line width', type: 'number', default: 2, min: 0.5, max: 6, step: 0.5, unit: 'px', group: 'Trace' },
     { key: 'traceSteering', label: 'Show steering in trace', type: 'bool', default: false, group: 'Trace' },
     { key: 'traceFill', label: 'Fill under throttle/brake', type: 'bool', default: true, group: 'Trace' },
-    { key: 'absHighlight', label: 'Colour brake when ABS is active', type: 'bool', default: true, group: 'Trace' },
+    { key: 'absHighlight', label: 'Colour the brake trace and bar while ABS is active', type: 'bool', default: true, group: 'Trace' },
     { key: 'throttleColor', label: 'Throttle', type: 'color', default: '#3ddc84', group: 'Colours' },
     { key: 'brakeColor', label: 'Brake', type: 'color', default: '#ff4d4d', group: 'Colours' },
     { key: 'clutchColor', label: 'Clutch', type: 'color', default: '#4da3ff', group: 'Colours' },
@@ -65,6 +65,7 @@ export const inputs: OverlayDef = {
   create(root, ctx) {
     const s = ctx.settings;
     root.classList.add('inputs');
+    root.style.setProperty('--abs-color', s.absColor as string);
     const lights = h('div', 'shift-lights');
     lights.style.setProperty('--led', `${s.shiftLightSize}em`);
     const main = h('div', 'inputs-main');
@@ -220,14 +221,33 @@ export const inputs: OverlayDef = {
         g.globalAlpha = 1;
       }
       if (absArr && s.absHighlight) {
-        g.strokeStyle = s.absColor as string;
-        for (let i = 1; i < n; i++) {
-          const k = (head + i) % n;
-          if (!absArr[k]) continue;
+        // Each stretch with ABS working: the line thicker and the area under it filled in the
+        // ABS colour, from where it kicked in to where it stopped.
+        const absColor = s.absColor as string;
+        const width = (s.traceWidth as number) * (window.devicePixelRatio || 1) * 1.7;
+        for (let i = 0; i < n; i++) {
+          if (!absArr[(head + i) % n]) continue;
+          const start = i;
+          while (i + 1 < n && absArr[(head + i + 1) % n]) i++;
+          const end = i;
+          const from = Math.max(0, start - 1);
           g.beginPath();
-          g.moveTo(x(i - 1), y(arr[(head + i - 1) % n]));
-          g.lineTo(x(i), y(arr[k]));
+          for (let k = from; k <= end; k++) {
+            const v = arr[(head + k) % n];
+            if (k === from) g.moveTo(x(k), y(v));
+            else g.lineTo(x(k), y(v));
+          }
+          g.strokeStyle = absColor;
+          g.lineWidth = width;
+          g.lineJoin = 'round';
           g.stroke();
+          g.lineTo(x(end), hh);
+          g.lineTo(x(from), hh);
+          g.closePath();
+          g.globalAlpha = 0.4;
+          g.fillStyle = absColor;
+          g.fill();
+          g.globalAlpha = 1;
         }
       }
     };
@@ -257,7 +277,7 @@ export const inputs: OverlayDef = {
         bar(throttle, p.throttle);
         bar(brake, p.brake);
         bar(clutch, p.clutch);
-        toggle(brake.wrap, 'abs', p.abs);
+        toggle(brake.wrap, 'abs', !!s.absHighlight && p.abs);
         style(wheel, 'transform', `rotate(${(-p.steering * 180) / Math.PI}deg)`);
         text(gear, p.gear === -1 ? 'R' : p.gear === 0 ? 'N' : String(p.gear));
         text(spd, `${Math.round(f.speed(p.speed, ctx.units))}`);

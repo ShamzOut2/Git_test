@@ -108,6 +108,9 @@ impl Default for Config {
                 o("session", "session", 510, 10, 900, 52),
                 o("tyres", "tyres", 1540, 680, 300, 150),
                 o("flags", "flags", 860, 70, 220, 110),
+                o("spotter", "spotter", 850, 520, 220, 200),
+                o("pit", "pit", 845, 300, 230, 200),
+                OverlayInstance { enabled: false, ..o("incidents", "incidents", 40, 700, 340, 230) },
                 OverlayInstance { enabled: false, ..o("weather", "weather", 1240, 680, 300, 170) },
                 OverlayInstance { enabled: false, ..o("garage61", "garage61", 1540, 850, 300, 170) },
             ],
@@ -381,11 +384,29 @@ pub struct Garage61Config {
     pub token: String,
     pub include_team: bool,
     pub refresh_minutes: u32,
+    /// Laps searched: "all", "season" (current iRacing season), "seasons2" (current and
+    /// previous), or a number of days ("90", "30", "7").
+    pub period: String,
+    /// Lap to compare with live: "personal" (your best), "team" (fastest in your teams) or "off".
+    pub reference: String,
+    /// Only laps driven in similar conditions: track temperature within `temp_range` °C and
+    /// the same dry / wet track.
+    pub match_conditions: bool,
+    pub temp_range: f32,
 }
 
 impl Default for Garage61Config {
     fn default() -> Self {
-        Self { enabled: false, token: String::new(), include_team: true, refresh_minutes: 5 }
+        Self {
+            enabled: false,
+            token: String::new(),
+            include_team: true,
+            refresh_minutes: 5,
+            period: "all".into(),
+            reference: "personal".into(),
+            match_conditions: false,
+            temp_range: 6.0,
+        }
     }
 }
 

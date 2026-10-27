@@ -31,4 +31,6 @@ pub trait Source: Send {
     fn pit_lane(&self) -> Option<(f32, f32)> {
         None
     }
+    /// Jump the replay to a moment and watch a car (`car_number_raw`, with the camera in use).
+    fn replay(&mut self, _session_num: i32, _session_time: f64, _car_number_raw: Option<i32>, _camera: (i32, i32)) {}
 }

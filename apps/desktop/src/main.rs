@@ -7,7 +7,7 @@
 
 use apex_core::config::{Config, ConfigStore};
 use apex_core::hub::{HostEvent, Hub};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -32,6 +32,8 @@ struct Core {
     pending: Mutex<HashMap<String, Geometry>>,
     /// Overlays that size their window to their content (label -> (width, height), 0 = user-set).
     auto_size: Mutex<HashMap<String, (f64, f64)>>,
+    /// Overlays that take mouse clicks right now (e.g. the incident list's replay buttons).
+    interactive: Mutex<HashSet<String>>,
     /// "Move all together": the overlay being dragged, its start position and every other
     /// overlay's start position (logical pixels).
     group_drag: Mutex<Option<GroupDrag>>,
@@ -146,7 +148,8 @@ fn reconcile(app: &AppHandle) {
                 }
             }
         };
-        let _ = win.set_ignore_cursor_events(!edit);
+        let clickable = edit || core.interactive.lock().unwrap().contains(&label);
+        let _ = win.set_ignore_cursor_events(!clickable);
         let _ = if visible || edit { win.show() } else { win.hide() };
     }
     for (label, w) in app.webview_windows() {
@@ -232,6 +235,17 @@ fn handle_host_event(app: &AppHandle, ev: HostEvent) {
                     if (size.width - nw).abs() > 1.0 || (size.height - nh).abs() > 1.0 {
                         let _ = w.set_size(LogicalSize::new(nw, nh));
                     }
+                }
+            }
+        }
+        HostEvent::Interactive { id, value } => {
+            let label = label_for(&id);
+            let core = app.state::<Core>();
+            let changed = if value { core.interactive.lock().unwrap().insert(label.clone()) } else { core.interactive.lock().unwrap().remove(&label) };
+            if changed {
+                if let Some(w) = app.get_webview_window(&label) {
+                    let edit = core.hub.edit_mode.load(Ordering::Relaxed);
+                    let _ = w.set_ignore_cursor_events(!(edit || value));
                 }
             }
         }
@@ -416,6 +430,7 @@ fn main() {
             port: core.addr.port(),
             pending: Mutex::new(HashMap::new()),
             auto_size: Mutex::new(HashMap::new()),
+            interactive: Mutex::new(HashSet::new()),
             group_drag: Mutex::new(None),
             update: tokio::sync::Mutex::new(None),
         })

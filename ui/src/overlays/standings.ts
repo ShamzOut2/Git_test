@@ -168,7 +168,7 @@ export const standings: OverlayDef = {
           text(sec.name, c.name);
           const redo = () => (key = '');
           const wanted = s.classLogo !== 'off';
-          const url = wanted ? (classLogo(c.name, redo) ?? classBadge(c.name, c.color, c.rows.map((r) => r.car), s.classBadgeColor as string, redo)) : null;
+          const url = wanted ? (classLogo(c.name, redo) ?? classBadge(c.name, c.id, c.color, c.rows.map((r) => r.car), s.classBadgeColor as string, redo)) : null;
           if (url && sec.logo.getAttribute('src') !== url) sec.logo.src = url;
           if (sec.logo.hidden !== !url) sec.logo.hidden = !url;
           show(sec.name, !(url && s.classLogo === 'only'));
