@@ -821,7 +821,7 @@ function cornersCard(rerender: () => void): HTMLElement {
   const c = card('Track map & corners');
   const outline = h('select');
   for (const [v, t] of [
-    ['iracing', 'iRacing’s official track map (needs the iRacing login from League builder)'],
+    ['iracing', 'iRacing’s official track map (recorded from my driving if a track has none)'],
     ['recorded', 'Recorded from my own driving'],
   ]) {
     const o = h('option', '', t);

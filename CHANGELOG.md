@@ -4,6 +4,7 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 ## 0.5.6
 
+- Track map: iRacing's official track maps no longer need the iRacing login — the app downloads the list of maps published with Apex Overlays, so every track has its real outline straight away instead of waiting for a clean lap (tracks missing from the list are still recorded from your driving)
 - Overlay settings redesigned: each overlay's settings are split into tabs (What to show, Layout, Columns, Colours, Size & visibility…), with a search box, a live preview at the top and a ↺ button to put any setting back to its default; tabs with changed settings are marked
 - Columns: the columns you show are listed in order (move or remove them), the others are one click away to add
 - Overlay list: switch overlays on and off right in the list; "Add overlay" shows every overlay with what it does; moving all overlays and sharing layouts are in one "Layout & sharing" menu
