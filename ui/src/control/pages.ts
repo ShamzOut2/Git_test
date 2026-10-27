@@ -965,6 +965,7 @@ const generalPage: Page = {
       toggleVisibility: cfg.hotkeys.toggleVisibility,
       ratingsOfficialOnly: cfg.ratingsOfficialOnly,
       shortClassNames: cfg.shortClassNames,
+      updateRate: cfg.updateRate ?? 'balanced',
     };
     el.replaceChildren(
       card(
@@ -988,6 +989,18 @@ const generalPage: Page = {
               help: 'From the community Lovely Car Classes and Car Data lists; leagues use their own class names',
               group: 'Display',
             },
+            {
+              key: 'updateRate',
+              label: 'Overlay update rate',
+              type: 'select',
+              default: 'balanced',
+              options: [
+                ['balanced', 'Balanced — tables a few times a second, inputs/track map/spotter 60/s'],
+                ['full', 'Every tick — everything 60 times a second (as before 0.5.6, more CPU)'],
+              ],
+              help: 'Balanced sends standings 10/s, relative 20/s, battle 10/s, pit lane 30/s, fuel/session/tyres/incidents 4/s. Applies straight away.',
+              group: 'Performance',
+            },
             { key: 'toggleEdit', label: 'Toggle edit mode', type: 'text', default: 'CmdOrCtrl+Shift+E', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'toggleVisibility', label: 'Show / hide overlays', type: 'text', default: 'CmdOrCtrl+Shift+H', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'port', label: 'Port', type: 'number', default: 8182, min: 1024, max: 65535, group: 'Server (restart to apply)' },
@@ -1002,6 +1015,7 @@ const generalPage: Page = {
             if (k === 'toggleVisibility') cfg.hotkeys.toggleVisibility = v as string;
             if (k === 'ratingsOfficialOnly') cfg.ratingsOfficialOnly = v as boolean;
             if (k === 'shortClassNames') cfg.shortClassNames = v as boolean;
+            if (k === 'updateRate') cfg.updateRate = v as 'balanced' | 'full';
             save();
           },
         ),

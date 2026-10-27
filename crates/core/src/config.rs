@@ -44,6 +44,9 @@ pub struct Config {
     pub short_class_names: bool,
     /// Track map outline: "iracing" (iRacing's official map when available) or "recorded".
     pub track_outline: String,
+    /// How often live data is sent to overlays: "balanced" (timing tables a few times a
+    /// second, driving aids every tick) or "full" (everything every tick, as before 0.5.6).
+    pub update_rate: String,
     /// "Remind me later" / "skip this version" for the update pop-up.
     pub update_postpone: Option<UpdatePostpone>,
 }
@@ -132,6 +135,7 @@ impl Default for Config {
             short_class_names: true,
             update_postpone: None,
             track_outline: "iracing".into(),
+            update_rate: "balanced".into(),
         }
     }
 }

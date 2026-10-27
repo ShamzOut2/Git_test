@@ -8,7 +8,7 @@ The section for each version is shown in the in-app update pop-up and on the Git
 - Overlay settings redesigned: each overlay's settings are split into tabs (What to show, Layout, Columns, Colours, Size & visibility…), with a search box, a live preview at the top and a ↺ button to put any setting back to its default; tabs with changed settings are marked
 - Columns: the columns you show are listed in order (move or remove them), the others are one click away to add
 - Overlay list: switch overlays on and off right in the list; "Add overlay" shows every overlay with what it does; moving all overlays and sharing layouts are in one "Layout & sharing" menu
-- Faster: timing tables are sent at a sensible rate instead of 60 times a second (standings 10/s, relative 20/s, fuel and session 4/s; inputs, track map and spotter stay at 60/s) — about 70% less data, and the standings window uses about a fifth of the CPU it did
+- Faster: timing tables are sent at a sensible rate instead of 60 times a second (standings 10/s, relative 20/s, fuel and session 4/s; inputs, track map and spotter stay at 60/s) — about 70% less data, and the standings window uses about a fifth of the CPU it did; *General → Performance → Overlay update rate* switches back to everything 60 times a second
 - Faster: overlays only read the newest update of each kind per screen refresh, skip drawing while hidden, and no longer receive the 60/s input data unless they need it; the settings window only receives live race data on the pages that show it
 
 ## 0.5.5
