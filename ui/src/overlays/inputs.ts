@@ -119,7 +119,12 @@ export const inputs: OverlayDef = {
     const arrange = (p: Plan): Plan => {
       const layout = s.shiftLayout as string;
       if (layout === 'car' || p.on.length < 2) return p;
-      const stages = p.on.map((rpm, i) => ({ rpm, color: p.colors[i] })).sort((a, b) => a.rpm - b.rpm);
+      // Blank positions of the car's light bar are left out of the other patterns.
+      const stages = p.on
+        .map((rpm, i) => ({ rpm, color: p.colors[i] }))
+        .filter((x) => Number.isFinite(x.rpm))
+        .sort((a, b) => a.rpm - b.rpm);
+      if (stages.length < 2) return p;
       const n = stages.length;
       if (layout === 'ltr' || layout === 'rtl') {
         const order = layout === 'ltr' ? stages : [...stages].reverse();
@@ -144,8 +149,11 @@ export const inputs: OverlayDef = {
       const g = lv && (lv.rpm[key] ?? lv.rpm[String(Math.max(1, gear))]);
       if (lv && g && g.length > 1) {
         const n = Math.min(lv.leds, g.length - 1);
-        const on = g.slice(1, n + 1);
-        p = { on, colors: on.map((_, i) => lv.colors[i + 1] || ramp(i, n)), flashAt: g[0], flashColor: lv.colors[0] || (s.shiftFlashColor as string) };
+        // A light at 0 rpm or with a transparent colour ('') is a blank spot in the car's
+        // light bar (e.g. GT3 wheels with 12 positions and 10 lights): it never lights.
+        const blank = (i: number) => g[i + 1] <= 0 || lv.colors[i + 1] === '';
+        const on = g.slice(1, n + 1).map((rpm, i) => (blank(i) ? Infinity : rpm));
+        p = { on, colors: on.map((_, i) => (blank(i) ? '' : lv.colors[i + 1] || ramp(i, n))), flashAt: g[0], flashColor: lv.colors[0] || (s.shiftFlashColor as string) };
       } else if (car && car.slShift > 0) {
         const n = s.shiftLightCount as number;
         const first = car.slFirst > 0 ? car.slFirst : car.slShift * 0.85;
@@ -164,13 +172,14 @@ export const inputs: OverlayDef = {
       if (!pl) return;
       if (pl !== shown) {
         shown = pl;
-        leds = pl.on.map(() => h('span', 'led'));
+        leds = pl.on.map((rpm) => h('span', Number.isFinite(rpm) ? 'led' : 'led blank'));
         lights.replaceChildren(...leds);
       }
       const flash = p.rpm >= pl.flashAt && pl.flashAt > 0;
       const blinkOn = !flash || Math.floor(performance.now() / (s.shiftFlashMs as number)) % 2 === 0;
       leds.forEach((el, i) => {
-        const lit = flash ? blinkOn : p.rpm >= pl.on[i];
+        const blank = !Number.isFinite(pl.on[i]);
+        const lit = !blank && (flash ? blinkOn : p.rpm >= pl.on[i]);
         const color = lit ? (flash ? pl.flashColor : pl.colors[i]) : '';
         if (el.style.getPropertyValue('--c') !== color) el.style.setProperty('--c', color);
         toggle(el, 'on', lit);
