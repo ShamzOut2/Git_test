@@ -1091,8 +1091,8 @@ pub(crate) mod tests {
         let mut info = e.info.clone();
         info.qualify = [3usize, 1, 0, 2].iter().enumerate().map(|(p, &car_idx)| ResultPos { position: p as i32 + 1, car_idx, ..Default::default() }).collect();
         e.set_session(info);
-        e.tel.session_state = 3; // parade laps
-        // Only two cars have loaded in so far.
+        // Parade laps; only two cars have loaded in so far.
+        e.tel.session_state = 3;
         for i in 0..4 {
             e.tel.cars[i] = Default::default();
             e.tel.cars[i].pct = -1.0;
