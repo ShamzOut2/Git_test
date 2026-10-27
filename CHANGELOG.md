@@ -2,6 +2,13 @@
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
 
+## 0.5.2
+
+- Class badges for 52 iRacing classes (GT3, LMP2, TCR, GTP, MX-5, oval and dirt classes…), coloured to match each class's colour in the session, in the standings class headers and the class column
+- Flags overlay: the writing on every flag is now readable (yellow, white and LED-style flags)
+- iRating gain/loss estimate counts the whole field from the start, so it no longer shows large negative numbers while drivers are still loading in
+- Before the start, the standings show the qualifying grid, including drivers who haven't loaded in yet; the grid is remembered if the app restarts
+
 ## 0.5.1
 
 - Update pop-up: when a new version is out, Apex Overlays offers it at start-up — update now, remind me tomorrow or in a week, or skip that version
