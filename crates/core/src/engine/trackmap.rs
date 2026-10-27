@@ -61,7 +61,12 @@ impl Recorder {
         self.track_id = track_id;
         self.track_name = name.to_string();
         self.active = false;
-        self.map = self.path(track_id).and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str(&s).ok());
+        let read = |p: PathBuf| std::fs::read_to_string(p).ok().and_then(|s| serde_json::from_str::<TrackMap>(&s).ok());
+        // The player's own recording, else a copy from the shared map library.
+        self.map = self.path(track_id).and_then(read).or_else(|| {
+            let lib = self.dir.as_ref()?.join("library").join(format!("{track_id}.json"));
+            read(lib).filter(|m| m.track_id == track_id).map(|m| TrackMap { source: "library".into(), ..m })
+        });
         if self.official.as_ref().is_some_and(|m| m.track_id != track_id) {
             self.official = None;
         }
@@ -81,6 +86,16 @@ impl Recorder {
             official.or(self.map.as_ref())
         } else {
             self.map.as_ref().or(official)
+        }
+    }
+
+    /// An outline from the shared map library: used while nothing is recorded for this track,
+    /// and never written over the player's own recording.
+    pub fn set_library(&mut self, map: TrackMap) {
+        if map.track_id == self.track_id && self.map.is_none() {
+            self.map = Some(map);
+            self.active = false;
+            self.revision += 1;
         }
     }
 
@@ -270,5 +285,37 @@ mod tests {
             let diff = (got - want).rem_euclid(std::f32::consts::TAU);
             assert!(diff.min(std::f32::consts::TAU - diff) < 0.05, "{f}: {got} vs {want}");
         }
+    }
+}
+
+#[cfg(test)]
+mod library_tests {
+    use super::*;
+
+    fn map(id: i64, source: &str) -> TrackMap {
+        TrackMap { track_id: id, name: "T".into(), points: vec![[0.0, 0.0]; BINS], source: source.into() }
+    }
+
+    #[test]
+    fn library_map_fills_in_but_never_replaces_a_recording() {
+        let dir = std::env::temp_dir().join(format!("apex-lib-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("library")).unwrap();
+        let mut r = Recorder::new(Some(dir.clone()));
+        r.load(7, "T");
+        assert!(r.map.is_none());
+        r.set_library(map(7, "library"));
+        assert_eq!(r.map.as_ref().unwrap().source, "library");
+        // Loaded again later (reconnect): the downloaded copy is read from disk.
+        std::fs::write(dir.join("library").join("7.json"), serde_json::to_string(&map(7, "recorded")).unwrap()).unwrap();
+        r.load(7, "T");
+        assert_eq!(r.map.as_ref().unwrap().source, "library");
+        // The player's own recording wins.
+        std::fs::write(dir.join("7.json"), serde_json::to_string(&map(7, "recorded")).unwrap()).unwrap();
+        r.load(7, "T");
+        assert_eq!(r.map.as_ref().unwrap().source, "recorded");
+        r.set_library(map(7, "library"));
+        assert_eq!(r.map.as_ref().unwrap().source, "recorded");
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

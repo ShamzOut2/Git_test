@@ -58,6 +58,8 @@ pub enum Command {
     },
     /// Outline from iRacing's official track map.
     SetOfficialMap(crate::engine::trackmap::TrackMap),
+    /// Outline from the shared map library (used until the player records their own).
+    SetLibraryMap(crate::engine::trackmap::TrackMap),
     /// Lovely Car Data per `CarPath` (lower case).
     SetCarData(std::collections::HashMap<String, crate::cardata::CarData>),
     /// Lovely Car Classes: iRacing class name → shorthand.

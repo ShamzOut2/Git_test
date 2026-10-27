@@ -145,6 +145,7 @@ fn run(
                 Command::SetCountries(c) => e.set_remote_countries(c),
                 Command::SetCarData(d) => e.set_car_data(d),
                 Command::SetOfficialMap(m) => e.map.set_official(m),
+                Command::SetLibraryMap(m) => e.map.set_library(m),
                 Command::SetClassNames(c) => e.set_class_names(c),
                 Command::Replay { session_num, session_time } => {
                     let me = e.info.driver(e.info.player_car_idx.max(0) as usize);
