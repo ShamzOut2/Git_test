@@ -172,7 +172,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .class-name { font-weight: 700; }
 .class-left { display: inline-flex; align-items: center; gap: 0.4em; }
 .class-logo { height: 1.15em; width: auto; display: block; }
-.class-badge { height: 1.05em; width: auto; display: block; margin: 0 auto; }
+.class-badge { height: 1.05em; width: auto; max-width: 100%; object-fit: contain; display: block; margin: 0 auto; }
 .class-logo[hidden] { display: none; }
 .class-head .info { color: var(--dim); font-size: 0.85em; }
 
@@ -193,6 +193,7 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .shift-lights { display: flex; gap: 0.25em; justify-content: center; flex: none; }
 .shift-lights .led { width: var(--led, 0.9em); height: var(--led, 0.9em); border-radius: 50%; background: var(--track); box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.45); }
 .shift-lights .led.on { background: var(--c); box-shadow: 0 0 0.45em var(--c); }
+.shift-lights .led.blank { opacity: 0.35; }
 .inputs .trace { flex: 1; min-width: 0; height: 100%; background: rgba(0, 0, 0, 0.25); border-radius: calc(var(--radius) - 2px); }
 .inputs .bars { display: flex; gap: 0.3em; }
 .inputs .barcol { display: flex; flex-direction: column; align-items: center; gap: 0.15em; }
