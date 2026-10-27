@@ -501,6 +501,8 @@ export interface Config {
   shortClassNames: boolean;
   /** Track map outline: iRacing's official map when available, or the one recorded from your driving. */
   trackOutline: 'iracing' | 'recorded';
+  /** 'balanced': timing tables a few times a second; 'full': everything 60 times a second. */
+  updateRate: 'balanced' | 'full';
 }
 
 export interface Penalty {

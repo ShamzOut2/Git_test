@@ -1241,3 +1241,37 @@ pub(crate) mod tests {
         assert!(s > 1000 && s < 3000);
     }
 }
+
+#[cfg(test)]
+mod perf {
+    use super::tests::{engine, place};
+    use crate::topics::Topic;
+
+    /// `cargo test --release -p apex-core perf -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn tick_and_topics() {
+        let n = 60;
+        let mut e = engine(n, true);
+        e.info.track_length_km = 5.0;
+        let reps = 3000;
+        let t0 = std::time::Instant::now();
+        for k in 0..reps {
+            e.tel.session_time = k as f64 / 60.0;
+            for i in 0..n {
+                place(&mut e, i, 3 + (k / 600) as i32, ((i as f32 * 0.013 + k as f32 * 0.0004) % 1.0).abs());
+            }
+            e.tick();
+        }
+        let tick = t0.elapsed() / reps;
+        println!("tick: {tick:?}");
+        for t in Topic::ALL {
+            let t0 = std::time::Instant::now();
+            let mut len = 0;
+            for _ in 0..300 {
+                len = t.build(&e).len();
+            }
+            println!("{:10} {:?}  {} bytes", t.name(), t0.elapsed() / 300, len);
+        }
+    }
+}

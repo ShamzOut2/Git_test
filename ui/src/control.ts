@@ -5,7 +5,7 @@ import { leaguesPage } from './control/leagues';
 import { raceControlPage } from './control/racecontrol';
 import { renderUpdatePrompt } from './control/updatePrompt';
 import { PAGES, type Page } from './control/pages';
-import { listen, state } from './control/state';
+import { listen, pageTopics, state } from './control/state';
 import { applyUiTheme } from './lib/theme';
 
 const pages: Page[] = [PAGES[0], PAGES[1], PAGES[2], leaguesPage, raceControlPage, ...PAGES.slice(3)];
@@ -42,6 +42,7 @@ function render() {
   applyUiTheme(state.config.theme, document.documentElement);
   if (promptMode) return renderUpdatePrompt(main);
   const p = current();
+  pageTopics(p.id);
   links.forEach((a, id) => a.classList.toggle('sel', id === p.id));
   p.render(main);
 }

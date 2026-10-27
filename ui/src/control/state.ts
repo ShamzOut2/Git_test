@@ -47,7 +47,17 @@ export const client = new Client((t, d) => {
   }
   listeners.forEach((l) => l(t));
 });
-client.subscribe('config', 'status', 'session', 'standings', 'garage61', 'trackmap', 'player', 'leagueImport', 'update');
+client.subscribe('config', 'status', 'session', 'garage61', 'leagueImport', 'update');
+
+/** Live data only some pages show: received only while one of them is open. */
+const PAGE_TOPICS: Record<string, TopicName[]> = { leagues: ['standings'], racecontrol: ['standings'], general: ['trackmap', 'player'] };
+
+export function pageTopics(page: string) {
+  const want = new Set(PAGE_TOPICS[page] ?? []);
+  const all = new Set(Object.values(PAGE_TOPICS).flat());
+  client.unsubscribe(...[...all].filter((t) => !want.has(t)));
+  client.subscribe(...want);
+}
 
 export function save(immediate = false) {
   clearTimeout(timer);

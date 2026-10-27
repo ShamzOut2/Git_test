@@ -410,8 +410,28 @@ pub fn build(track_id: i64, name: &str, active: &str, start_finish: Option<&str>
     Some(TrackMap { track_id, name: name.to_string(), points: normalise(&pts), source: "iracing".into() })
 }
 
-/// Downloads iRacing's track map for the current track through the Data API (needs the
-/// iRacing login from League builder → Import from iRacing) and caches the outline per track.
+/// Where the published index of iRacing's track maps lives (track id → map folder and
+/// layer files), so maps work without an iRacing login. Maintainers refresh it from the
+/// `iracing-track-maps.json` a logged-in copy of the app writes (see `trim_index`).
+const INDEX_URL: &str = "https://raw.githubusercontent.com/ShamzOut2/Apex_Overlays/main/data/iracing-track-maps.json";
+
+/// The part of the Data API's track/assets that locates each track map: the SVG files
+/// themselves are public, only this index needs a login.
+pub fn trim_index(assets: &serde_json::Value) -> serde_json::Value {
+    let mut out = serde_json::Map::new();
+    for (id, e) in assets.as_object().into_iter().flatten() {
+        let (Some(base), Some(layers)) = (e.get("track_map").and_then(|b| b.as_str()), e.get("track_map_layers")) else { continue };
+        if base.is_empty() || !layers.is_object() {
+            continue;
+        }
+        out.insert(id.clone(), serde_json::json!({ "track_map": base, "track_map_layers": layers }));
+    }
+    serde_json::Value::Object(out)
+}
+
+/// Downloads iRacing's track map for the current track and caches the outline per track.
+/// The index of maps comes from the Data API when the iRacing login is set up (League
+/// builder → Import from iRacing), otherwise from the copy published with Apex Overlays.
 pub fn spawn(
     hub: std::sync::Arc<crate::hub::Hub>,
     config: crate::config::ConfigStore,
@@ -424,6 +444,7 @@ pub fn spawn(
     let _ = std::thread::Builder::new().name("trackmaps".into()).spawn(move || {
         let dir = data_dir.join("trackmaps").join("iracing");
         let assets_file = data_dir.join("iracing").join("track-assets.json");
+        let index_file = data_dir.join("iracing").join("published-track-maps.json");
         let agent = crate::net::agent();
         let mut client: Option<crate::iracing_api::Client> = None;
         let mut done: Option<i64> = None;
@@ -441,19 +462,22 @@ pub fn spawn(
                 done = Some(id);
                 continue;
             }
-            let api = config.read(|c| c.iracing_api.clone());
-            if !api.configured() || Instant::now() < retry_at {
+            if Instant::now() < retry_at {
                 continue;
             }
+            let api = config.read(|c| c.iracing_api.clone());
             let key = id.to_string();
-            // Track asset index (all tracks): cached for a week, refreshed when the track is missing.
-            let fresh = std::fs::metadata(&assets_file)
-                .and_then(|m| m.modified())
-                .ok()
-                .and_then(|t| SystemTime::now().duration_since(t).ok())
-                .is_some_and(|age| age < Duration::from_secs(7 * 86_400));
-            let mut assets = read(&assets_file).filter(|a| fresh && a.get(&key).is_some());
-            if assets.is_none() {
+            // Track map index (all tracks): cached for a week, refreshed when the track is missing.
+            let fresh = |p: &std::path::Path| {
+                std::fs::metadata(p)
+                    .and_then(|m| m.modified())
+                    .ok()
+                    .and_then(|t| SystemTime::now().duration_since(t).ok())
+                    .is_some_and(|age| age < Duration::from_secs(7 * 86_400))
+            };
+            let file = if api.configured() { &assets_file } else { &index_file };
+            let mut assets = read(file).filter(|a| fresh(file) && a.get(&key).is_some());
+            if assets.is_none() && api.configured() {
                 let c = client.get_or_insert_with(|| crate::iracing_api::Client::new(api.clone()));
                 match c.get("track/assets", &[]) {
                     Ok(v) => {
@@ -461,6 +485,11 @@ pub fn spawn(
                             let _ = std::fs::create_dir_all(d);
                         }
                         let _ = std::fs::write(&assets_file, v.to_string());
+                        // The trimmed index, ready to publish for users without a login.
+                        let _ = std::fs::write(
+                            assets_file.with_file_name("iracing-track-maps.json"),
+                            serde_json::to_string_pretty(&trim_index(&v)).unwrap_or_default(),
+                        );
                         assets = Some(v);
                     }
                     Err(e) => {
@@ -469,6 +498,32 @@ pub fn spawn(
                         retry_at = Instant::now() + Duration::from_secs(600);
                         continue;
                     }
+                }
+            } else if assets.is_none() {
+                match agent.get(INDEX_URL).call().ok().and_then(|r| r.into_json::<Value>().ok()) {
+                    Some(v) => {
+                        if let Some(d) = index_file.parent() {
+                            let _ = std::fs::create_dir_all(d);
+                        }
+                        let _ = std::fs::write(&index_file, v.to_string());
+                        if v.get(&key).is_none() {
+                            // Not in the published index (yet): the recorded outline is used.
+                            log::info!("track {id} is not in the published track map index");
+                            done = Some(id);
+                            continue;
+                        }
+                        assets = Some(v);
+                    }
+                    None => {
+                        retry_at = Instant::now() + Duration::from_secs(3600);
+                        continue;
+                    }
+                }
+            }
+            let published = assets_file.with_file_name("iracing-track-maps.json");
+            if api.configured() && !published.exists() {
+                if let Some(a) = &assets {
+                    let _ = std::fs::write(&published, serde_json::to_string_pretty(&trim_index(a)).unwrap_or_default());
                 }
             }
             let entry = assets.as_ref().and_then(|a| a.get(&key));
@@ -514,6 +569,17 @@ mod tests {
 
     fn screen(m: &TrackMap, i: usize) -> [f32; 2] {
         m.points[i]
+    }
+
+    #[test]
+    fn trims_the_asset_index() {
+        let v = serde_json::json!({
+            "1": {"track_id": 1, "track_map": "https://x/tracks/a/1/", "track_map_layers": {"active": "active.svg", "turns": "turns.svg"}, "detail_copy": "long text"},
+            "2": {"track_id": 2, "track_map": "", "track_map_layers": {}},
+            "3": {"track_id": 3}
+        });
+        let t = trim_index(&v);
+        assert_eq!(t, serde_json::json!({"1": {"track_map": "https://x/tracks/a/1/", "track_map_layers": {"active": "active.svg", "turns": "turns.svg"}}}));
     }
 
     #[test]

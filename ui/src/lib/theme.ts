@@ -108,11 +108,19 @@ function luminance(c: [number, number, number]): number {
 }
 
 /** Readable text colour on a coloured background: white unless it would be hard to read (e.g. on yellow). */
+const onColors = new Map<string, string>();
+
+/** Dark or light text, whichever reads better on `hex` (cached: overlays ask every frame). */
 export function onColor(hex: string, dark = '#0b0e13', light = '#ffffff'): string {
-  const c = rgb(hex);
-  if (!c) return light;
-  const whiteContrast = 1.05 / (luminance(c) + 0.05);
-  return whiteContrast >= 3 ? light : dark;
+  const key = `${hex}|${dark}|${light}`;
+  let v = onColors.get(key);
+  if (v === undefined) {
+    const c = rgb(hex);
+    v = !c || 1.05 / (luminance(c) + 0.05) >= 3 ? light : dark;
+    if (onColors.size > 500) onColors.clear();
+    onColors.set(key, v);
+  }
+  return v;
 }
 
 export function isLight(hex: string): boolean {

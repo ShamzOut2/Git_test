@@ -26,10 +26,23 @@ export function show(el: HTMLElement, visible: boolean) {
 }
 
 /** Canvas sized to its CSS box at device pixel ratio. Returns true if resized. */
+/** Canvas sizes kept up to date by a ResizeObserver: reading clientWidth every frame would
+ *  force a layout in the middle of drawing. */
+const sizes = new WeakMap<Element, { w: number; h: number }>();
+const sizer = new ResizeObserver((entries) => {
+  for (const e of entries) sizes.set(e.target, { w: e.contentRect.width, h: e.contentRect.height });
+});
+
 export function fitCanvas(c: HTMLCanvasElement): boolean {
   const dpr = window.devicePixelRatio || 1;
-  const w = Math.max(1, Math.round(c.clientWidth * dpr));
-  const hgt = Math.max(1, Math.round(c.clientHeight * dpr));
+  let size = sizes.get(c);
+  if (!size) {
+    size = { w: c.clientWidth, h: c.clientHeight };
+    sizes.set(c, size);
+    sizer.observe(c);
+  }
+  const w = Math.max(1, Math.round(size.w * dpr));
+  const hgt = Math.max(1, Math.round(size.h * dpr));
   if (c.width !== w || c.height !== hgt) {
     c.width = w;
     c.height = hgt;
