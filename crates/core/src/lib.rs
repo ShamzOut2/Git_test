@@ -146,6 +146,11 @@ fn run(
                 Command::SetCarData(d) => e.set_car_data(d),
                 Command::SetOfficialMap(m) => e.map.set_official(m),
                 Command::SetClassNames(c) => e.set_class_names(c),
+                Command::Replay { session_num, session_time } => {
+                    let me = e.info.driver(e.info.player_car_idx.max(0) as usize);
+                    let car = me.map(|d| d.car_number_raw).filter(|n| *n >= 0);
+                    source.replay(session_num, session_time, car, (e.tel.cam_group, e.tel.cam_camera));
+                }
                 Command::ResetTrackMap => {
                     e.map.clear();
                     if let Some(m) = source.track_map(e.info.track_id) {

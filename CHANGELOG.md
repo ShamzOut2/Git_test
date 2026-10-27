@@ -4,6 +4,9 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 ## 0.5.5
 
+- New Pit lane overlay: a BRAKE sign and the distance to the pit entry line on the way in; your speed and a pit limiter light in the lane (solid green on, flashing red off); WAIT and a flashing GO in your box; the distance to the pit exit line; and a flashing "turn off pit limiter" once you cross it. It only appears when you head for the pits and hides 5 s after you leave
+- New Incident tracker overlay: each incident with its likely type (off track, loss of control, wall, car contact), the points, who you made contact with, your total against the limit, and a replay button that jumps the iRacing replay to the moment (clickable while a replay is playing)
+- Inputs: while ABS is working, the brake trace (thicker line and filled area) and the brake bar change to the ABS colour
 - New Spotter overlay: left and right bars that only appear when a car is alongside you, showing where it overlaps your car; red when three wide or two cars on one side
 - Garage 61: live delta to your Garage 61 best lap or your team's fastest lap, with sector deltas, using the lap's telemetry (downloaded once and cached)
 - Garage 61: choose which laps are searched (all time, this season, this and last season, last 90/30/7 days); all time by default

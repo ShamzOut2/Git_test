@@ -196,6 +196,16 @@ enum ClientMsg {
         days: Option<u32>,
     },
     ClosePrompt,
+    /// Jump the iRacing replay to this moment (only works while a replay is playing).
+    Replay {
+        session_num: i32,
+        session_time: f64,
+    },
+    /// Let an overlay window take mouse clicks (e.g. replay buttons) or go back to click-through.
+    SetInteractive {
+        id: String,
+        value: bool,
+    },
 }
 
 async fn ws(upgrade: WebSocketUpgrade, State(s): State<AppState>) -> Response {
@@ -282,6 +292,8 @@ fn handle(s: &AppState, m: ClientMsg, subs: &mut HashSet<String>, send_now: &mut
             }
         }),
         ClientMsg::ResetTrackMap => s.hub.command(Command::ResetTrackMap),
+        ClientMsg::Replay { session_num, session_time } => s.hub.command(Command::Replay { session_num, session_time }),
+        ClientMsg::SetInteractive { id, value } => s.hub.host(HostEvent::Interactive { id, value }),
         ClientMsg::OpenSettings => s.hub.host(HostEvent::OpenSettings),
         ClientMsg::SetIracingApi { client_id, client_secret, username, password } => s.config.update(|c| {
             let api = &mut c.iracing_api;

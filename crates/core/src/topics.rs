@@ -19,10 +19,12 @@ pub enum Topic {
     TrackMap,
     Car,
     Spotter,
+    Incidents,
+    Pit,
 }
 
 impl Topic {
-    pub const ALL: [Topic; 11] = [
+    pub const ALL: [Topic; 13] = [
         Topic::Session,
         Topic::Player,
         Topic::Cars,
@@ -34,6 +36,8 @@ impl Topic {
         Topic::TrackMap,
         Topic::Car,
         Topic::Spotter,
+        Topic::Incidents,
+        Topic::Pit,
     ];
 
     pub fn name(self) -> &'static str {
@@ -49,6 +53,8 @@ impl Topic {
             Topic::TrackMap => "trackmap",
             Topic::Car => "car",
             Topic::Spotter => "spotter",
+            Topic::Incidents => "incidents",
+            Topic::Pit => "pit",
         }
     }
 
@@ -78,6 +84,8 @@ impl Topic {
             Topic::TrackMap => serde_json::to_string(&trackmap(e)),
             Topic::Car => serde_json::to_string(&car(e)),
             Topic::Spotter => serde_json::to_string(&spotter(e)),
+            Topic::Incidents => serde_json::to_string(&incidents_out(e)),
+            Topic::Pit => serde_json::to_string(&e.pit_out),
         };
         r.unwrap_or_else(|_| "null".into())
     }
@@ -297,26 +305,6 @@ pub struct SpotterOut {
     pub right: Vec<f32>,
 }
 
-/// Cars within `range` metres of the player along the track (same pit lane state), nearest
-/// first, as signed distances (positive = ahead).
-fn cars_alongside(t: &crate::model::Telemetry, track_m: f32, range: f32) -> Vec<f32> {
-    let Some(me) = usize::try_from(t.player_idx).ok().filter(|&i| i < t.cars.len()) else { return vec![] };
-    if track_m <= 0.0 {
-        return vec![];
-    }
-    let p0 = t.lap_dist_pct;
-    let mut near: Vec<f32> = t
-        .cars
-        .iter()
-        .enumerate()
-        .filter(|&(i, c)| i != me && c.pct >= 0.0 && c.in_world() && c.on_pit_road == t.on_pit_road)
-        .map(|(_, c)| ((c.pct - p0 + 1.5).rem_euclid(1.0) - 0.5) * track_m)
-        .filter(|d| d.abs() <= range)
-        .collect();
-    near.sort_by(|a, b| a.abs().total_cmp(&b.abs()));
-    near.iter().map(|d| round(*d, 1)).collect()
-}
-
 pub fn spotter(e: &Engine) -> SpotterOut {
     let t = &e.tel;
     let state = match t.car_left_right {
@@ -330,8 +318,8 @@ pub fn spotter(e: &Engine) -> SpotterOut {
     if state.is_empty() || !t.driving() {
         return SpotterOut::default();
     }
-    let near = cars_alongside(t, e.info.track_length_km * 1000.0, 12.0);
-    let take = |n: usize| near.iter().take(n).copied().collect::<Vec<_>>();
+    let near = crate::engine::incidents::near_player(t, e.info.track_length_km * 1000.0, 12.0);
+    let take = |n: usize| near.iter().take(n).map(|n| round(n.1, 1)).collect::<Vec<_>>();
     let (left, right) = match state {
         "left" => (take(1), vec![]),
         "right" => (vec![], take(1)),
@@ -340,6 +328,27 @@ pub fn spotter(e: &Engine) -> SpotterOut {
         _ => (vec![], vec![]),
     };
     SpotterOut { state, left, right }
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct IncidentsOut<'a> {
+    pub total: i32,
+    pub limit: Option<i32>,
+    /// A replay is playing, so the replay buttons can jump to an incident.
+    pub can_replay: bool,
+    pub session_num: i32,
+    pub list: &'a [crate::engine::incidents::Incident],
+}
+
+pub fn incidents_out(e: &Engine) -> IncidentsOut<'_> {
+    IncidentsOut {
+        total: e.tel.incidents,
+        limit: e.info.incident_limit,
+        can_replay: e.tel.is_replay_playing,
+        session_num: e.tel.session_num,
+        list: &e.incidents.list,
+    }
 }
 
 #[derive(Serialize)]

@@ -229,6 +229,11 @@ pub struct Mock {
     race_seconds: f64,
     /// The leader has crossed the line after the clock ran out.
     checkered: bool,
+    /// Make the player pit on this lap (APEX_OVERLAYS_MOCK_PIT_LAP, for trying the pit overlay).
+    pit_lap: Option<i32>,
+    /// The player's pit limiter stays on this long after the pit exit line.
+    limiter_until: std::cell::Cell<f64>,
+    player_was_on_pit: std::cell::Cell<bool>,
 }
 
 impl Mock {
@@ -278,6 +283,9 @@ impl Mock {
             accel_smooth: 0.0,
             race_seconds,
             checkered: false,
+            pit_lap: std::env::var("APEX_OVERLAYS_MOCK_PIT_LAP").ok().and_then(|v| v.parse().ok()),
+            limiter_until: Default::default(),
+            player_was_on_pit: Default::default(),
         }
     }
 
@@ -325,7 +333,8 @@ impl Mock {
             // Pit strategy: fuel or tyres.
             let laps_of_fuel = c.fuel / (CLASSES[c.class].4 / 22.0);
             let wrong_tyres = (!c.wets && wetness >= c.wet_trigger) || (c.wets && wetness <= 2);
-            if c.pit == Pit::None && (laps_of_fuel < 1.3 || wrong_tyres || c.penalty.is_some()) && pct > 0.5 && pct < PIT_ENTRY {
+            let planned = i == PLAYER && self.pit_lap.is_some_and(|l| l == c.lap);
+            if c.pit == Pit::None && (laps_of_fuel < 1.3 || wrong_tyres || c.penalty.is_some() || planned) && pct > 0.5 && pct < PIT_ENTRY {
                 c.pit = Pit::Requested;
             }
             if c.pit == Pit::Requested && pct >= PIT_ENTRY {
@@ -389,7 +398,14 @@ impl Mock {
         let accel = (me.speed - me.prev_speed) / DT;
         self.accel_smooth = self.accel_smooth * 0.9 + accel.clamp(-40.0, 20.0) * 0.1;
         if self.rng.next() < 0.00005 {
-            self.incidents += 1;
+            let r = self.rng.next();
+            self.incidents += if r < 0.6 {
+                1
+            } else if r < 0.88 {
+                2
+            } else {
+                4
+            };
         }
         // Occasional incidents so the per-driver flags can be seen.
         if self.rng.next() < 1.0 / (60.0 * 45.0) {
@@ -414,7 +430,7 @@ impl Mock {
 
     fn yaml(&self) -> String {
         let mut y = format!(
-            "---\nWeekendInfo:\n TrackName: apex raceway\n TrackID: 9001\n TrackLength: {:.2} km\n TrackDisplayName: Apex Raceway\n TrackConfigName: Grand Prix\n TrackCity: Nowhere\n TrackCountry: Simland\n SeriesID: 1\n SubSessionID: 424242\n LeagueID: 0\n Official: 1\n EventType: Race\n WeekendOptions:\n  IncidentLimit: 25\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionLaps: unlimited\n   SessionTime: {:.4} sec\n   SessionType: Race\n   SessionName: RACE\n   ResultsPositions:\n",
+            "---\nWeekendInfo:\n TrackName: apex raceway\n TrackID: 9001\n TrackLength: {:.2} km\n TrackDisplayName: Apex Raceway\n TrackConfigName: Grand Prix\n TrackPitSpeedLimit: 79.20 kph\n TrackCity: Nowhere\n TrackCountry: Simland\n SeriesID: 1\n SubSessionID: 424242\n LeagueID: 0\n Official: 1\n EventType: Race\n WeekendOptions:\n  IncidentLimit: 25\nSessionInfo:\n Sessions:\n - SessionNum: 0\n   SessionLaps: unlimited\n   SessionTime: {:.4} sec\n   SessionType: Race\n   SessionName: RACE\n   ResultsPositions:\n",
             self.track.len / 1000.0,
             self.race_seconds
         );
@@ -519,8 +535,11 @@ impl Mock {
             ct.position = pos as i32 + 1;
             ct.class_position = class_counts[c.class];
             ct.on_pit_road = matches!(c.pit, Pit::Lane { .. } | Pit::Stopped(_)) && !(PIT_EXIT..PIT_ENTRY).contains(&pct);
+            let heading_in = matches!(c.pit, Pit::Requested) && (PIT_ENTRY - 0.02..PIT_ENTRY).contains(&pct);
             ct.surface = if matches!(c.pit, Pit::Stopped(_)) {
                 surface::IN_PIT_STALL
+            } else if heading_in {
+                surface::APPROACHING_PITS
             } else if self.time < c.off_until {
                 surface::OFF_TRACK
             } else {
@@ -575,6 +594,21 @@ impl Mock {
         t.delta_best_ok = me.best_lap > 0.0;
         t.delta_best = if me.best_lap > 0.0 { ((self.time - me.lap_start) - me.best_lap * self.track.est_time(pct) / self.track.lap_ref) as f32 } else { 0.0 };
         t.on_pit_road = t.cars[PLAYER].on_pit_road;
+        // Pit lane: the limiter goes on just before the line and off a moment after the exit.
+        if self.player_was_on_pit.get() && !t.on_pit_road {
+            self.limiter_until.set(self.time + 1.5);
+        }
+        self.player_was_on_pit.set(t.on_pit_road);
+        let limiter =
+            t.on_pit_road || self.time < self.limiter_until.get() || matches!(me.pit, Pit::Requested) && (PIT_ENTRY - 0.003..PIT_ENTRY).contains(&pct);
+        t.engine_warnings = if limiter { 0x10 } else { 0 };
+        t.in_pit_stall = matches!(me.pit, Pit::Stopped(_));
+        t.pitstop_active = matches!(me.pit, Pit::Stopped(until) if self.time < until - 0.5);
+        t.pit_sv_status = match me.pit {
+            Pit::Stopped(_) if t.pitstop_active => 1,
+            Pit::Stopped(_) => 2,
+            _ => 0,
+        };
         t.is_on_track = true;
         t.incidents = self.incidents;
         // iRacing's YawNorth is a compass heading (0 = north, clockwise); the circuit uses maths angles.

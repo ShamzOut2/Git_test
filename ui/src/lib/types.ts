@@ -529,6 +529,54 @@ export interface Spotter {
   right: number[];
 }
 
+export interface IncidentCar {
+  idx: number;
+  name: string;
+  number: string;
+  /** Metres ahead of you (negative = behind) when it happened. */
+  dist: number;
+  /** Their own incident count rose by 4 or more just after. */
+  confirmed: boolean;
+}
+
+export interface Incident {
+  points: number;
+  kind: 'offTrack' | 'lossOfControl' | 'objectContact' | 'carContact' | 'heavyContact';
+  label: string;
+  total: number;
+  lap: number;
+  sessionNum: number;
+  sessionName: string;
+  sessionTime: number;
+  involved: IncidentCar[];
+}
+
+export interface Incidents {
+  total: number;
+  limit: number | null;
+  /** A replay is playing: the replay buttons work. */
+  canReplay: boolean;
+  sessionNum: number;
+  list: Incident[];
+}
+
+export interface Pit {
+  phase: '' | 'entry' | 'lane' | 'box' | 'exit' | 'out';
+  /** Metres to the pit entry / exit line. */
+  toEntry: number | null;
+  toExit: number | null;
+  /** m/s */
+  speed: number;
+  /** Pit speed limit, m/s (0 = unknown). */
+  limit: number;
+  limiter: boolean;
+  service: '' | 'wait' | 'go';
+  repair: number;
+  optRepair: number;
+  /** Seconds since crossing the pit exit line. */
+  sinceExit: number | null;
+}
+
 export interface TopicMap {
   session: Session;
   player: Player;
@@ -541,6 +589,8 @@ export interface TopicMap {
   trackmap: TrackMap;
   car: CarInfo;
   spotter: Spotter;
+  incidents: Incidents;
+  pit: Pit;
   garage61: Garage61;
   status: Status;
   config: Config;

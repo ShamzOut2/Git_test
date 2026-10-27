@@ -91,6 +91,7 @@ function rebuild() {
   setupAutoSize();
   panel.replaceChildren();
   const ctx: Ctx = {
+    id,
     settings,
     theme,
     get units() {

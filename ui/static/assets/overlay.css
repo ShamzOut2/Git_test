@@ -199,7 +199,9 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .inputs .barcol { display: flex; flex-direction: column; align-items: center; gap: 0.15em; }
 .inputs .bar { position: relative; flex: 1; width: 1.1em; background: var(--track); border-radius: 3px; overflow: hidden; }
 .inputs .bar .fill { position: absolute; inset: 0; transform-origin: bottom; transform: scaleY(0); }
-.inputs .barcol.abs .fill { filter: brightness(1.4) saturate(0.4); }
+.inputs .barcol.abs .fill { background: var(--abs-color, #ffd84d) !important; }
+.inputs .barcol.abs .bar { box-shadow: 0 0 0.5em var(--abs-color, #ffd84d); }
+.inputs .barcol.abs .val { color: var(--abs-color, #ffd84d) !important; }
 .inputs .val { font-variant-numeric: tabular-nums; text-align: center; }
 .inputs .val.top { min-width: 1.9em; font-size: 0.72em; font-weight: 700; line-height: 1.15; }
 .inputs .val.inside { position: absolute; bottom: 2px; width: 100%; font-size: 0.65em; }
@@ -414,3 +416,48 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .sp-car { position: relative; width: calc(var(--sp-bar) * 2.2); max-width: 40%; min-width: 10px; border: 2px solid rgba(255, 255, 255, 0.75); border-radius: 30% 30% 22% 22% / 18% 18% 12% 12%; background: rgba(11, 14, 19, 0.55); }
 .sp-car.danger { border-color: var(--sp-danger); }
 .sp-glass { position: absolute; left: 18%; right: 18%; top: 24%; height: 16%; border-radius: 30% 30% 10% 10%; background: rgba(255, 255, 255, 0.45); }
+
+/* Incident tracker */
+.inc-total { margin-left: auto; font-weight: 800; }
+.inc-total.warn { color: var(--warn, #ffb020); }
+.inc-total.bad { color: var(--bad); }
+.inc-summary { display: flex; flex-wrap: wrap; gap: 0.3em; padding: 0.4em 0.6em 0; font-size: 0.78em; }
+.inc-chip { padding: 0.05em 0.45em; border-radius: 999px; background: var(--subtle, rgba(255, 255, 255, 0.08)); color: var(--dim); white-space: nowrap; }
+.inc-list { display: flex; flex-direction: column; gap: 0.3em; padding: 0.4em 0.6em 0.5em; }
+.inc-row { display: grid; grid-template-columns: 2.4em 1fr auto; gap: 0.5em; align-items: center; }
+.inc-pts { text-align: center; font-weight: 900; border-radius: 4px; padding: 0.15em 0; color: #0b0e13; }
+.inc-pts.p1 { background: #e6e9ef; }
+.inc-pts.p2 { background: #ffb020; }
+.inc-pts.p3 { background: #ff7a1a; }
+.inc-pts.p4 { background: #ff3b30; color: #fff; }
+.inc-body { min-width: 0; line-height: 1.2; }
+.inc-what { font-weight: 700; }
+.inc-who, .inc-when { font-size: 0.82em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.inc-ok { color: var(--good); font-weight: 800; }
+.inc-replay { width: 2em; height: 2em; border-radius: 50%; border: 1px solid var(--dim); background: rgba(255, 255, 255, 0.08); color: var(--text); font-size: 0.8em; cursor: pointer; }
+.inc-replay:not(:disabled):hover { background: var(--accent); border-color: var(--accent); }
+.inc-replay:disabled { opacity: 0.3; cursor: default; }
+.inc-empty, .inc-hint { padding: 0 0.6em 0.5em; font-size: 0.82em; }
+
+/* Pit lane */
+@keyframes pit-flash { 50% { opacity: 0.2; } }
+.panel.pit { justify-content: center; align-items: center; gap: 0.25em; padding: 0.5em; text-align: center; }
+.pit-row { display: flex; align-items: center; justify-content: center; gap: 0.7em; }
+.pit-sign { width: 5.5em; color: rgba(255, 255, 255, 0.55); }
+.pit-sign svg, .pit-limiter svg { display: block; width: 100%; height: auto; }
+.pit-sign.brake { color: #ff3b30; filter: drop-shadow(0 0 0.5em #ff3b30); animation: pit-flash 0.5s steps(1) infinite; }
+.pit-sign.ok { color: var(--good); }
+.pit-sign.exit { width: 7.5em; color: var(--good); }
+.pit-limiter { width: 3.4em; }
+.pit[data-phase='lane'] .pit-limiter, .pit[data-phase='out'] .pit-limiter { width: 4.4em; }
+.pit-limiter.on { color: #2ee86b; filter: drop-shadow(0 0 0.45em #2ee86b); }
+.pit-limiter.off { color: #ff3b30; filter: drop-shadow(0 0 0.45em #ff3b30); animation: pit-flash 0.6s steps(1) infinite; }
+.pit-big { font-size: 1.9em; font-weight: 900; line-height: 1.05; }
+.pit-big.speed { font-size: 3em; }
+.pit-big.logo { padding: 0.1em 0.6em; border-radius: 0.2em; color: #0b0e13; font-size: 2.6em; letter-spacing: 0.06em; }
+.pit-big.logo.wait { background: #ffb020; }
+.pit-big.logo.go { background: #2ee86b; box-shadow: 0 0 0.5em #2ee86b; animation: pit-flash 0.5s steps(1) infinite; }
+.pit-big.banner { font-size: 1.25em; padding: 0.3em 0.5em; border-radius: 0.25em; }
+.pit-big.banner.remind { background: #ff3b30; color: #fff; animation: pit-flash 0.45s steps(1) infinite; }
+.pit-big.banner.done { color: var(--good); }
+.pit-sub { color: var(--dim); font-size: 0.85em; }

@@ -11,6 +11,10 @@ pub mod yaml;
 mod shm;
 #[cfg(windows)]
 pub use shm::SharedMemory;
+#[cfg(windows)]
+mod broadcast;
+#[cfg(windows)]
+pub use broadcast::{broadcast, BroadcastMsg};
 
 use std::collections::HashMap;
 

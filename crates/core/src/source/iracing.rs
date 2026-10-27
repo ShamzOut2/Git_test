@@ -32,6 +32,9 @@ vars! {
     track_temp = "TrackTempCrew", air_temp = "AirTemp", track_wetness = "TrackWetness", precipitation = "Precipitation",
     declared_wet = "WeatherDeclaredWet", wind_vel = "WindVel", wind_dir = "WindDir", humidity = "RelativeHumidity",
     fog = "FogLevel", skies = "Skies", air_pressure = "AirPressure", display_units = "DisplayUnits", car_left_right = "CarLeftRight",
+    engine_warnings = "EngineWarnings", in_pit_stall = "PlayerCarInPitStall", pitstop_active = "PitstopActive",
+    pit_sv_status = "PlayerCarPitSvStatus", pit_repair_left = "PitRepairLeft", pit_opt_repair_left = "PitOptRepairLeft",
+    cam_group = "CamGroupNumber", cam_camera = "CamCameraNumber",
     car_lap = "CarIdxLap", car_lap_completed = "CarIdxLapCompleted", car_pct = "CarIdxLapDistPct",
     car_est = "CarIdxEstTime", car_f2 = "CarIdxF2Time", car_pos = "CarIdxPosition", car_class_pos = "CarIdxClassPosition",
     car_pit = "CarIdxOnPitRoad", car_surface = "CarIdxTrackSurface", car_last = "CarIdxLastLapTime",
@@ -92,6 +95,14 @@ pub fn fill(v: &Vars, r: Row, t: &mut Telemetry) {
     t.air_pressure = r.f32(v.air_pressure);
     t.display_metric = v.display_units.is_none() || r.i32(v.display_units) == 1;
     t.car_left_right = r.i32(v.car_left_right);
+    t.engine_warnings = r.u32(v.engine_warnings);
+    t.in_pit_stall = r.bool(v.in_pit_stall);
+    t.pitstop_active = r.bool(v.pitstop_active);
+    t.pit_sv_status = r.i32(v.pit_sv_status);
+    t.pit_repair_left = r.f32(v.pit_repair_left);
+    t.pit_opt_repair_left = r.f32(v.pit_opt_repair_left);
+    t.cam_group = r.i32(v.cam_group);
+    t.cam_camera = r.i32(v.cam_camera);
     for (i, c) in t.cars.iter_mut().enumerate().take(MAX_CARS) {
         c.lap = r.i32_at(v.car_lap, i);
         c.lap_completed = r.i32_at(v.car_lap_completed, i);
@@ -154,6 +165,16 @@ impl IRacing {
 impl Source for IRacing {
     fn name(&self) -> &'static str {
         "iracing"
+    }
+
+    #[cfg(windows)]
+    fn replay(&mut self, session_num: i32, session_time: f64, car_number_raw: Option<i32>, camera: (i32, i32)) {
+        use apex_irsdk::{broadcast, BroadcastMsg};
+        if let Some(car) = car_number_raw {
+            broadcast(BroadcastMsg::CamSwitchNum, car, (camera.0 & 0xffff) | (camera.1 << 16));
+        }
+        broadcast(BroadcastMsg::ReplaySearchSessionTime, session_num, (session_time.max(0.0) * 1000.0) as i32);
+        broadcast(BroadcastMsg::ReplaySetPlaySpeed, 1, 0);
     }
 
     #[cfg(not(windows))]

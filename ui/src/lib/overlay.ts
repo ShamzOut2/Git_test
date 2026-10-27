@@ -5,6 +5,8 @@ import { commonFor, type SettingDef, type Values } from './settings';
 import type { TopicMap, TopicName } from './types';
 
 export interface Ctx {
+  /** This overlay instance's id. */
+  id: string;
   /** Merged settings (schema defaults + user values). */
   settings: Values;
   /** Merged theme values (for canvas overlays that need colours). */
