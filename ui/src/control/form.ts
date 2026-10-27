@@ -5,12 +5,73 @@ import type { ColumnSetting, SettingDef, Values } from '../lib/settings';
 
 export type OnChange = (key: string, value: unknown) => void;
 
-function field(s: SettingDef, value: unknown, onChange: OnChange): HTMLElement {
-  // Columns hold several controls, so they must not be wrapped in a <label>.
-  const row = h(s.type === 'columns' ? 'div' : 'label', `field type-${s.type}`);
-  const lab = h('span', 'field-label', s.label);
-  if (s.help) lab.append(h('small', 'help', s.help));
-  row.append(lab);
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+
+/** Shown columns in order (reorder / remove), the rest as chips to add. */
+function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: ColumnSetting[], onChange: OnChange): HTMLElement {
+  const box = h('div', 'columns');
+  const cols = value.map((c) => ({ ...c }));
+  const label = (id: string) => s.columns.find((c) => c.id === id)?.label ?? id;
+  const commit = () => {
+    onChange(s.key, cols.map((x) => ({ ...x })));
+    draw();
+  };
+  const draw = () => {
+    const shown = cols.filter((c) => c.on);
+    const list = h('div', 'col-list');
+    shown.forEach((c, i) => {
+      const item = h('div', 'col-item');
+      const move = (d: number) => (e: Event) => {
+        e.preventDefault();
+        // Swap with the neighbouring shown column (hidden ones keep their place).
+        const a = cols.indexOf(c);
+        const b = cols.indexOf(shown[i + d]);
+        [cols[a], cols[b]] = [cols[b], cols[a]];
+        commit();
+      };
+      const up = h('button', 'mini', '▲');
+      const down = h('button', 'mini', '▼');
+      const remove = h('button', 'mini subtle', '✕');
+      up.title = 'Move left';
+      down.title = 'Move right';
+      remove.title = 'Hide this column';
+      up.disabled = i === 0;
+      down.disabled = i === shown.length - 1;
+      up.onclick = move(-1);
+      down.onclick = move(1);
+      remove.onclick = (e) => {
+        e.preventDefault();
+        c.on = false;
+        commit();
+      };
+      const name = h('span', 'col-name', label(c.id));
+      name.title = label(c.id);
+      item.append(h('span', 'col-pos', String(i + 1)), name, up, down, remove);
+      list.append(item);
+    });
+    if (!shown.length) list.append(h('p', 'dim small', 'No columns shown — add some below.'));
+    const hidden = cols.filter((c) => !c.on);
+    const chips = h('div', 'col-chips');
+    for (const c of hidden) {
+      const b = h('button', 'chip', `+ ${label(c.id)}`);
+      b.onclick = (e) => {
+        e.preventDefault();
+        c.on = true;
+        // Added columns go to the end of the shown ones.
+        cols.splice(cols.indexOf(c), 1);
+        const last = cols.map((x) => x.on).lastIndexOf(true);
+        cols.splice(last + 1, 0, c);
+        commit();
+      };
+      chips.append(b);
+    }
+    box.replaceChildren(list, ...(hidden.length ? [h('div', 'col-add dim small', 'Add a column'), chips] : []));
+  };
+  draw();
+  return box;
+}
+
+function control(s: SettingDef, value: unknown, onChange: OnChange): HTMLElement {
   switch (s.type) {
     case 'bool': {
       const i = h('input');
@@ -18,8 +79,7 @@ function field(s: SettingDef, value: unknown, onChange: OnChange): HTMLElement {
       i.className = 'switch';
       i.checked = value as boolean;
       i.onchange = () => onChange(s.key, i.checked);
-      row.append(i);
-      break;
+      return i;
     }
     case 'number': {
       const wrap = h('span', 'num');
@@ -49,8 +109,7 @@ function field(s: SettingDef, value: unknown, onChange: OnChange): HTMLElement {
         wrap.prepend(r);
       }
       if (s.unit) wrap.append(h('span', 'unit', s.unit));
-      row.append(wrap);
-      break;
+      return wrap;
     }
     case 'color': {
       const wrap = h('span', 'color');
@@ -69,8 +128,7 @@ function field(s: SettingDef, value: unknown, onChange: OnChange): HTMLElement {
         onChange(s.key, t.value);
       };
       wrap.append(c, t);
-      row.append(wrap);
-      break;
+      return wrap;
     }
     case 'select': {
       const sel = h('select');
@@ -81,57 +139,56 @@ function field(s: SettingDef, value: unknown, onChange: OnChange): HTMLElement {
       }
       sel.value = String(value);
       sel.onchange = () => onChange(s.key, sel.value);
-      row.append(sel);
-      break;
+      return sel;
     }
     case 'text': {
       const i = s.multiline ? h('textarea') : h('input');
       i.value = String(value ?? '');
       if (s.placeholder) i.placeholder = s.placeholder;
       i.oninput = () => onChange(s.key, i.value);
-      row.append(i);
-      if (s.multiline) row.classList.add('wide');
-      break;
+      return i;
     }
-    case 'columns': {
-      row.classList.add('wide');
-      const list = h('div', 'columns');
-      const cols = (value as ColumnSetting[]).map((c) => ({ ...c }));
-      const label = (id: string) => s.columns.find((c) => c.id === id)?.label ?? id;
-      const draw = () => {
-        list.replaceChildren(
-          ...cols.map((c, i) => {
-            const item = h('div', 'col-item');
-            const cb = h('input');
-            cb.type = 'checkbox';
-            cb.checked = c.on;
-            cb.onchange = () => {
-              c.on = cb.checked;
-              onChange(s.key, cols.map((x) => ({ ...x })));
-            };
-            const up = h('button', 'mini', '▲');
-            const down = h('button', 'mini', '▼');
-            up.disabled = i === 0;
-            down.disabled = i === cols.length - 1;
-            const move = (d: number) => (e: Event) => {
-              e.preventDefault();
-              const [x] = cols.splice(i, 1);
-              cols.splice(i + d, 0, x);
-              draw();
-              onChange(s.key, cols.map((y) => ({ ...y })));
-            };
-            up.onclick = move(-1);
-            down.onclick = move(1);
-            item.append(cb, h('span', '', label(c.id)), up, down);
-            return item;
-          }),
-        );
-      };
-      draw();
-      row.append(list);
-      break;
-    }
+    case 'columns':
+      return columnsControl(s, value as ColumnSetting[], onChange);
   }
+}
+
+/**
+ * One setting: label (with help underneath), its control, and a reset button while it
+ * differs from the default.
+ */
+export function field(s: SettingDef, values: Values, onChange: OnChange): HTMLElement {
+  const wide = s.type === 'columns' || (s.type === 'text' && !!s.multiline);
+  // Columns hold several controls, so they must not be wrapped in a <label>.
+  const row = h(wide ? 'div' : 'label', `field type-${s.type}${wide ? ' wide' : ''}`);
+  row.dataset.key = s.key;
+  const build = () => {
+    const lab = h('span', 'field-label');
+    lab.append(h('span', 'field-name', s.label));
+    if (s.help) lab.append(h('small', 'help', s.help));
+    const reset = h('button', 'reset', '↺');
+    reset.title = 'Back to the default';
+    reset.hidden = same(values[s.key], s.default);
+    reset.onclick = (e) => {
+      e.preventDefault();
+      values[s.key] = structuredClone(s.default);
+      onChange(s.key, values[s.key]);
+      build();
+    };
+    const ctl = control(s, values[s.key], (k, v) => {
+      values[k] = v;
+      reset.hidden = same(v, s.default);
+      onChange(k, v);
+    });
+    const end = h('span', 'field-end');
+    end.append(reset);
+    if (wide) row.replaceChildren(lab, ctl, end);
+    else {
+      end.prepend(ctl);
+      row.replaceChildren(lab, end);
+    }
+  };
+  build();
   return row;
 }
 
@@ -148,7 +205,7 @@ export function form(schema: SettingDef[], values: Values, onChange: OnChange): 
       groups.set(g, fs);
       el.append(fs);
     }
-    fs.append(field(s, values[s.key], onChange));
+    fs.append(field(s, values, onChange));
   }
   return el;
 }

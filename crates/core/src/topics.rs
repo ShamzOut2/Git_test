@@ -58,6 +58,21 @@ impl Topic {
         }
     }
 
+    /// Publish every n-th telemetry tick (60 Hz). Driving aids follow every tick; timing
+    /// tables can't be read faster than a few times a second, and each window parses all
+    /// it is sent.
+    pub fn every(self) -> u64 {
+        match self {
+            Topic::Player | Topic::Cars | Topic::Spotter => 1,
+            Topic::Pit => 2,
+            Topic::Relative => 3,
+            Topic::Standings | Topic::Battle => 6,
+            Topic::Session | Topic::Fuel | Topic::Tyres | Topic::Incidents => 15,
+            // Only re-sent when they change (see `publish`).
+            Topic::TrackMap | Topic::Car => 1,
+        }
+    }
+
     pub fn from_name(s: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|t| t.name() == s)
     }

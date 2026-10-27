@@ -42,7 +42,7 @@ const client = new Client(onData, (up) => {
   // connection was opening are lost: tell it again.
   if (up) resendAutoSize();
 });
-client.subscribe('config', 'status', 'session', 'player');
+client.subscribe('config', 'status', 'session');
 
 edit.addEventListener('mousedown', (e) => {
   if (e.button !== 0) return;
@@ -58,11 +58,20 @@ function onData(t: TopicName, d: unknown) {
   if (t === 'status' || t === 'session' || t === 'player') updateVisibility();
   if (t === 'session' && config?.units === 'auto' && key && !key.endsWith(`|${units()}`)) rebuild();
   if (view && def?.topics.includes(t)) {
-    try {
-      view.update(t, d);
-    } catch (err) {
-      console.error(err);
-    }
+    // A hidden overlay skips drawing; it catches up with the newest data once shown.
+    if (document.body.classList.contains('hidden')) stale.add(t);
+    else deliver(t, d);
+  }
+}
+
+/** Topics that arrived while the overlay was hidden. */
+const stale = new Set<TopicName>();
+
+function deliver(t: TopicName, d: unknown) {
+  try {
+    view?.update(t, d);
+  } catch (err) {
+    console.error(err);
   }
 }
 
@@ -101,6 +110,13 @@ function rebuild() {
     send: (m) => client.send(m),
   };
   view = def.create(panel, ctx);
+  stale.clear();
+  // The 60 Hz player topic only when the overlay shows it or hides itself by it.
+  if (settings.hideWhenNotDriving || settings.hideInPits || def.topics.includes('player')) client.subscribe('player');
+  else {
+    client.unsubscribe('player');
+    player = null;
+  }
   client.subscribe(...def.topics);
   for (const t of def.topics) {
     const d = client.latest[t];
@@ -153,4 +169,8 @@ function updateVisibility() {
   if (settings.raceOnly && !session?.isRace) visible = false;
   if (!client.connected) visible = false;
   document.body.classList.toggle('hidden', !(visible || editing || preview));
+  if (!document.body.classList.contains('hidden') && stale.size) {
+    for (const t of stale) if (client.latest[t] !== undefined) deliver(t, client.latest[t]);
+    stale.clear();
+  }
 }

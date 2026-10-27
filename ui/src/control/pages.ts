@@ -4,7 +4,7 @@ import { commonFor, merge, type SettingDef } from '../lib/settings';
 import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
 import type { OverlayInstance } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
-import { form } from './form';
+import { field, form } from './form';
 import { client, download, save, state, uid, upload } from './state';
 
 export type Page = { id: string; title: string; render(el: HTMLElement): void };
@@ -96,6 +96,46 @@ function copy(text: string, btn: HTMLButtonElement) {
   });
 }
 
+/** A small drop-down menu of actions. */
+function menu(label: string, items: [string, () => void, string?][], cls = ''): HTMLElement {
+  const d = h('details', `menu ${cls}`);
+  const sum = h('summary', '', label);
+  const pop = h('div', 'menu-pop');
+  for (const [text, fn, c] of items) {
+    pop.append(
+      button(
+        text,
+        () => {
+          d.open = false;
+          fn();
+        },
+        c ?? '',
+      ),
+    );
+  }
+  d.append(sum, pop);
+  return d;
+}
+
+// Close open menus when clicking elsewhere.
+document.addEventListener('click', (e) => {
+  for (const d of document.querySelectorAll<HTMLDetailsElement>('details.menu[open]')) if (!d.contains(e.target as Node)) d.open = false;
+});
+
+/** Overlays name their groups differently; the editor shows them as tabs with common names. */
+const TAB_ALIAS: Record<string, string> = { Elements: 'What to show', Fields: 'What to show', Readouts: 'What to show', Style: 'Look', Format: 'Look', Warnings: 'Alerts', Options: 'Settings' };
+const SIZE_TAB = 'Size & visibility';
+const ADVANCED_TAB = 'Advanced';
+const tabOf = (s: SettingDef, common: boolean) => (common ? (s.group === 'Advanced' ? ADVANCED_TAB : SIZE_TAB) : (TAB_ALIAS[s.group ?? 'Options'] ?? s.group ?? 'Settings'));
+
+/** What to show and how it is laid out first; looks and behaviour after; window options last. */
+const FIRST = ['What to show', 'Layout', 'Columns', 'Header'];
+const LAST = ['Look', 'Colours', 'Alerts', 'Behaviour', SIZE_TAB, ADVANCED_TAB];
+const tabRank = (t: string) => (FIRST.includes(t) ? FIRST.indexOf(t) - 100 : LAST.includes(t) ? LAST.indexOf(t) + 100 : 0);
+
+/** Editor state that survives the page being redrawn. */
+const ui = { tab: new Map<string, string>(), query: '' };
+
 function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
   const def = byKind(o.kind)!;
   const wrap = h('div', 'editor');
@@ -103,6 +143,7 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
   const title = h('input', 'title-input');
   title.value = o.name;
   title.placeholder = def.name;
+  title.title = 'Name this overlay (handy when you have several of the same kind)';
   title.oninput = () => {
     o.name = title.value;
     save();
@@ -117,41 +158,49 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
     save();
     rerender();
   };
-  enabled.append(cb, ' Enabled');
-  const actions = h('div', 'actions');
+  enabled.append(cb, o.enabled ? ' On' : ' Off');
   const url = overlayUrl(o.id);
-  const copyBtn = button('Copy OBS URL', () => copy(url, copyBtn));
-  actions.append(
-    copyBtn,
-    button('Duplicate', () => {
-      const c = structuredClone(o);
-      c.id = uid(o.kind);
-      c.name = `${o.name || def.name} copy`;
-      c.x += 30;
-      c.y += 30;
-      state.config!.overlays.push(c);
-      selected = c.id;
-      save();
-      rerender();
-    }),
-    button('Export…', () => exportOverlay(o)),
-    button('Load settings…', async () => {
-      const f = await readShare();
-      if (!f) return;
-      const src = f.overlays.find((x) => x.kind === o.kind);
-      if (!src) return alert(`That file has no ${def.name} overlay.`);
-      o.settings = structuredClone(src.settings ?? {});
-      save();
-      rerender();
-    }),
-    button('Reset settings', () => {
-      if (!confirm('Reset this overlay to default settings?')) return;
-      o.settings = {};
-      save();
-      rerender();
-    }),
-    button(
-      'Delete',
+  const copyBtn = button('Copy OBS link', () => copy(url, copyBtn));
+  copyBtn.title = `Browser source URL for OBS / streaming: ${url}`;
+  const more = menu('More ▾', [
+    [
+      'Duplicate',
+      () => {
+        const c = structuredClone(o);
+        c.id = uid(o.kind);
+        c.name = `${o.name || def.name} copy`;
+        c.x += 30;
+        c.y += 30;
+        state.config!.overlays.push(c);
+        selected = c.id;
+        save();
+        rerender();
+      },
+    ],
+    ['Export settings to a file…', () => exportOverlay(o)],
+    [
+      'Load settings from a file…',
+      async () => {
+        const f = await readShare();
+        if (!f) return;
+        const src = f.overlays.find((x) => x.kind === o.kind);
+        if (!src) return alert(`That file has no ${def.name} overlay.`);
+        o.settings = structuredClone(src.settings ?? {});
+        save();
+        rerender();
+      },
+    ],
+    [
+      'Reset all settings',
+      () => {
+        if (!confirm(`Reset every setting of ${o.name || def.name} to the default?`)) return;
+        o.settings = {};
+        save();
+        rerender();
+      },
+    ],
+    [
+      'Delete overlay',
       () => {
         if (!confirm(`Delete ${o.name || def.name}?`)) return;
         state.config!.overlays = state.config!.overlays.filter((x) => x !== o);
@@ -160,33 +209,15 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
         rerender();
       },
       'danger',
-    ),
-  );
-  head.append(title, enabled, actions);
+    ],
+  ]);
+  head.append(title, enabled, copyBtn, more);
 
-  const geo = h('div', 'geo');
-  for (const k of ['x', 'y', 'width', 'height'] as const) {
-    const l = h('label', 'inline', k === 'width' ? 'W' : k === 'height' ? 'H' : k.toUpperCase());
-    const i = h('input');
-    i.type = 'number';
-    i.value = String(o[k]);
-    i.dataset.geo = k;
-    i.oninput = () => {
-      const v = parseInt(i.value, 10);
-      if (Number.isFinite(v)) {
-        o[k] = v;
-        save();
-      }
-    };
-    l.append(i);
-    geo.append(l);
-  }
-  geo.append(h('span', 'dim small', 'Tip: turn on Edit mode to drag overlays on screen.'));
-
+  // Live preview of this overlay with its current settings.
   const preview = h('div', 'preview');
   const frame = h('iframe');
   frame.src = `${url}?preview`;
-  const scale = Math.min(1, 520 / o.width, 300 / o.height);
+  const scale = Math.min(1, 700 / o.width, 220 / o.height);
   frame.style.width = `${o.width}px`;
   frame.style.height = `${o.height}px`;
   frame.style.transform = `scale(${scale})`;
@@ -195,33 +226,136 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
 
   const common = commonFor(def.commonDefaults);
   const values = merge([...common, ...def.settings], o.settings);
-  const transparencyKeys = ['opacity', 'bgOpacity'];
-  const quick = h('div', 'quick');
-  quick.append(
-    form(
-      common.filter((x) => transparencyKeys.includes(x.key)),
-      values,
-      (k, v) => {
-        o.settings = { ...o.settings, [k]: v };
+  const entries = [...def.settings.map((s) => ({ s, tab: tabOf(s, false) })), ...common.map((s) => ({ s, tab: tabOf(s, true) }))];
+  const tabs = [...new Set(entries.map((e) => e.tab))].sort((a, b) => tabRank(a) - tabRank(b));
+  let tab = ui.tab.get(o.id) ?? tabs[0];
+  if (!tabs.includes(tab)) tab = tabs[0];
+
+  const changed = (t: string) => entries.some((e) => e.tab === t && e.s.key in o.settings && JSON.stringify(o.settings[e.s.key]) !== JSON.stringify(e.s.default));
+  const onChange = (k: string, v: unknown) => {
+    values[k] = v;
+    o.settings = { ...o.settings, [k]: v };
+    save();
+    drawTabs();
+  };
+
+  const search = h('input', 'search');
+  search.type = 'search';
+  search.placeholder = `Search ${def.name} settings…`;
+  search.value = ui.query;
+  const tabBar = h('div', 'tabs');
+  const panel = h('div', 'tab-panel');
+
+  /** Position and size, plus copying the transparency to every overlay. */
+  const sizeExtras = () => {
+    const geo = h('div', 'geo');
+    for (const k of ['x', 'y', 'width', 'height'] as const) {
+      const l = h('label', 'inline', { x: 'Left', y: 'Top', width: 'Width', height: 'Height' }[k]);
+      const i = h('input');
+      i.type = 'number';
+      i.value = String(o[k]);
+      i.oninput = () => {
+        const v = parseInt(i.value, 10);
+        if (Number.isFinite(v)) {
+          o[k] = v;
+          save();
+        }
+      };
+      l.append(i);
+      geo.append(l);
+    }
+    const box = h('div', 'size-extras');
+    box.append(
+      h('div', 'field-name', 'Position and size (pixels)'),
+      geo,
+      h('p', 'dim small', 'Easier: press Edit mode at the top and drag the overlay on screen.'),
+      button('Use this overlay’s transparency for every overlay', () => {
+        for (const other of state.config!.overlays) other.settings = { ...other.settings, opacity: values.opacity, bgOpacity: values.bgOpacity };
         save();
-      },
-    ),
-    button('Apply this transparency to all overlays', () => {
-      for (const other of state.config!.overlays) other.settings = { ...other.settings, opacity: values.opacity, bgOpacity: values.bgOpacity };
-      save();
-    }),
-  );
-  const settings = form(
-    [...def.settings, ...common.filter((x) => !transparencyKeys.includes(x.key))],
-    values,
-    (k, v) => {
-      values[k] = v;
-      o.settings = { ...o.settings, [k]: v };
-      save();
-    },
-  );
-  wrap.append(head, h('p', 'dim', def.description), geo, quick, preview, settings);
+      }),
+    );
+    return box;
+  };
+
+  const drawTabs = () => {
+    tabBar.replaceChildren(
+      ...tabs.map((t) => {
+        const b = button(
+          t,
+          () => {
+            tab = t;
+            ui.tab.set(o.id, t);
+            ui.query = '';
+            search.value = '';
+            drawTabs();
+            drawPanel();
+          },
+          `tab${t === tab && !ui.query ? ' sel' : ''}`,
+        );
+        if (changed(t)) {
+          b.append(h('span', 'tab-dot'));
+          b.title = 'Some settings here differ from the default';
+        }
+        return b;
+      }),
+    );
+  };
+
+  const drawPanel = () => {
+    const q = ui.query.trim().toLowerCase();
+    if (q) {
+      const hits = entries.filter(({ s, tab: t }) => `${s.label} ${s.help ?? ''} ${t}`.toLowerCase().includes(q));
+      const parts: HTMLElement[] = [];
+      for (const t of tabs) {
+        const inTab = hits.filter((e) => e.tab === t);
+        if (!inTab.length) continue;
+        parts.push(h('h3', '', t), ...inTab.map((e) => field(e.s, values, onChange)));
+      }
+      panel.replaceChildren(...(parts.length ? parts : [h('p', 'dim', `No setting matches “${ui.query}”.`)]));
+      return;
+    }
+    const rows = entries.filter((e) => e.tab === tab).map((e) => field(e.s, values, onChange));
+    panel.replaceChildren(...rows, ...(tab === SIZE_TAB ? [sizeExtras()] : []));
+  };
+
+  search.oninput = () => {
+    ui.query = search.value;
+    drawTabs();
+    drawPanel();
+  };
+  drawTabs();
+  drawPanel();
+  wrap.append(head, h('p', 'dim desc', def.description), preview, search, tabBar, panel);
   return wrap;
+}
+
+/** Pick an overlay to add, with what each one does. */
+function addOverlayDialog(onAdd: (kind: string) => void) {
+  const back = h('div', 'modal-back');
+  const dlg = h('div', 'modal');
+  const close = () => back.remove();
+  back.onclick = (e) => {
+    if (e.target === back) close();
+  };
+  const head = h('div', 'modal-head');
+  head.append(h('h2', '', 'Add an overlay'), button('✕', close, 'subtle'));
+  const grid = h('div', 'gallery');
+  const count = (kind: string) => state.config!.overlays.filter((o) => o.kind === kind).length;
+  for (const d of OVERLAYS) {
+    const card = h('button', 'gallery-item');
+    const n = count(d.kind);
+    card.append(h('span', 'g-name', d.name), h('span', 'g-desc', d.description));
+    if (n) card.append(h('span', 'g-count', n === 1 ? '✓ In your layout' : `✓ ${n} in your layout`));
+    card.onclick = (e) => {
+      e.preventDefault();
+      close();
+      onAdd(d.kind);
+    };
+    grid.append(card);
+  }
+  dlg.append(head, h('p', 'dim', 'You can add any overlay more than once — each copy has its own settings, size and position.'), grid);
+  back.append(dlg);
+  document.body.append(back);
 }
 
 const overlaysPage: Page = {
@@ -231,33 +365,13 @@ const overlaysPage: Page = {
     const cfg = state.config!;
     const rerender = () => this.render(el);
     if (!cfg.overlays.some((o) => o.id === selected)) selected = cfg.overlays[0]?.id ?? '';
-    const bar = h('div', 'toolbar');
     const editing = state.status?.editMode ?? false;
     const visible = state.status?.visible ?? true;
-    bar.append(
-      button(editing ? 'Exit edit mode' : 'Edit mode (move & resize)', () => client.send({ op: 'setEditMode', value: !editing }), editing ? 'primary active' : 'primary'),
-      button(visible ? 'Hide all overlays' : 'Show overlays', () => client.send({ op: 'setVisible', value: !visible })),
-    );
-    const add = h('select');
-    add.append(h('option', '', '＋ Add overlay…'));
-    for (const d of OVERLAYS) {
-      const opt = h('option', '', d.name);
-      opt.value = d.kind;
-      add.append(opt);
-    }
-    add.onchange = () => {
-      const d = byKind(add.value);
-      if (!d) return;
-      const o: OverlayInstance = { id: uid(d.kind), kind: d.kind, name: '', enabled: true, x: 200, y: 200, width: d.size[0], height: d.size[1], settings: {} };
-      cfg.overlays.push(o);
-      selected = o.id;
-      save();
-      rerender();
-    };
-    bar.append(add, h('span', 'dim small', 'Add any overlay as many times as you like — each copy has its own settings, size and scale.'));
 
-    // Move all overlays at once: drag together in edit mode, or nudge with the arrows.
-    const group = h('div', 'toolbar');
+    // Move all overlays at once and share layouts: tucked into one menu.
+    const layout = h('details', 'menu layout-menu');
+    layout.append(h('summary', '', 'Layout & sharing ▾'));
+    const pop = h('div', 'menu-pop wide');
     const together = h('label', 'inline');
     const tcb = h('input');
     tcb.type = 'checkbox';
@@ -267,11 +381,10 @@ const overlaysPage: Page = {
       cfg.moveAllTogether = tcb.checked;
       save(true);
     };
-    together.append(tcb, ' Move all overlays together');
-    together.title = 'In edit mode, dragging any overlay moves every overlay with it';
+    together.append(tcb, ' Drag all overlays together in edit mode');
     const step = h('select');
     for (const v of [1, 10, 50]) {
-      const opt = h('option', '', `${v}px`);
+      const opt = h('option', '', `${v} px`);
       opt.value = String(v);
       step.append(opt);
     }
@@ -284,30 +397,22 @@ const overlaysPage: Page = {
       }
       save(true);
     };
-    group.append(
-      together,
-      h('span', 'dim small', 'Move all:'),
-      button('←', nudge(-1, 0), 'mini'),
-      button('↑', nudge(0, -1), 'mini'),
-      button('↓', nudge(0, 1), 'mini'),
-      button('→', nudge(1, 0), 'mini'),
-      step,
-    );
-
-    // Sharing: one overlay (Export… in the editor) or the whole layout.
-    const share = h('div', 'toolbar');
-    share.append(
-      button('Import overlay…', async () => {
+    const arrows = h('div', 'toolbar');
+    arrows.append(h('span', 'dim small', 'Shift everything'), button('←', nudge(-1, 0), 'mini'), button('↑', nudge(0, -1), 'mini'), button('↓', nudge(0, 1), 'mini'), button('→', nudge(1, 0), 'mini'), step);
+    const sharing = h('div', 'toolbar');
+    sharing.append(
+      button('Import an overlay…', async () => {
         const f = await readShare();
         if (!f) return;
         const added = f.overlays.map(instanceFrom);
         cfg.overlays.push(...added);
         selected = added[0].id;
+        layout.open = false;
         save(true);
         rerender();
       }),
-      button('Share layout…', exportLayout),
-      button('Import layout…', async () => {
+      button('Share my layout…', exportLayout),
+      button('Import a layout…', async () => {
         const f = await readShare();
         if (!f) return;
         const replace = confirm(`Replace your ${cfg.overlays.length} overlays with the ${f.overlays.length} in this file?\n\nOK = replace, Cancel = add them to yours.`);
@@ -315,29 +420,79 @@ const overlaysPage: Page = {
         cfg.overlays = replace ? added : [...cfg.overlays, ...added];
         if (f.theme && confirm('Also use the colour theme from this layout?')) cfg.theme = f.theme;
         selected = added[0].id;
+        layout.open = false;
         save(true);
         rerender();
       }),
-      h('span', 'dim small', 'Layouts contain overlays, their settings and the theme — no tokens, logins or leagues.'),
+    );
+    pop.append(
+      h('h3', '', 'Move'),
+      together,
+      arrows,
+      h('h3', '', 'Share'),
+      sharing,
+      h('p', 'dim small', 'Layouts contain your overlays, their settings and the theme — never tokens, logins or leagues.'),
+    );
+    layout.append(pop);
+
+    const bar = h('div', 'toolbar');
+    bar.append(
+      button(editing ? 'Done moving' : 'Edit mode (move & resize)', () => client.send({ op: 'setEditMode', value: !editing }), editing ? 'primary active' : 'primary'),
+      button(visible ? 'Hide all overlays' : 'Show all overlays', () => client.send({ op: 'setVisible', value: !visible })),
+      h('span', 'spacer'),
+      layout,
     );
 
+    const addOverlay = (kind: string) => {
+      const d = byKind(kind)!;
+      const o: OverlayInstance = { id: uid(d.kind), kind: d.kind, name: '', enabled: true, x: 200, y: 200, width: d.size[0], height: d.size[1], settings: {} };
+      cfg.overlays.push(o);
+      selected = o.id;
+      ui.tab.delete(o.id);
+      save();
+      rerender();
+    };
     const list = h('div', 'ov-list');
+    list.append(button('＋ Add overlay', () => addOverlayDialog(addOverlay), 'add-btn'));
     for (const o of cfg.overlays) {
       const d = byKind(o.kind);
-      const item = h('button', `ov-item${o.id === selected ? ' sel' : ''}${o.enabled ? '' : ' off'}`);
-      item.append(h('span', 'ov-name', o.name || d?.name || o.kind), h('span', 'ov-kind', d?.name ?? o.kind));
-      item.onclick = () => {
-        selected = o.id;
+      const item = h('div', `ov-item${o.id === selected ? ' sel' : ''}${o.enabled ? '' : ' off'}`);
+      item.tabIndex = 0;
+      const names = h('span', 'ov-names');
+      names.append(h('span', 'ov-name', o.name || d?.name || o.kind));
+      if (o.name && d) names.append(h('span', 'ov-kind', d.name));
+      const sw = h('input');
+      sw.type = 'checkbox';
+      sw.className = 'switch small';
+      sw.checked = o.enabled;
+      sw.title = o.enabled ? 'Shown — click to switch off' : 'Off — click to show';
+      sw.onclick = (e) => e.stopPropagation();
+      sw.onchange = () => {
+        o.enabled = sw.checked;
+        save();
         rerender();
+      };
+      item.append(names, sw);
+      const pick = () => {
+        selected = o.id;
+        ui.query = '';
+        rerender();
+      };
+      item.onclick = pick;
+      item.onkeydown = (e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          pick();
+        }
       };
       list.append(item);
     }
     const sel = cfg.overlays.find((o) => o.id === selected);
     const main = h('div', 'ov-main');
-    main.append(sel ? overlayEditor(sel, rerender) : h('p', 'dim', 'No overlays yet — add one above.'));
-    const layout = h('div', 'ov-layout');
-    layout.append(list, main);
-    el.replaceChildren(bar, group, share, layout);
+    main.append(sel ? overlayEditor(sel, rerender) : h('p', 'dim', 'No overlays yet — press “Add overlay”.'));
+    const wrap = h('div', 'ov-layout');
+    wrap.append(list, main);
+    el.replaceChildren(bar, wrap);
   },
 };
 

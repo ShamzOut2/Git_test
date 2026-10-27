@@ -8,7 +8,8 @@ type Handler = (topic: TopicName, data: any) => void;
 export class Client {
   private ws: WebSocket | null = null;
   private topics = new Set<string>();
-  private pending = new Map<TopicName, unknown>();
+  /** Newest raw message per topic, waiting for the next frame. */
+  private pending = new Map<TopicName, string>();
   private frame = 0;
   readonly latest: Partial<TopicMap> = {};
   connected = false;
@@ -32,9 +33,13 @@ export class Client {
       if (this.topics.size) this.send({ op: 'sub', topics: [...this.topics] });
     };
     ws.onmessage = (ev) => {
-      const msg = JSON.parse(ev.data as string) as { t: TopicName; d: unknown };
-      this.pending.set(msg.t, msg.d);
-      (this.latest as Record<string, unknown>)[msg.t] = msg.d;
+      // Messages are `{"t":"<topic>","d":<data>}`. Only the newest of each topic is used per
+      // frame, so the data is parsed when it is delivered, not on arrival: a topic arriving
+      // faster than the screen refreshes (or while the window is hidden) costs next to nothing.
+      const raw = ev.data as string;
+      const end = raw.indexOf('"', 6);
+      if (!raw.startsWith('{"t":"') || end < 0) return;
+      this.pending.set(raw.slice(6, end) as TopicName, raw);
       if (!this.frame) this.frame = requestAnimationFrame(() => this.flush());
     };
     ws.onclose = () => {
@@ -48,7 +53,18 @@ export class Client {
     this.frame = 0;
     const batch = [...this.pending];
     this.pending.clear();
-    for (const [t, d] of batch) this.onData(t, d);
+    for (const [t, raw] of batch) {
+      const d = (JSON.parse(raw) as { d: unknown }).d;
+      (this.latest as Record<string, unknown>)[t] = d;
+      this.onData(t, d);
+    }
+  }
+
+  /** Stop receiving topics (e.g. data a settings page no longer shows). */
+  unsubscribe(...topics: string[]) {
+    const gone = topics.filter((t) => this.topics.delete(t));
+    gone.forEach((t) => this.pending.delete(t as TopicName));
+    if (gone.length && this.ws?.readyState === WebSocket.OPEN) this.send({ op: 'unsub', topics: gone });
   }
 
   subscribe(...topics: string[]) {

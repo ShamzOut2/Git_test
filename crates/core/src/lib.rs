@@ -228,11 +228,18 @@ fn run(
 struct Keys {
     map: Option<(u64, i32, i64)>,
     car: Option<(u64, i64, i32, i32)>,
+    /// Ticks published, for topics sent at a lower rate.
+    tick: u64,
 }
 
 fn publish(e: &Engine, hub: &Hub, keys: &mut Keys, force: bool) {
-    for t in Topic::ALL {
+    keys.tick += 1;
+    for (i, t) in Topic::ALL.into_iter().enumerate() {
         if !force && !hub.has_subscribers(t.name()) {
+            continue;
+        }
+        // Spread the slower topics over different ticks.
+        if !force && !(keys.tick + i as u64).is_multiple_of(t.every()) {
             continue;
         }
         if t == Topic::TrackMap {
