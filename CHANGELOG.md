@@ -2,6 +2,11 @@
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
 
+## 0.5.5
+
+- League class badges: Pro and Semi-Pro (also Semi Pro, SemiPro, Professional)
+- League classes are matched by their name only: a league class with no matching badge shows its name instead of the badge of the cars in it (Pro and Semi Pro classes of GT3 cars showed the GT3 badge)
+
 ## 0.5.4
 
 - League class badges: Gold, Silver, Bronze, Am and Pro-Am, coloured to match the league class colour; Amateur, Amatuer and Amz show as AM, Pro Am / ProAm / Pro-Amateur as PRO-AM

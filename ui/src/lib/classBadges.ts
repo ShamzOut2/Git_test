@@ -84,11 +84,17 @@ const RULES: [RegExp, string][] = [
   [/imsa/, 'IMSA'],
   // League tiers.
   [/\bpro[\s-]?am(ateurs?)?\b/, 'PRO-AM'],
+  [/\bsemi[\s-]?pro(fessionals?)?\b/, 'SEMI-PRO'],
+  [/\bpro(fessionals?)?\b/, 'PRO'],
   [/\b(am|amz|amateurs?|amatuers?)\b/, 'AM'],
 ];
 
-/** The badge for a class, from its name (exact, then word by word) or keywords in it and its cars. */
-export function badgeFor(className: string, cars: string[] = []): string | null {
+/**
+ * The badge for a class, from its name (exact, then word by word) or keywords in it and its cars.
+ * League classes (ids starting "lg") are named by the league, so only their name is used: a
+ * "Division 1" of GT3 cars is not shown as GT3.
+ */
+export function badgeFor(className: string, cars: string[] = [], classId = ''): string | null {
   if (!data) return null;
   const ids = Object.keys(data.badges);
   const n = norm(className);
@@ -101,7 +107,7 @@ export function badgeFor(className: string, cars: string[] = []): string | null 
     const w = ids.find((id) => norm(id) === norm(word));
     if (w && norm(word).length >= 2) return w;
   }
-  return rule(`${className} ${cars.join(' ')}`);
+  return classId.startsWith('lg') ? null : rule(`${className} ${cars.join(' ')}`);
 }
 
 /** iRacing's own class colours (official multiclass, single class) → the matching badge colour. */
@@ -159,12 +165,12 @@ const urls = new Map<string, string>();
  * `colorMode`: 'match' (closest badge colour to the class colour), 'exact' (badge in the class
  * colour itself) or a palette name ('sky', 'purple-gold', ...).
  */
-export function classBadge(className: string, classColor: string, cars: string[], colorMode: string, onReady: () => void): string | null {
+export function classBadge(className: string, classId: string, classColor: string, cars: string[], colorMode: string, onReady: () => void): string | null {
   if (!data) {
     load(onReady);
     return null;
   }
-  const id = badgeFor(className, cars);
+  const id = badgeFor(className, cars, classId);
   if (!id) return null;
   let bg: string;
   let fg: string;
