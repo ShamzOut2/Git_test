@@ -54,7 +54,7 @@ The **header** of both overlays is also customisable. By default it shows the ov
 ### Customisation
 
 - **Transparency per overlay:** each overlay has its own overall opacity and background opacity, and one button copies them to all overlays. Global defaults live in the theme.
-- **Colour themes** restyle every overlay *and* the settings window. Text on coloured badges switches between white and black automatically, so it stays readable on bright accents such as yellow. There are 8 presets (Apex Overlays default, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, Light). You can edit any colour, save your own themes, and export or import them as files.
+- **Colour themes** restyle every overlay *and* the settings window. Text on coloured badges switches between white and black automatically, so it stays readable on bright accents such as yellow. There are 11 presets (Apex Overlays default, Midnight Blue, Racing Green, Papaya, Rosso, Monochrome, High Contrast, the team themes Gassed Up Motorsports, VCR and JWB, and Light). You can edit any colour, save your own themes, and export or import them as files.
 - **Any overlay can be added more than once**, each copy with its own settings, size and scale.
 - **Auto-fit height and width:** the window grows and shrinks with the number of rows and the columns you show (both on by default for Standings).
 - **Move all overlays together:** in edit mode, drag one overlay and the rest follow, or nudge them all with the arrow buttons on the Overlays page.
