@@ -15,11 +15,12 @@ export const inputs: OverlayDef = {
     { key: 'showShiftLights', label: 'Shift lights', type: 'bool', default: true, group: 'Shift lights', help: 'Per-gear shift points from Lovely Car Data when the car is listed, otherwise iRacing’s own' },
     { key: 'shiftLightCount', label: 'Number of lights (cars without Lovely data)', type: 'number', default: 10, min: 3, max: 20, group: 'Shift lights' },
     { key: 'shiftLightSize', label: 'Light size', type: 'number', default: 0.9, min: 0.4, max: 3, step: 0.1, unit: 'em', group: 'Shift lights' },
-    { key: 'shiftFlashMs', label: 'Flash speed at the shift point', type: 'number', default: 120, min: 40, max: 1000, step: 10, unit: 'ms', group: 'Shift lights' },
+    { key: 'shiftBlueCount', label: 'Shift-point lights', type: 'number', default: 2, min: 0, max: 6, group: 'Shift lights', help: 'Extra lights (blue) that come on at the ideal shift RPM, after green, yellow and red' },
+    { key: 'shiftFlashMs', label: 'Flash speed past the shift point', type: 'number', default: 120, min: 40, max: 1000, step: 10, unit: 'ms', group: 'Shift lights' },
     { key: 'shiftLowColor', label: 'First lights', type: 'color', default: '#2fd36b', group: 'Shift lights' },
     { key: 'shiftMidColor', label: 'Middle lights', type: 'color', default: '#ffd400', group: 'Shift lights' },
     { key: 'shiftHighColor', label: 'Last lights', type: 'color', default: '#ff3b3b', group: 'Shift lights' },
-    { key: 'shiftFlashColor', label: 'Shift now (flash)', type: 'color', default: '#4da3ff', group: 'Shift lights' },
+    { key: 'shiftFlashColor', label: 'Shift now (shift-point lights and flash)', type: 'color', default: '#2f7bff', group: 'Shift lights' },
     { key: 'showTrace', label: 'Input trace graph', type: 'bool', default: true, group: 'Elements' },
     { key: 'showBars', label: 'Pedal bars', type: 'bool', default: true, group: 'Elements' },
     { key: 'showClutch', label: 'Clutch', type: 'bool', default: true, group: 'Elements' },
@@ -94,8 +95,23 @@ export const inputs: OverlayDef = {
     main.append(canvas, bars, side);
     root.append(lights, main);
 
-    /** Lights for the current car: [rpm on, colour] per light plus the shift-now rpm. */
+    /** Lights for the current car: [rpm on, colour] per light, and the rpm where everything flashes. */
     type Plan = { on: number[]; colors: string[]; flashAt: number; flashColor: string };
+    /**
+     * Adds the shift-point lights (lit at the ideal shift rpm) after green/yellow/red: in the
+     * middle for centre-out patterns (lights coming in from both ends), otherwise at the end.
+     */
+    const withShiftLights = (on: number[], colors: string[], shiftAt: number, color: string): Pick<Plan, 'on' | 'colors'> => {
+      const k = s.shiftBlueCount as number;
+      if (k <= 0) return { on, colors };
+      const n = on.length;
+      const centreOut = n >= 4 && on.every((v, i) => v === on[n - 1 - i]) && on[0] < on[Math.floor(n / 2)];
+      const at = centreOut ? Math.ceil(n / 2) : n;
+      return {
+        on: [...on.slice(0, at), ...Array(k).fill(shiftAt), ...on.slice(at)],
+        colors: [...colors.slice(0, at), ...Array(k).fill(color), ...colors.slice(at)],
+      };
+    };
     let plans = new Map<string, Plan | null>();
     const ramp = (i: number, n: number) => (i < n * 0.4 ? (s.shiftLowColor as string) : i < n * 0.7 ? (s.shiftMidColor as string) : (s.shiftHighColor as string));
     const plan = (gear: number): Plan | null => {
@@ -104,16 +120,22 @@ export const inputs: OverlayDef = {
       let p: Plan | null = null;
       const lv = car?.lovely;
       const g = lv && (lv.rpm[key] ?? lv.rpm[String(Math.max(1, gear))]);
+      const blue = s.shiftFlashColor as string;
       if (lv && g && g.length > 1) {
+        // Lovely: per-gear rpm of each light; the first value is the shift point of that gear.
         const n = Math.min(lv.leds, g.length - 1);
-        const on = g.slice(1, n + 1);
-        p = { on, colors: on.map((_, i) => lv.colors[i + 1] || ramp(i, n)), flashAt: g[0], flashColor: lv.colors[0] || (s.shiftFlashColor as string) };
+        const stage = g.slice(1, n + 1);
+        const shiftAt = g[0];
+        const lights = withShiftLights(stage, stage.map((_, i) => lv.colors[i + 1] || ramp(i, n)), shiftAt, blue);
+        p = { ...lights, flashAt: shiftAt * 1.015, flashColor: lv.colors[0] || blue };
       } else if (car && car.slShift > 0) {
+        // iRacing: first light, ideal shift point and over-rev blink.
         const n = s.shiftLightCount as number;
-        const first = car.slFirst > 0 ? car.slFirst : car.slShift * 0.85;
-        const last = car.slLast > first ? car.slLast : car.slShift;
-        const on = Array.from({ length: n }, (_, i) => first + ((last - first) * i) / Math.max(1, n - 1));
-        p = { on, colors: on.map((_, i) => ramp(i, n)), flashAt: car.slBlink > 0 ? car.slBlink : car.slShift, flashColor: s.shiftFlashColor as string };
+        const shiftAt = car.slShift;
+        const first = car.slFirst > 0 && car.slFirst < shiftAt ? car.slFirst : shiftAt * 0.85;
+        const stage = Array.from({ length: n }, (_, i) => first + ((shiftAt - first) * i) / n);
+        const lights = withShiftLights(stage, stage.map((_, i) => ramp(i, n)), shiftAt, blue);
+        p = { ...lights, flashAt: car.slBlink > shiftAt ? car.slBlink : shiftAt * 1.02, flashColor: blue };
       }
       plans.set(key, p);
       return p;
