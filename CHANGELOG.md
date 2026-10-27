@@ -6,6 +6,7 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 - Fuel calculator remembers what each car uses at each track: in practice (or any session) it shows the usual consumption per lap, lap time and laps counted from earlier sessions, and plans with it until you've driven a clean lap
 - Standings and other auto-sized overlays resize again after the app restarts or reconnects
+- Shift lights are back to each car's own lights and shift points (the extra blue shift-point lights from 0.5.2 are gone), with a new light pattern option: as the car has it, left to right, right to left, outside in, or inside out
 
 ## 0.5.2
 
