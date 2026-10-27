@@ -136,7 +136,7 @@ fn path(d: &str) -> Vec<Vec<P>> {
         match c.to_ascii_uppercase() {
             'M' => {
                 flush(&mut cur, &mut subs);
-                for (i, xy) in v.chunks_exact(2).enumerate() {
+                for (i, xy) in v.as_chunks::<2>().0.iter().enumerate() {
                     pos = off([xy[0], xy[1]], pos);
                     if i == 0 {
                         start = pos;
@@ -146,7 +146,7 @@ fn path(d: &str) -> Vec<Vec<P>> {
                 ctrl = None;
             }
             'L' | 'T' => {
-                for xy in v.chunks_exact(2) {
+                for xy in v.as_chunks::<2>().0.iter() {
                     pos = off([xy[0], xy[1]], pos);
                     cur.push(pos);
                 }
@@ -167,7 +167,7 @@ fn path(d: &str) -> Vec<Vec<P>> {
                 ctrl = None;
             }
             'C' => {
-                for w in v.chunks_exact(6) {
+                for w in v.as_chunks::<6>().0.iter() {
                     let (c1, c2, p) = (off([w[0], w[1]], pos), off([w[2], w[3]], pos), off([w[4], w[5]], pos));
                     cubic(&mut cur, pos, c1, c2, p);
                     ctrl = Some(c2);
@@ -175,7 +175,7 @@ fn path(d: &str) -> Vec<Vec<P>> {
                 }
             }
             'S' => {
-                for w in v.chunks_exact(4) {
+                for w in v.as_chunks::<4>().0.iter() {
                     let c1 = ctrl.map(|c| [2.0 * pos[0] - c[0], 2.0 * pos[1] - c[1]]).unwrap_or(pos);
                     let (c2, p) = (off([w[0], w[1]], pos), off([w[2], w[3]], pos));
                     cubic(&mut cur, pos, c1, c2, p);
@@ -184,7 +184,7 @@ fn path(d: &str) -> Vec<Vec<P>> {
                 }
             }
             'Q' => {
-                for w in v.chunks_exact(4) {
+                for w in v.as_chunks::<4>().0.iter() {
                     let (q, p) = (off([w[0], w[1]], pos), off([w[2], w[3]], pos));
                     let c1 = [pos[0] + 2.0 / 3.0 * (q[0] - pos[0]), pos[1] + 2.0 / 3.0 * (q[1] - pos[1])];
                     let c2 = [p[0] + 2.0 / 3.0 * (q[0] - p[0]), p[1] + 2.0 / 3.0 * (q[1] - p[1])];
@@ -195,7 +195,7 @@ fn path(d: &str) -> Vec<Vec<P>> {
             }
             'A' => {
                 // Arcs are rare in track maps: a straight line to the end point is close enough.
-                for w in v.chunks_exact(7) {
+                for w in v.as_chunks::<7>().0.iter() {
                     pos = off([w[5], w[6]], pos);
                     cur.push(pos);
                 }
@@ -270,7 +270,7 @@ fn parse(svg: &str) -> Svg {
                 }
             }
             "polygon" | "polyline" => {
-                let mut pts: Vec<P> = numbers(attr(tag, "points").unwrap_or("")).chunks_exact(2).map(|c| [c[0], c[1]]).collect();
+                let mut pts: Vec<P> = numbers(attr(tag, "points").unwrap_or("")).as_chunks::<2>().0.to_vec();
                 if name == "polygon" && pts.len() > 2 {
                     pts.push(pts[0]);
                 }
