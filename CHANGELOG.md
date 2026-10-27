@@ -4,6 +4,7 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 ## 0.5.2
 
+- Track map: iRacing's official track map outline, downloaded with your iRacing login (League builder → Import from iRacing), so the full circuit shows straight away; the outline recorded from your driving is still used without a login, or if you prefer it
 - Class badges for 52 iRacing classes (GT3, LMP2, TCR, GTP, MX-5, oval and dirt classes…), coloured to match each class's colour in the session, in the standings class headers and the class column
 - Shift lights finish with blue shift-point lights at the ideal shift RPM (in the middle for centre-out patterns), and only flash once you go past it
 - Flags overlay: the writing on every flag is now readable (yellow, white and LED-style flags)

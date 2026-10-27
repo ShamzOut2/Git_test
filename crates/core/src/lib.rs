@@ -16,6 +16,7 @@ pub mod model;
 pub mod net;
 pub mod server;
 pub mod source;
+pub mod svgmap;
 pub mod topics;
 
 use config::ConfigStore;
@@ -96,6 +97,7 @@ pub fn start(opts: Options) -> std::io::Result<App> {
     let track = Arc::new(Mutex::new((0i64, String::new())));
     if !opts.mock {
         corners::spawn(hub.clone(), opts.data_dir.clone(), track.clone());
+        svgmap::spawn(hub.clone(), config.clone(), opts.data_dir.clone(), track.clone());
     }
 
     let (cmd_tx, cmd_rx) = mpsc::channel();
@@ -142,6 +144,7 @@ fn run(
                 Command::SetTrackData { track_id, data, source } => e.set_track_data(track_id, data, source),
                 Command::SetCountries(c) => e.set_remote_countries(c),
                 Command::SetCarData(d) => e.set_car_data(d),
+                Command::SetOfficialMap(m) => e.map.set_official(m),
                 Command::SetClassNames(c) => e.set_class_names(c),
                 Command::ResetTrackMap => {
                     e.map.clear();

@@ -46,6 +46,8 @@ pub enum Command {
         data: crate::corners::TrackData,
         source: &'static str,
     },
+    /// Outline from iRacing's official track map.
+    SetOfficialMap(crate::engine::trackmap::TrackMap),
     /// Lovely Car Data per `CarPath` (lower case).
     SetCarData(std::collections::HashMap<String, crate::cardata::CarData>),
     /// Lovely Car Classes: iRacing class name → shorthand.
