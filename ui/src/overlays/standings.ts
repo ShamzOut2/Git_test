@@ -5,6 +5,7 @@ import type { OverlayDef } from '../lib/overlay';
 import { columns, enabledColumns, NAME_STYLES } from '../lib/settings';
 import { type Col, columnFitter, Table } from '../lib/table';
 import type { Session, StandClass, StandRow, Standings } from '../lib/types';
+import { classBadge } from '../lib/classBadges';
 import { classLogo, COLUMN_STYLE_SETTINGS, driverCols, extraCols, tireCell } from './common';
 
 const COLS = [
@@ -66,11 +67,16 @@ export const standings: OverlayDef = {
     { key: 'showClassHeader', label: 'Show class headers', type: 'bool', default: true, group: 'Header' },
     {
       key: 'classLogo',
-      label: 'Class logo in class headers',
-      type: 'bool',
-      default: true,
+      label: 'Class badge in class headers',
+      type: 'select',
+      default: 'withName',
+      options: [
+        ['withName', 'Badge and class name'],
+        ['only', 'Badge only'],
+        ['off', 'Class name only'],
+      ],
       group: 'Header',
-      help: 'Put images named after the class in the data folder under logos/, e.g. class-gt3.png or class-lmp2.svg',
+      help: 'Badges are built in for iRacing’s classes (GT3, LMP2, TCR, …). Your own images in the data folder under logos/ (e.g. class-gt3.png) take priority',
     },
     { key: 'showColumnTitles', label: 'Show column titles', type: 'bool', default: true, group: 'Header' },
     { key: 'columnTitlesEveryClass', label: 'Repeat column titles for every class', type: 'bool', default: false, group: 'Header' },
@@ -160,9 +166,13 @@ export const standings: OverlayDef = {
         classes.forEach((c, i) => {
           const sec = sections[i];
           text(sec.name, c.name);
-          const url = s.classLogo ? classLogo(c.name, () => (key = '')) : null;
+          const redo = () => (key = '');
+          const wanted = s.classLogo !== 'off';
+          const url = wanted ? (classLogo(c.name, redo) ?? classBadge(c.name, c.color, c.rows.map((r) => r.car), s.classBadgeColor as string, redo)) : null;
           if (url && sec.logo.getAttribute('src') !== url) sec.logo.src = url;
           if (sec.logo.hidden !== !url) sec.logo.hidden = !url;
+          show(sec.name, !(url && s.classLogo === 'only'));
+          sec.logo.alt = c.name;
           sec.head.style.setProperty('--class', c.color);
           text(sec.meta, [c.sof ? `SOF ${f.iRating(c.sof)}` : '', `${c.count} cars`, c.bestLap ? f.lapTime(c.bestLap) : ''].filter(Boolean).join('  ·  '));
           const mine = c.id === d.focusClass || s.mode !== 'multiclass';

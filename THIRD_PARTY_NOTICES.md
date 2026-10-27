@@ -21,3 +21,7 @@ The following data is downloaded at runtime from community projects by [Lovely S
 [car-logos-dataset](https://github.com/filippofilip95/car-logos-dataset) (MIT License, © filippofilip95; thumbnails).
 The Dallara, Oreca, Tatuus and Williams logos (not in that dataset) were supplied by the project owner.
 The logos themselves are trademarks of their respective owners and are shown only to identify each car's manufacturer.
+
+## Class badges
+`ui/static/assets/classes/badges.json` holds the iRacing class badges designed for Apex Overlays by the project owner,
+stored as one SVG template per class plus the badge colour palette.

@@ -21,7 +21,7 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 |---|---|
 | **Relative** | Cars around you on track with colours for cars a lap ahead or behind. The gap column shows the time to each car on track, the gap to the class leader, or the gap to the car ahead (interval). |
 | **Standings** | Multi-class leaderboard with gap to leader and interval. It shows the top rows and a window around you, per class or as one overall list. |
-| **Track map** | Three styles: the **full circuit** (outline recorded automatically from your first clean lap and cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sector lines, start/finish, class-leader rings, rotation and mirroring. **Sector performance** paints each sector of your lap: purple when faster than your best, green when within 0.25 s of it (adjustable), yellow when slower. The colours stay for 5 s after you cross the line. |
+| **Track map** | Three styles: the **full circuit** (iRacing's official track map when you've set up the iRacing login, otherwise recorded automatically from your first clean lap; cached per track), a **flat** line (optionally one lane per class) and a **round** map. Includes **corner labels** (turn numbers like T3, names like Eau Rouge, or both), sector lines, start/finish, class-leader rings, rotation and mirroring. **Sector performance** paints each sector of your lap: purple when faster than your best, green when within 0.25 s of it (adjustable), yellow when slower. The colours stay for 5 s after you cross the line. |
 | **Driver inputs** | Shift lights (per-gear shift points, flashing when it's time to shift), throttle, brake and clutch bars with their percentage above each bar, a scrolling input trace (ABS shown in colour), steering wheel, gear and speed. |
 | **Fuel calculator** | Average/last/max use per lap, laps of fuel, race laps left (lap- or time-limited, lapped-car aware), fuel to finish, fuel to add, stops, pit window and how much to save to skip a stop. |
 | **Battle box** | The car ahead and behind — in the race overall, in your class, or physically nearest on track (pick per overlay): gap, how fast it is closing (s/lap), laps until you catch them (or they catch you), and their last lap against yours. |
@@ -120,8 +120,11 @@ drive a track and cached. For any track you can edit the corners, or add your ow
 Shift lights in the driver inputs overlay use per-gear shift points and colours from
 [Lovely Car Data](https://github.com/Lovely-Sim-Racing/lovely-car-data) when your car is listed there, and iRacing's own shift
 points otherwise. Short class names (GT3, TCR, LMP2…) come from [Lovely Car Classes](https://github.com/Lovely-Sim-Racing/lovely-car-classes)
-and Lovely Car Data; switch them off under *General*. For a logo next to a class name in the standings, put an image named
-after the class in `%APPDATA%\Apex Overlays\logos\`, e.g. `class-gt3.png`.
+and Lovely Car Data; switch them off under *General*. Class badges (GT3, LMP2, TCR, GTP, MX-5… 52 classes across sports cars, formula, oval and dirt) are built in and shown in
+the standings class headers and the class column. Their colour follows the class colour of the session: iRacing's official
+multiclass colours map to the matching badge colour (gold → yellow, light blue → sky, pink → magenta, purple → purple,
+green → lime, single-class white → white), league colours to the closest badge colour, or pick *Exactly the class colour*
+or a fixed colour. Your own image in `%APPDATA%\Apex Overlays\logos\` named after the class (e.g. `class-gt3.png`) takes priority.
 
 ### Without iRacing: the built-in simulator
 

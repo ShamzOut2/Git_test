@@ -21,7 +21,10 @@ pub struct TrackMap {
 
 pub struct Recorder {
     dir: Option<PathBuf>,
+    /// Outline recorded from the player's driving (or set by the simulator).
     pub map: Option<TrackMap>,
+    /// Outline from iRacing's official track map, when downloaded.
+    pub official: Option<TrackMap>,
     track_id: i64,
     track_name: String,
     bins: Vec<Option<[f64; 2]>>,
@@ -38,6 +41,7 @@ impl Recorder {
         Self {
             dir,
             map: None,
+            official: None,
             track_id: 0,
             track_name: String::new(),
             bins: vec![None; BINS],
@@ -58,7 +62,26 @@ impl Recorder {
         self.track_name = name.to_string();
         self.active = false;
         self.map = self.path(track_id).and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str(&s).ok());
+        if self.official.as_ref().is_some_and(|m| m.track_id != track_id) {
+            self.official = None;
+        }
         self.revision += 1;
+    }
+
+    pub fn set_official(&mut self, map: TrackMap) {
+        self.official = Some(map);
+        self.revision += 1;
+    }
+
+    /// The outline to draw: iRacing's official map when preferred and available, else the
+    /// recorded one (or the official one while nothing has been recorded).
+    pub fn shown(&self, prefer_official: bool) -> Option<&TrackMap> {
+        let official = self.official.as_ref().filter(|m| m.track_id == self.track_id);
+        if prefer_official {
+            official.or(self.map.as_ref())
+        } else {
+            self.map.as_ref().or(official)
+        }
     }
 
     /// Install a map generated elsewhere (e.g. the mock simulator or an import).

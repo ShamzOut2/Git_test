@@ -613,6 +613,23 @@ function cornersCard(rerender: () => void): HTMLElement {
   const cfg = state.config!;
   const tm = state.trackmap;
   const c = card('Track map & corners');
+  const outline = h('select');
+  for (const [v, t] of [
+    ['iracing', 'iRacing’s official track map (needs the iRacing login from League builder)'],
+    ['recorded', 'Recorded from my own driving'],
+  ]) {
+    const o = h('option', '', t);
+    o.value = v;
+    outline.append(o);
+  }
+  outline.value = cfg.trackOutline ?? 'iracing';
+  outline.onchange = () => {
+    cfg.trackOutline = outline.value as 'iracing' | 'recorded';
+    save(true);
+  };
+  const outlineRow = h('label', 'field');
+  outlineRow.append(h('span', 'field-label', 'Track outline'), outline);
+  c.append(outlineRow);
   if (!tm?.trackId) {
     c.append(h('p', 'dim', 'Join a session to manage the track outline and corner names for that track.'));
     return c;
@@ -621,7 +638,11 @@ function cornersCard(rerender: () => void): HTMLElement {
   const custom = cfg.trackCorners?.[key];
   const sourceText: Record<string, string> = { custom: 'your custom list', lovely: 'Lovely Track Data (community)', mock: 'the built-in simulator', none: 'none found yet' };
   c.append(
-    h('p', 'dim', `${tm.trackName}: outline ${tm.source ?? (tm.recording ? 'recording…' : 'not recorded')}. Corners from ${sourceText[tm.cornersSource] ?? tm.cornersSource}.`),
+    h(
+      'p',
+      'dim',
+      `${tm.trackName}: outline ${({ iracing: 'from iRacing’s official track map', recorded: 'recorded from your driving', mock: 'from the simulator' } as Record<string, string>)[tm.source ?? ''] ?? (tm.recording ? 'recording…' : 'not recorded yet')}. Corners from ${sourceText[tm.cornersSource] ?? tm.cornersSource}.`,
+    ),
     button('Re-record track outline', () => client.send({ op: 'resetTrackMap' })),
   );
   const list = custom ?? tm.corners;

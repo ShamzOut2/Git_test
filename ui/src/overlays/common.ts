@@ -3,6 +3,7 @@
 import { h, text, toggle } from '../lib/dom';
 import * as f from '../lib/format';
 import type { Values } from '../lib/settings';
+import { BADGE_COLORS, classBadge } from '../lib/classBadges';
 import { chip, type Col } from '../lib/table';
 import type { Driver, Extras } from '../lib/types';
 
@@ -151,7 +152,26 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
     },
     { id: 'irating', label: 'iR', width: '3em', align: 'right', render: (c, r) => text(c, r.irating > 0 ? f.iRating(r.irating) : '') },
     { id: 'car', label: 'Car', width: 'minmax(3em, 0.7fr)', render: (c, r) => text(c, r.car) },
-    { id: 'class', label: 'Class', width: '3.6em', align: 'center', render: (c, r) => chip(c, r.className, r.classColor) },
+    {
+      id: 'class',
+      label: 'Class',
+      width: s.classStyle === 'badge' ? '3.4em' : '3.6em',
+      align: 'center',
+      render: (c, r) => {
+        const url = s.classStyle === 'badge' ? classBadge(r.className, r.classColor, [r.car], s.classBadgeColor as string, () => c.replaceChildren()) : null;
+        if (!url) {
+          if (c.firstElementChild?.tagName === 'IMG') c.replaceChildren();
+          return chip(c, r.className, r.classColor);
+        }
+        let img = c.firstElementChild as HTMLImageElement | null;
+        if (!img || img.tagName !== 'IMG') {
+          img = h('img', 'class-badge');
+          c.replaceChildren(img);
+        }
+        if (img.getAttribute('src') !== url) img.src = url;
+        img.alt = r.className;
+      },
+    },
   ];
 }
 
@@ -228,6 +248,23 @@ export const COLUMN_STYLE_SETTINGS = [
     group: 'Columns',
   },
   { key: 'makePlate', label: 'Light background behind manufacturer logos', type: 'bool' as const, default: true, group: 'Columns', help: 'Keeps dark logos visible on dark overlays' },
+  {
+    key: 'classStyle',
+    label: 'Class column',
+    type: 'select' as const,
+    default: 'badge',
+    options: [['badge', 'Class badge (GT3, LMP2…)'], ['chip', 'Class name in its colour']] as [string, string][],
+    group: 'Columns',
+  },
+  {
+    key: 'classBadgeColor',
+    label: 'Class badge colour',
+    type: 'select' as const,
+    default: 'match',
+    options: BADGE_COLORS,
+    help: 'Match: the badge colour closest to the class colour in this session (iRacing’s or your league’s)',
+    group: 'Columns',
+  },
   { key: 'outLapText', label: 'Out-lap label', type: 'text' as const, default: 'OUTLAP', group: 'Columns' },
   { key: 'pointsPlus', label: 'Show points as gains (+25)', type: 'bool' as const, default: true, group: 'Columns' },
   { key: 'finishFlag', label: 'Chequered flag next to drivers who have finished', type: 'bool' as const, default: true, group: 'Columns' },

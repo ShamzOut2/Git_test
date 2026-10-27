@@ -171,7 +171,8 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 }
 .class-name { font-weight: 700; }
 .class-left { display: inline-flex; align-items: center; gap: 0.4em; }
-.class-logo { height: 1.1em; width: auto; display: block; }
+.class-logo { height: 1.15em; width: auto; display: block; }
+.class-badge { height: 1.05em; width: auto; display: block; margin: 0 auto; }
 .class-logo[hidden] { display: none; }
 .class-head .info { color: var(--dim); font-size: 0.85em; }
 
@@ -313,7 +314,10 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
   mask-size: var(--led) var(--led);
   filter: drop-shadow(0 0 3px var(--glow, transparent));
 }
-.flags .label, .flags .detail { position: relative; text-align: center; font-weight: 900; letter-spacing: 0.06em; color: #fff; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 2px #000; padding: 0 0.3em; }
+.flags .label, .flags .detail { position: relative; text-align: center; font-weight: 900; letter-spacing: 0.06em; color: #fff; text-shadow: none; padding: 0.05em 0.45em; }
+/* Writing on a flag sits on a dark plate so it is readable on every flag (yellow, white, LED dots…). */
+.flags:not(.style-badge) .label, .flags:not(.style-badge) .detail { background: rgba(0, 0, 0, 0.72); border-radius: 0.25em; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.flags:not(.style-badge) .detail { margin-top: 0.2em; }
 .flags .label { font-size: 1.35em; }
 .flags .detail { font-size: 0.8em; font-weight: 600; letter-spacing: 0; }
 .flags.style-badge .flag-row { flex: none; }
@@ -325,11 +329,9 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .f-green { --flag: #18c24a; --glow: #18c24a; }
 .f-greenHeld { --flag: repeating-linear-gradient(90deg, #18c24a 0 30%, #0b0e13 30% 34%); }
 .f-yellow, .f-yellowWaving, .f-randomWaving, .f-caution, .f-cautionWaving, .f-oneLapToGreen { --flag: #ffd400; --glow: #ffd400; }
-.f-caution .label, .f-cautionWaving .label, .f-oneLapToGreen .label, .f-yellow .label, .f-yellowWaving .label, .f-randomWaving .label { color: #111; text-shadow: none; }
 .f-red { --flag: #e10600; --glow: #e10600; }
 .f-blue { --flag: linear-gradient(135deg, #0057d9 38%, #ffd400 38% 50%, #0057d9 50%); --glow: #0057d9; }
 .f-white { --flag: #ffffff; --glow: #ffffff; }
-.f-white .label { color: #111; text-shadow: none; }
 .f-checkered { --flag: repeating-conic-gradient(#111 0 25%, #fff 0 50%) 0 0 / 1.4em 1.4em; }
 .f-black, .f-disqualify { --flag: #000; }
 .f-disqualify { --flag: linear-gradient(45deg, transparent 46%, #fff 46% 54%, transparent 54%), linear-gradient(-45deg, #000 46%, #fff 46% 54%, #000 54%); }

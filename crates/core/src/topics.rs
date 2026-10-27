@@ -850,8 +850,8 @@ pub fn trackmap(e: &Engine) -> TrackMapOut<'_> {
     TrackMapOut {
         track_id: e.info.track_id,
         track_name: &e.info.track_display_name,
-        points: e.map.map.as_ref().map(|m| m.points.as_slice()),
-        source: e.map.map.as_ref().map(|m| m.source.as_str()),
+        points: e.map.shown(e.cfg.track_outline != "recorded").map(|m| m.points.as_slice()),
+        source: e.map.shown(e.cfg.track_outline != "recorded").map(|m| m.source.as_str()),
         recording: e.map.recording(),
         progress: round(e.map.progress(), 2),
         sectors: &e.info.sectors,

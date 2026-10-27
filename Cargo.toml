@@ -5,7 +5,7 @@ members = ["crates/irsdk", "crates/core", "apps/server", "apps/desktop"]
 default-members = ["crates/irsdk", "crates/core", "apps/server"]
 
 [workspace.package]
-version = "0.5.1"
+version = "0.5.2"
 edition = "2021"
 license = "MIT"
 

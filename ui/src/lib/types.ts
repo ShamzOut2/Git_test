@@ -475,6 +475,8 @@ export interface Config {
   penalties: Penalty[];
   moveAllTogether: boolean;
   shortClassNames: boolean;
+  /** Track map outline: iRacing's official map when available, or the one recorded from your driving. */
+  trackOutline: 'iracing' | 'recorded';
 }
 
 export interface Penalty {

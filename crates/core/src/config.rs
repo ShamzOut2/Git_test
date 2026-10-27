@@ -42,6 +42,8 @@ pub struct Config {
     pub move_all_together: bool,
     /// Short class names (GT3, TCR, LMP2...) from Lovely Car Classes / Car Data.
     pub short_class_names: bool,
+    /// Track map outline: "iracing" (iRacing's official map when available) or "recorded".
+    pub track_outline: String,
     /// "Remind me later" / "skip this version" for the update pop-up.
     pub update_postpone: Option<UpdatePostpone>,
 }
@@ -126,6 +128,7 @@ impl Default for Config {
             move_all_together: false,
             short_class_names: true,
             update_postpone: None,
+            track_outline: "iracing".into(),
         }
     }
 }
