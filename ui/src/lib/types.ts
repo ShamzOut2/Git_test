@@ -239,6 +239,9 @@ export interface Fuel {
   windowClosesLap: number | null;
   marginLaps: number;
   history: number[];
+  /** What this car used at this track in earlier sessions. */
+  expected: { car: string; track: string; perLap: number; max: number; lapTime: number; laps: number; updated: number } | null;
+  estimateFrom: 'session' | 'history' | 'none';
 }
 
 export interface BattleCar extends Driver {

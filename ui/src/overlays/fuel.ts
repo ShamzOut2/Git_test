@@ -6,6 +6,7 @@ import type { Fuel } from '../lib/types';
 const FIELDS: [string, string, boolean][] = [
   ['level', 'Fuel in tank', true],
   ['perLapAvg', 'Average per lap', true],
+  ['expected', 'Usual for this car & track', true],
   ['perLapLast', 'Last lap', true],
   ['perLapMax', 'Max per lap', false],
   ['lapsInTank', 'Laps of fuel', true],
@@ -66,7 +67,10 @@ export const fuel: OverlayDef = {
         const d = data as Fuel;
         const set = (k: string, v: string) => cells[k] && text(cells[k], v);
         set('level', vol(d.level));
-        set('perLapAvg', vol(d.perLapAvg));
+        set('perLapAvg', d.estimateFrom === 'history' ? `${vol(d.perLapAvg)}*` : vol(d.perLapAvg));
+        const x = d.expected;
+        set('expected', x ? `${vol(x.perLap)} · ${x.laps} laps${x.lapTime > 0 ? ` · ${f.lapTime(x.lapTime)}` : ''}` : 'Not driven here yet');
+        if (cells.expected) cells.expected.title = x ? `${x.car} at ${x.track}: average of your recent laps in earlier sessions (highest ${vol(x.max)}). Last driven ${new Date(x.updated * 1000).toLocaleDateString()}.` : '';
         set('perLapLast', vol(d.perLapLast));
         set('perLapMax', vol(d.perLapMax));
         set('lapsInTank', num(d.lapsInTank));
@@ -85,7 +89,7 @@ export const fuel: OverlayDef = {
         gaugeFill.style.transform = `scaleX(${pct.toFixed(3)})`;
         toggle(gauge, 'low', d.lapsInTank != null && d.lapsInTank < (s.warnLaps as number));
         const info = header.lastElementChild as HTMLElement;
-        text(info, d.lapsSampled ? `${d.lapsSampled} laps sampled` : 'waiting for a clean lap');
+        text(info, d.lapsSampled ? `${d.lapsSampled} laps sampled` : d.estimateFrom === 'history' ? '* from earlier sessions' : 'waiting for a clean lap');
         if (s.showHistory) {
           const max = Math.max(...d.history, 0.001);
           const hl = [...d.history].reverse();

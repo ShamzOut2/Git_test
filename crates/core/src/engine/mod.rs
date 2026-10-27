@@ -149,6 +149,9 @@ pub struct Engine {
     pub order: Vec<Row>,
     pub classes: Vec<ClassSummary>,
     pub fuel: fuel::FuelTracker,
+    /// Fuel use per car/track combination from earlier sessions.
+    pub fuel_history: fuel::History,
+    fuel_combo: String,
     pub weather: weather::WeatherTracker,
     pub battle: battle::BattleTracker,
     pub map: trackmap::Recorder,
@@ -190,6 +193,8 @@ impl Engine {
             order: vec![],
             classes: vec![],
             fuel: Default::default(),
+            fuel_history: fuel::History::load(data_dir.as_ref().map(|d| d.join("fuel-history.json"))),
+            fuel_combo: String::new(),
             weather: Default::default(),
             battle: Default::default(),
             map: trackmap::Recorder::new(data_dir.as_ref().map(|d| d.join("trackmaps"))),
@@ -347,6 +352,16 @@ impl Engine {
     /// Other drivers' incident counts are hidden in many sessions; assume visible once any is non-zero.
     pub fn incidents_visible(&self, idx: usize) -> bool {
         idx as i32 == self.tel.player_idx || self.info.drivers.iter().any(|d| d.incidents > 0 && d.car_idx as i32 != self.tel.player_idx)
+    }
+
+    /// Fuel history key for the player's car at this track ("" while unknown).
+    pub fn fuel_key(&self) -> String {
+        let car = self.info.driver(self.info.player_car_idx.max(0) as usize).map(|d| d.car_id).unwrap_or(0);
+        if car > 0 && self.info.track_id > 0 {
+            fuel::History::key(car, self.info.track_id)
+        } else {
+            String::new()
+        }
     }
 
     pub fn ir_delta(&self, idx: usize) -> Option<f32> {
@@ -686,7 +701,23 @@ impl Engine {
         }
         self.last_state = self.tel.session_state;
         let caution = self.under_caution();
+        // A different car or track: earlier laps' consumption does not apply.
+        let combo = self.fuel_key();
+        if combo != self.fuel_combo {
+            self.fuel.clear();
+            self.fuel_combo = combo.clone();
+        }
+        let counted = self.fuel.counted;
         self.fuel.update(&self.tel, caution, &self.cfg.fuel);
+        if self.fuel.counted != counted && !combo.is_empty() {
+            if let Some(lap) = self.fuel.laps.back().copied().filter(|l| l.valid) {
+                let me = self.info.driver(self.info.player_car_idx.max(0) as usize);
+                let car = me.map(|d| d.car_name.clone()).unwrap_or_default();
+                let track = format!("{} {}", self.info.track_display_name, self.info.track_config).trim().to_string();
+                let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0);
+                self.fuel_history.add(&combo, &car, &track, &lap, now);
+            }
+        }
         self.weather.update(&self.tel);
         self.map.update(&self.tel, &self.info);
         self.sectors.update(&self.tel, &self.info.sectors);

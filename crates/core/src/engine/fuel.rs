@@ -2,7 +2,9 @@
 
 use crate::config::FuelConfig;
 use crate::model::Telemetry;
-use std::collections::VecDeque;
+use serde::{Deserialize, Serialize};
+use std::collections::{BTreeMap, VecDeque};
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FuelLap {
@@ -21,6 +23,8 @@ pub struct FuelTracker {
     prev_fuel: f32,
     prev_lap_time: f32,
     pub laps: VecDeque<FuelLap>,
+    /// Laps counted so far (also past the 50 kept in `laps`), to notice new ones.
+    pub counted: u64,
 }
 
 impl FuelTracker {
@@ -44,6 +48,7 @@ impl FuelTracker {
                     let valid =
                         used > 0.0 && !self.refuel && t.is_on_track && (cfg.include_pit_laps || !self.pit) && (cfg.include_caution_laps || !self.caution);
                     self.laps.push_back(FuelLap { used, time: self.prev_lap_time, valid });
+                    self.counted += 1;
                     if self.laps.len() > 50 {
                         self.laps.pop_front();
                     }
@@ -57,6 +62,12 @@ impl FuelTracker {
         }
         self.prev_fuel = fuel;
         self.prev_lap_time = t.lap_current_time;
+    }
+
+    /// Forget the laps (another car or track: their consumption does not apply).
+    pub fn clear(&mut self) {
+        self.laps.clear();
+        self.lap_start_fuel = None;
     }
 
     pub fn valid(&self, n: usize) -> impl Iterator<Item = &FuelLap> {
@@ -75,6 +86,79 @@ impl FuelTracker {
     pub fn lap_time(&self, n: usize) -> Option<f32> {
         let v: Vec<f32> = self.valid(n).map(|l| l.time).filter(|&t| t > 0.0).collect();
         (!v.is_empty()).then(|| v.iter().sum::<f32>() / v.len() as f32)
+    }
+}
+
+/// What a car used per lap at a track in earlier sessions. Small on purpose: a running
+/// average rather than every lap.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase", default)]
+pub struct ComboRecord {
+    pub car: String,
+    pub track: String,
+    /// Running average over (about) the last 20 valid laps.
+    pub per_lap: f32,
+    pub max: f32,
+    pub lap_time: f32,
+    pub laps: u32,
+    /// Unix time of the last lap counted.
+    pub updated: i64,
+}
+
+/// Fuel use per car and track combination, kept on disk between sessions (a few KB).
+#[derive(Debug, Default)]
+pub struct History {
+    path: Option<PathBuf>,
+    pub combos: BTreeMap<String, ComboRecord>,
+}
+
+/// Combinations kept; the least recently driven are dropped beyond this.
+const MAX_COMBOS: usize = 300;
+/// Laps the running average remembers.
+const WINDOW: f32 = 20.0;
+
+impl History {
+    pub fn load(path: Option<PathBuf>) -> Self {
+        let combos = path.as_ref().and_then(|p| std::fs::read_to_string(p).ok()).and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default();
+        Self { path, combos }
+    }
+
+    pub fn key(car_id: i64, track_id: i64) -> String {
+        format!("{car_id}:{track_id}")
+    }
+
+    pub fn get(&self, key: &str) -> Option<&ComboRecord> {
+        self.combos.get(key).filter(|c| c.laps > 0 && c.per_lap > 0.0)
+    }
+
+    /// Count one valid lap and save.
+    pub fn add(&mut self, key: &str, car: &str, track: &str, lap: &FuelLap, now: i64) {
+        let c = self.combos.entry(key.to_string()).or_default();
+        c.car = car.to_string();
+        c.track = track.to_string();
+        let n = (c.laps as f32).min(WINDOW - 1.0);
+        c.per_lap = (c.per_lap * n + lap.used) / (n + 1.0);
+        // Highest recent lap, slowly forgetting old peaks.
+        c.max = if c.laps == 0 { lap.used } else { (c.max * 0.99).max(lap.used) };
+        if lap.time > 0.0 {
+            c.lap_time = if c.lap_time > 0.0 { (c.lap_time * n + lap.time) / (n + 1.0) } else { lap.time };
+        }
+        c.laps += 1;
+        c.updated = now;
+        if self.combos.len() > MAX_COMBOS {
+            if let Some(oldest) = self.combos.iter().min_by_key(|(_, c)| c.updated).map(|(k, _)| k.clone()) {
+                self.combos.remove(&oldest);
+            }
+        }
+        self.save();
+    }
+
+    fn save(&self) {
+        let Some(p) = &self.path else { return };
+        if let Some(d) = p.parent() {
+            let _ = std::fs::create_dir_all(d);
+        }
+        let _ = std::fs::write(p, serde_json::to_string(&self.combos).unwrap_or_default());
     }
 }
 
@@ -153,6 +237,29 @@ pub fn plan(level: f32, capacity: f32, per_lap: f32, laps_left: f32, margin_laps
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn history_keeps_a_running_average() {
+        let dir = std::env::temp_dir().join(format!("apex-fuel-{}", std::process::id()));
+        let path = dir.join("fuel-history.json");
+        let mut h = History::load(Some(path.clone()));
+        let key = History::key(132, 18);
+        for (i, used) in [3.0, 3.2, 2.8, 3.0].iter().enumerate() {
+            h.add(&key, "BMW M4 GT3", "Road America", &FuelLap { used: *used, time: 140.0, valid: true }, i as i64);
+        }
+        let c = h.get(&key).unwrap();
+        assert!((c.per_lap - 3.0).abs() < 1e-4 && c.laps == 4 && c.max > 3.1 && c.max < 3.2);
+        // Saved and loaded again.
+        let again = History::load(Some(path));
+        assert_eq!(again.get(&key), Some(c));
+        // Older laps fade out of the running average.
+        let mut h = again;
+        for i in 0..60 {
+            h.add(&key, "BMW M4 GT3", "Road America", &FuelLap { used: 2.5, time: 140.0, valid: true }, 10 + i);
+        }
+        assert!((h.get(&key).unwrap().per_lap - 2.5).abs() < 0.05);
+        let _ = std::fs::remove_dir_all(dir);
+    }
 
     #[test]
     fn lap_race_remaining() {

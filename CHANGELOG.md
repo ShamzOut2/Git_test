@@ -2,6 +2,11 @@
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
 
+## 0.5.3
+
+- Fuel calculator remembers what each car uses at each track: in practice (or any session) it shows the usual consumption per lap, lap time and laps counted from earlier sessions, and plans with it until you've driven a clean lap
+- Standings and other auto-sized overlays resize again after the app restarts or reconnects
+
 ## 0.5.2
 
 - Track map: iRacing's official track map outline, downloaded with your iRacing login (League builder → Import from iRacing), so the full circuit shows straight away; the outline recorded from your driving is still used without a login, or if you prefer it

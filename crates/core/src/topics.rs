@@ -618,7 +618,7 @@ pub fn standings(e: &Engine) -> StandingsOut<'_> {
 
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct FuelOut {
+pub struct FuelOut<'a> {
     pub level: f32,
     pub capacity: f32,
     pub pct: f32,
@@ -640,6 +640,10 @@ pub struct FuelOut {
     pub window_closes_lap: Option<i32>,
     pub margin_laps: f32,
     pub history: Vec<f32>,
+    /// What this car used here in earlier sessions.
+    pub expected: Option<&'a fuel::ComboRecord>,
+    /// "session" (laps driven now) or "history" (earlier sessions, until enough laps now).
+    pub estimate_from: &'static str,
 }
 
 pub fn race_clock(e: &Engine, focus: usize) -> fuel::RaceClock {
@@ -647,7 +651,8 @@ pub fn race_clock(e: &Engine, focus: usize) -> fuel::RaceClock {
     let def = e.session_def();
     let leader = e.order.first().map(|r| r.idx).unwrap_or(focus);
     let n = e.cfg.fuel.avg_laps;
-    let player_lap = e.fuel.lap_time(n).unwrap_or_else(|| e.ref_lap(focus));
+    let earlier = e.fuel_history.get(&e.fuel_key()).map(|x| x.lap_time).filter(|t| *t > 0.0);
+    let player_lap = e.fuel.lap_time(n).or(earlier).unwrap_or_else(|| e.ref_lap(focus));
     let race = e.is_race();
     fuel::RaceClock {
         laps_total: def.and_then(|d| d.laps).filter(|_| race),
@@ -659,11 +664,14 @@ pub fn race_clock(e: &Engine, focus: usize) -> fuel::RaceClock {
     }
 }
 
-pub fn fuel_out(e: &Engine) -> FuelOut {
+pub fn fuel_out(e: &Engine) -> FuelOut<'_> {
     let t = &e.tel;
     let cfg = &e.cfg.fuel;
     let n = cfg.avg_laps;
-    let avg = e.fuel.average(n);
+    let expected = e.fuel_history.get(&e.fuel_key());
+    // Until a lap has been timed this session, plan with what the car used here before.
+    let session_avg = e.fuel.average(n);
+    let avg = session_avg.or(expected.map(|x| x.per_lap));
     let capacity = e.info.fuel_capacity();
     let focus = usize::try_from(t.player_idx).ok().filter(|&i| i < t.cars.len());
     let laps_left = focus.and_then(|f| fuel::laps_remaining(&race_clock(e, f))).map(|v| v as f32);
@@ -705,6 +713,8 @@ pub fn fuel_out(e: &Engine) -> FuelOut {
         window_closes_lap: plan.as_ref().filter(|p| p.stops > 0).map(|p| lap + p.window_closes_in.floor() as i32),
         margin_laps: cfg.margin_laps,
         history: e.fuel.laps.iter().rev().filter(|l| l.valid).take(10).map(|l| r3(l.used)).collect(),
+        expected,
+        estimate_from: if session_avg.is_some() { "session" } else if expected.is_some() { "history" } else { "none" },
     }
 }
 
