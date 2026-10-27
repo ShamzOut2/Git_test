@@ -18,11 +18,23 @@ pub enum Topic {
     Tyres,
     TrackMap,
     Car,
+    Spotter,
 }
 
 impl Topic {
-    pub const ALL: [Topic; 10] =
-        [Topic::Session, Topic::Player, Topic::Cars, Topic::Relative, Topic::Standings, Topic::Fuel, Topic::Battle, Topic::Tyres, Topic::TrackMap, Topic::Car];
+    pub const ALL: [Topic; 11] = [
+        Topic::Session,
+        Topic::Player,
+        Topic::Cars,
+        Topic::Relative,
+        Topic::Standings,
+        Topic::Fuel,
+        Topic::Battle,
+        Topic::Tyres,
+        Topic::TrackMap,
+        Topic::Car,
+        Topic::Spotter,
+    ];
 
     pub fn name(self) -> &'static str {
         match self {
@@ -36,6 +48,7 @@ impl Topic {
             Topic::Tyres => "tyres",
             Topic::TrackMap => "trackmap",
             Topic::Car => "car",
+            Topic::Spotter => "spotter",
         }
     }
 
@@ -64,6 +77,7 @@ impl Topic {
             Topic::Tyres => serde_json::to_string(&tyres::advise(e)),
             Topic::TrackMap => serde_json::to_string(&trackmap(e)),
             Topic::Car => serde_json::to_string(&car(e)),
+            Topic::Spotter => serde_json::to_string(&spotter(e)),
         };
         r.unwrap_or_else(|_| "null".into())
     }
@@ -271,6 +285,61 @@ pub fn player(e: &Engine) -> PlayerOut {
         long_g: round(t.long_accel / 9.81, 2),
         heading: e.focus_heading().map(|h| round(h, 1)),
     }
+}
+
+#[derive(Debug, Default, Serialize, PartialEq)]
+pub struct SpotterOut {
+    /// "left", "right", "both", "left2" (two cars left), "right2", or "" when clear.
+    pub state: &'static str,
+    /// How far each car alongside is ahead of you (metres, negative = behind), when iRacing's
+    /// report says which side it is on. Empty for "both" or an unknown track length.
+    pub left: Vec<f32>,
+    pub right: Vec<f32>,
+}
+
+/// Cars within `range` metres of the player along the track (same pit lane state), nearest
+/// first, as signed distances (positive = ahead).
+fn cars_alongside(t: &crate::model::Telemetry, track_m: f32, range: f32) -> Vec<f32> {
+    let Some(me) = usize::try_from(t.player_idx).ok().filter(|&i| i < t.cars.len()) else { return vec![] };
+    if track_m <= 0.0 {
+        return vec![];
+    }
+    let p0 = t.lap_dist_pct;
+    let mut near: Vec<f32> = t
+        .cars
+        .iter()
+        .enumerate()
+        .filter(|&(i, c)| i != me && c.pct >= 0.0 && c.in_world() && c.on_pit_road == t.on_pit_road)
+        .map(|(_, c)| ((c.pct - p0 + 1.5).rem_euclid(1.0) - 0.5) * track_m)
+        .filter(|d| d.abs() <= range)
+        .collect();
+    near.sort_by(|a, b| a.abs().total_cmp(&b.abs()));
+    near.iter().map(|d| round(*d, 1)).collect()
+}
+
+pub fn spotter(e: &Engine) -> SpotterOut {
+    let t = &e.tel;
+    let state = match t.car_left_right {
+        2 => "left",
+        3 => "right",
+        4 => "both",
+        5 => "left2",
+        6 => "right2",
+        _ => "",
+    };
+    if state.is_empty() || !t.driving() {
+        return SpotterOut::default();
+    }
+    let near = cars_alongside(t, e.info.track_length_km * 1000.0, 12.0);
+    let take = |n: usize| near.iter().take(n).copied().collect::<Vec<_>>();
+    let (left, right) = match state {
+        "left" => (take(1), vec![]),
+        "right" => (vec![], take(1)),
+        "left2" => (take(2), vec![]),
+        "right2" => (vec![], take(2)),
+        _ => (vec![], vec![]),
+    };
+    SpotterOut { state, left, right }
 }
 
 #[derive(Serialize)]
@@ -901,5 +970,34 @@ mod tests {
         let st = standings(&e);
         assert_eq!(st.classes.len(), 2);
         assert_eq!(st.classes.iter().map(|c| c.rows.len()).sum::<usize>(), 6);
+    }
+
+    #[test]
+    fn spotter_reports_side_and_overlap() {
+        let mut e = engine(4, true);
+        e.info.track_length_km = 5.0;
+        place(&mut e, 0, 2, 0.5);
+        place(&mut e, 1, 2, 0.5006); // 3 m ahead
+        place(&mut e, 2, 2, 0.4996); // 2 m behind
+        place(&mut e, 3, 2, 0.6);
+        e.tel.lap_dist_pct = 0.5;
+        e.tel.is_on_track = true;
+        e.tick();
+        assert_eq!(spotter(&e), SpotterOut::default());
+        e.tel.car_left_right = 2;
+        assert_eq!(spotter(&e), SpotterOut { state: "left", left: vec![-2.0], right: vec![] });
+        e.tel.car_left_right = 6;
+        assert_eq!(spotter(&e), SpotterOut { state: "right2", left: vec![], right: vec![-2.0, 3.0] });
+        e.tel.car_left_right = 4;
+        assert_eq!(spotter(&e).state, "both");
+        // Across the line.
+        e.tel.lap_dist_pct = 0.9999;
+        place(&mut e, 1, 3, 0.0005);
+        place(&mut e, 2, 2, 0.2);
+        e.tel.car_left_right = 3;
+        assert_eq!(spotter(&e).right, vec![3.0]);
+        // Spectating / replay: nothing.
+        e.tel.is_replay_playing = true;
+        assert_eq!(spotter(&e).state, "");
     }
 }

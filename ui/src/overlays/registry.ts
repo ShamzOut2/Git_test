@@ -7,6 +7,7 @@ import { databox } from './databox';
 import { flags } from './flags';
 import { fuel } from './fuel';
 import { garage61 } from './garage61';
+import { spotter } from './spotter';
 import { inputs } from './inputs';
 import { relative } from './relative';
 import { session } from './session';
@@ -15,6 +16,6 @@ import { trackmap } from './trackmap';
 import { tyres } from './tyres';
 import { weather } from './weather';
 
-export const OVERLAYS: OverlayDef[] = [relative, standings, trackmap, inputs, fuel, battle, session, flags, weather, tyres, databox, garage61];
+export const OVERLAYS: OverlayDef[] = [relative, standings, trackmap, inputs, fuel, battle, session, flags, weather, tyres, databox, spotter, garage61];
 
 export const byKind = (kind: string) => OVERLAYS.find((o) => o.kind === kind);

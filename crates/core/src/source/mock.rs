@@ -582,6 +582,26 @@ impl Mock {
         t.lat_accel = (me.speed * me.speed * self.track.curv[ti]) as f32;
         t.long_accel = accel as f32;
         t.tire_compound = me.wets as i32;
+        // Spotter: cars overlapping the player sit on a side picked by their index.
+        let (mut left, mut right) = (0, 0);
+        for (i, c) in self.cars.iter().enumerate().skip(1) {
+            let d = (c.dist - me.dist + len * 1.5).rem_euclid(len) - len * 0.5;
+            if i != PLAYER && d.abs() < 4.8 && t.cars[i].on_pit_road == t.on_pit_road {
+                if i % 2 == 0 {
+                    left += 1;
+                } else {
+                    right += 1;
+                }
+            }
+        }
+        t.car_left_right = match (left, right) {
+            (0, 0) => 1,
+            (1, 0) => 2,
+            (0, 1) => 3,
+            (0, _) => 6,
+            (_, 0) => 5,
+            _ => 4,
+        };
     }
 }
 

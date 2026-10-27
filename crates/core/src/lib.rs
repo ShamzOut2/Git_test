@@ -93,7 +93,7 @@ pub fn start(opts: Options) -> std::io::Result<App> {
     })?;
 
     let combo = Arc::new(Mutex::new(garage61::Combo::default()));
-    garage61::spawn(hub.clone(), config.clone(), combo.clone());
+    garage61::spawn(hub.clone(), config.clone(), combo.clone(), opts.data_dir.clone());
     let track = Arc::new(Mutex::new((0i64, String::new())));
     if !opts.mock {
         corners::spawn(hub.clone(), opts.data_dir.clone(), track.clone());
@@ -193,13 +193,23 @@ fn run(
                     *wanted_countries.lock().unwrap() =
                         e.info.drivers.iter().filter(|d| d.country.is_empty() && !d.is_ai && !d.is_pace_car && !d.is_spectator).map(|d| d.user_id).collect();
                     let me = e.info.driver(e.info.player_car_idx.max(0) as usize);
-                    *combo.lock().unwrap() = garage61::Combo {
+                    let mut c = combo.lock().unwrap();
+                    *c = garage61::Combo {
                         car_id: me.map(|d| d.car_id).unwrap_or(0),
                         car_name: me.map(|d| d.car_name.clone()).unwrap_or_default(),
                         track_id: e.info.track_id,
                         track_name: e.info.track_display_name.clone(),
                         track_config: e.info.track_config.clone(),
+                        ..c.clone()
                     };
+                }
+                // Conditions for Garage 61's "similar conditions" lap search.
+                let (temp, wet) = (e.tel.track_temp.round() as i32, e.tel.track_wetness >= 3);
+                if e.tel.tick % 60 == 0 {
+                    let mut c = combo.lock().unwrap();
+                    if (c.track_temp, c.wet) != (temp, wet) {
+                        (c.track_temp, c.wet) = (temp, wet);
+                    }
                 }
                 e.tick();
                 publish(&e, &hub, &mut keys, false);

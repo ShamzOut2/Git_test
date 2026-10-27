@@ -4,6 +4,11 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 ## 0.5.5
 
+- New Spotter overlay: left and right bars that only appear when a car is alongside you, showing where it overlaps your car; red when three wide or two cars on one side
+- Garage 61: live delta to your Garage 61 best lap or your team's fastest lap, with sector deltas, using the lap's telemetry (downloaded once and cached)
+- Garage 61: choose which laps are searched (all time, this season, this and last season, last 90/30/7 days); all time by default
+- Garage 61: optionally only compare with laps driven in similar conditions (track temperature within a range, and the same dry or wet track)
+- Garage 61: the team leaderboard shows the gap to the fastest lap, and the settings page tells you if your token is missing the driving data permission
 - League class badges: Pro and Semi-Pro (also Semi Pro, SemiPro, Professional)
 - League classes are matched by their name only: a league class with no matching badge shows its name instead of the badge of the cars in it (Pro and Semi Pro classes of GT3 cars showed the GT3 badge)
 

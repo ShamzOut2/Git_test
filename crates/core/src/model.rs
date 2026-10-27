@@ -167,6 +167,9 @@ pub struct Telemetry {
     pub skies: i32,
     pub air_pressure: f32,
     pub display_metric: bool,
+    /// Spotter: irsdk_CarLeftRight (0 off, 1 clear, 2 car left, 3 car right, 4 cars left and
+    /// right, 5 two cars left, 6 two cars right).
+    pub car_left_right: i32,
 
     pub cars: Vec<CarTel>,
 }
@@ -225,6 +228,7 @@ impl Default for Telemetry {
             skies: 0,
             air_pressure: 0.0,
             display_metric: true,
+            car_left_right: 0,
             cars: vec![CarTel { surface: surface::NOT_IN_WORLD, pct: -1.0, ..Default::default() }; MAX_CARS],
         }
     }

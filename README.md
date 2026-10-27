@@ -30,7 +30,8 @@ in a transparent, click-through window. The same pages work as **OBS browser sou
 | **Data box** | A small box with one value of your choice (speed, delta, fuel, position, gaps, track temperature, iRating change…). Add as many as you like, each with its own size and look. |
 | **Tyre advisor** | Tells you when to change between slicks and wets (**BOX FOR WETS / BOX FOR SLICKS**). It combines track wetness, the rain trend, what your class is running and the wet/dry lap-time crossover, and explains why. |
 | **Session info** | Track and air temperature (with trend), wetness, rain, declared wet, wind, humidity, sky, time or laps remaining, sim clock, SOF, incidents and flags. You can pick and order any of these fields. |
-| **Garage 61** | Your Garage 61 personal best and your teams' best laps for the current car and track, compared with your session best. |
+| **Spotter** | Left and right bars that stay invisible until a car is alongside you. A block shows where the other car overlaps yours (ahead or behind), and the bar turns red when you are three wide or have two cars on one side. |
+| **Garage 61** | A **live delta to your Garage 61 best lap** (or the fastest lap in your teams), with sector-by-sector deltas, plus your personal best and your teams' leaderboard for the current car and track. Laps can be limited to a period (all time, this season, last 30 days…) and to similar conditions (track temperature, dry or wet). The reference lap's telemetry is downloaded once and kept as a few kB on disk. |
 
 ### Relative and standings columns
 

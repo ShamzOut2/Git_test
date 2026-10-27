@@ -272,6 +272,21 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .g61-row .p { color: var(--dim); }
 .g61-row.me { color: var(--player); }
 .g61-row .n { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g61-row { grid-template-columns: 1.6em 1fr auto 4.2em; }
+.g61-row .gap { text-align: right; font-size: 0.9em; }
+.g61-delta { display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 0.2em 0.6em; padding: 0.45em 0.7em 0.2em; }
+.g61-ref { font-size: 0.85em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.g61-dval { font-size: 1.6em; font-weight: 800; line-height: 1; grid-row: span 2; align-self: center; }
+.g61-dval.gain, .g61-sec.gain { color: var(--good); }
+.g61-dval.loss, .g61-sec.loss { color: var(--bad); }
+.g61-bar { position: relative; height: 0.45em; border-radius: 0.25em; background: var(--subtle, rgba(255, 255, 255, 0.08)); overflow: hidden; }
+.g61-bar::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--dim); }
+.g61-fill { position: absolute; top: 0; bottom: 0; background: var(--bad); transition: width 0.1s linear, left 0.1s linear; }
+.g61-fill.gain { background: var(--good); }
+.g61-sectors { grid-column: 1 / -1; display: flex; gap: 0.35em; font-size: 0.85em; font-weight: 700; }
+.g61-sec { flex: 1; text-align: center; padding: 0.1em 0.2em; border-radius: 3px; background: var(--subtle, rgba(255, 255, 255, 0.06)); white-space: nowrap; }
+.g61-sec.cur { outline: 1px solid var(--dim); opacity: 0.85; }
+.g61-filters { padding: 0 0.7em 0.3em; font-size: 0.8em; }
 
 /* Extra columns */
 .c-flag { font-size: 1.05em; line-height: 1; overflow: visible; }
@@ -387,3 +402,15 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .c-name .pen[hidden] { display: none; }
 .c-name .pit-tag { flex: none; padding: 0 0.3em; border-radius: 2px; border: 1px solid currentColor; color: var(--dim); font-size: 0.68em; font-weight: 800; letter-spacing: 0.04em; line-height: 1.35; }
 .c-name .pit-tag[hidden] { display: none; }
+
+/* Spotter */
+.panel.spotter { justify-content: center; align-items: center; }
+.sp-wrap { position: relative; display: flex; justify-content: center; align-items: center; gap: calc(var(--sp-gap) / 2); width: 100%; height: 100%; padding: 4px; }
+.sp-side { position: relative; width: var(--sp-bar); height: 100%; border-radius: calc(var(--sp-bar) / 2); --c: var(--sp-color); transition: background 0.15s; }
+.sp-side.on { background: color-mix(in srgb, var(--c) 18%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 45%, transparent); }
+.sp-side.danger { --c: var(--sp-danger); }
+.sp-block { position: absolute; left: 0; right: 0; border-radius: calc(var(--sp-bar) / 2); background: var(--c); transition: top 0.08s linear; }
+.spotter.glow .sp-block { box-shadow: 0 0 calc(var(--sp-bar) * 0.9) var(--c); }
+.sp-car { position: relative; width: calc(var(--sp-bar) * 2.2); max-width: 40%; min-width: 10px; border: 2px solid rgba(255, 255, 255, 0.75); border-radius: 30% 30% 22% 22% / 18% 18% 12% 12%; background: rgba(11, 14, 19, 0.55); }
+.sp-car.danger { border-color: var(--sp-danger); }
+.sp-glass { position: absolute; left: 18%; right: 18%; top: 24%; height: 16%; border-radius: 30% 30% 10% 10%; background: rgba(255, 255, 255, 0.45); }

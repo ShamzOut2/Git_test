@@ -344,6 +344,14 @@ export interface G61Lap {
   isMe: boolean;
 }
 
+export interface G61Reference {
+  driver: string;
+  lapTime: number;
+  source: 'personal' | 'team';
+  /** Seconds into the lap at equal steps of lap distance (first = start, last = finish). */
+  times: number[];
+}
+
 export interface Garage61 {
   status: 'disabled' | 'noToken' | 'waiting' | 'loading' | 'ok' | 'unmapped' | 'error';
   message: string;
@@ -353,6 +361,10 @@ export interface Garage61 {
   personalBest: G61Lap | null;
   teamBest: G61Lap | null;
   leaderboard: G61Lap[];
+  /** Which laps were searched, e.g. "Current season · 25–35 °C · dry". */
+  filters: string;
+  reference: G61Reference | null;
+  referenceNote: string;
 }
 
 export interface Status {
@@ -467,7 +479,16 @@ export interface Config {
   activeLeague: string | null;
   /** 'auto': the league matching the session's iRacing league ID (none otherwise); 'always': activeLeague. */
   leagueMode: 'auto' | 'always';
-  garage61: { enabled: boolean; token: string; includeTeam: boolean; refreshMinutes: number };
+  garage61: {
+    enabled: boolean;
+    token: string;
+    includeTeam: boolean;
+    refreshMinutes: number;
+    period: string;
+    reference: 'personal' | 'team' | 'off';
+    matchConditions: boolean;
+    tempRange: number;
+  };
   savedThemes: SavedTheme[];
   trackCorners: Record<string, Corner[]>;
   iracingApi: { clientId: string; clientSecretMasked: string; username: string; passwordMasked: string };
@@ -500,6 +521,14 @@ export interface UpdateState {
   message?: string;
 }
 
+export interface Spotter {
+  /** 'left', 'right', 'both', 'left2' (two cars left), 'right2', or '' when clear. */
+  state: '' | 'left' | 'right' | 'both' | 'left2' | 'right2';
+  /** Metres each car alongside is ahead of you (negative = behind), when known. */
+  left: number[];
+  right: number[];
+}
+
 export interface TopicMap {
   session: Session;
   player: Player;
@@ -511,6 +540,7 @@ export interface TopicMap {
   tyres: Tyres;
   trackmap: TrackMap;
   car: CarInfo;
+  spotter: Spotter;
   garage61: Garage61;
   status: Status;
   config: Config;

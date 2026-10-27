@@ -31,7 +31,7 @@ vars! {
     yaw_north = "YawNorth", lat_accel = "LatAccel", long_accel = "LongAccel", tire_compound = "PlayerTireCompound",
     track_temp = "TrackTempCrew", air_temp = "AirTemp", track_wetness = "TrackWetness", precipitation = "Precipitation",
     declared_wet = "WeatherDeclaredWet", wind_vel = "WindVel", wind_dir = "WindDir", humidity = "RelativeHumidity",
-    fog = "FogLevel", skies = "Skies", air_pressure = "AirPressure", display_units = "DisplayUnits",
+    fog = "FogLevel", skies = "Skies", air_pressure = "AirPressure", display_units = "DisplayUnits", car_left_right = "CarLeftRight",
     car_lap = "CarIdxLap", car_lap_completed = "CarIdxLapCompleted", car_pct = "CarIdxLapDistPct",
     car_est = "CarIdxEstTime", car_f2 = "CarIdxF2Time", car_pos = "CarIdxPosition", car_class_pos = "CarIdxClassPosition",
     car_pit = "CarIdxOnPitRoad", car_surface = "CarIdxTrackSurface", car_last = "CarIdxLastLapTime",
@@ -91,6 +91,7 @@ pub fn fill(v: &Vars, r: Row, t: &mut Telemetry) {
     t.skies = r.i32(v.skies);
     t.air_pressure = r.f32(v.air_pressure);
     t.display_metric = v.display_units.is_none() || r.i32(v.display_units) == 1;
+    t.car_left_right = r.i32(v.car_left_right);
     for (i, c) in t.cars.iter_mut().enumerate().take(MAX_CARS) {
         c.lap = r.i32_at(v.car_lap, i);
         c.lap_completed = r.i32_at(v.car_lap_completed, i);
