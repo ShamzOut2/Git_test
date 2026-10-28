@@ -120,7 +120,7 @@ impl Default for Config {
                 o("flags", "flags", 860, 70, 220, 110),
                 o("spotter", "spotter", 850, 520, 220, 200),
                 o("pit", "pit", 845, 300, 230, 200),
-                o("safety", "safety", 700, 160, 520, 200),
+                o("safety", "safety", 760, 160, 400, 230),
                 OverlayInstance { enabled: false, ..o("incidents", "incidents", 40, 700, 340, 230) },
                 OverlayInstance { enabled: false, ..o("weather", "weather", 1240, 680, 300, 170) },
                 OverlayInstance { enabled: false, ..o("garage61", "garage61", 1540, 850, 300, 170) },

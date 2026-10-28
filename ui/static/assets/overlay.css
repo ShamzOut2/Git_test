@@ -483,18 +483,31 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .mon-val.warn { color: var(--warn, #ffb020); }
 .mon-val.bad { color: var(--bad); }
 
-/* Safety alert: built like the standings (class-head bars and tables); hidden while nothing is on. */
-.sa-head { align-items: center; }
-.sa-head .class-name { color: var(--class); letter-spacing: 0.05em; }
-.sa-icon.mk { width: 1.6em; height: 1.1em; transform-origin: left center; }
-.sa-icon:not(.mk) { width: 1.2em; height: 1.2em; display: inline-flex; }
-.sa-icon svg { width: 100%; height: 100%; }
-.safety .mk-yellow { background: var(--sa-yellow, #ffd400); }
-.safety .mk-repair { background: radial-gradient(circle, var(--sa-meatball, #ff7a00) 0 34%, #000 36%); }
-.safety:not(.still) .sa-ahead .sa-icon, .safety:not(.still) .sa-mk { animation: sa-wave 0.6s ease-in-out infinite alternate; }
-@keyframes sa-wave { from { transform: perspective(40px) rotateY(-14deg) skewY(-5deg); } to { transform: perspective(40px) rotateY(14deg) skewY(5deg); } }
-.safety:not(.still) .sa-behind .sa-icon { animation: sa-rise 0.9s ease-in-out infinite; }
-@keyframes sa-rise { 0%, 100% { transform: translateY(1px); opacity: 0.7; } 50% { transform: translateY(-1px); opacity: 1; } }
-.safety.pulse .sa-head { animation: sa-pulse 1.1s ease-in-out infinite; }
-@keyframes sa-pulse { 50% { background: color-mix(in srgb, var(--class) 22%, var(--subtle, transparent)); } }
-.cell .sa-mk { display: inline-block; width: 1.3em; height: 0.9em; vertical-align: middle; }
+/* Safety alert: cards for hazards ahead and faster classes behind; hidden while nothing is on. */
+.panel.safety { justify-content: flex-start; }
+.sa-list { display: flex; flex-direction: column; gap: 0.4em; }
+.sa-card { --edge: #ffd400; display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 0.7em; padding: 0.45em 0.75em 0.45em 0.5em; background: var(--bg); border: 1px solid rgba(255, 255, 255, 0.08); border-left: 4px solid var(--edge); border-radius: var(--radius); box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35); animation: sa-in 0.25s ease-out; }
+.sa-card.repair { --edge: #ff7a00; }
+.sa-card.sa-approach { --edge: var(--cls, #4da3ff); }
+.safety.pulse .sa-hazard { animation: sa-in 0.25s ease-out, sa-pulse 1.1s ease-in-out infinite; }
+@keyframes sa-in { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: none; } }
+@keyframes sa-pulse { 50% { box-shadow: 0 0 0 1px var(--edge), 0 0 16px -2px var(--edge); } }
+.sa-icon { width: 3.2em; height: 3.4em; display: flex; align-items: center; justify-content: center; }
+.sa-icon svg { width: 100%; height: 100%; overflow: visible; }
+/* The standings' flag marks (.mk-yellow / .mk-repair), large, waving. */
+.sa-flag.mk { width: 2.6em; height: 1.85em; border-radius: 2px; transform-origin: left center; animation: sa-wave 0.6s ease-in-out infinite alternate; }
+@keyframes sa-wave { from { transform: perspective(60px) rotateY(-16deg) skewY(-4deg); } to { transform: perspective(60px) rotateY(12deg) skewY(4deg); } }
+.safety.still .sa-flag { animation: none; }
+.sa-approach .sa-icon { color: var(--edge); animation: sa-rise 0.9s ease-in-out infinite; }
+.safety.still .sa-approach .sa-icon { animation: none; }
+@keyframes sa-rise { 0%, 100% { transform: translateY(2px); opacity: 0.75; } 50% { transform: translateY(-2px); opacity: 1; } }
+.sa-body { min-width: 0; display: flex; flex-direction: column; gap: 0.12em; }
+.sa-title { display: flex; align-items: center; gap: 0.5em; font-size: 0.82em; letter-spacing: 0.06em; }
+.sa-head { font-weight: 800; color: var(--edge); }
+.sa-hazard .sa-tag { color: var(--dim); letter-spacing: 0; }
+.sa-driver { display: flex; align-items: center; gap: 0.4em; font-size: 1.05em; white-space: nowrap; overflow: hidden; }
+.sa-name { font-weight: 700; overflow: hidden; text-overflow: ellipsis; }
+.sa-stats { font-size: 0.82em; color: var(--dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sa-side { text-align: right; line-height: 1.1; }
+.sa-gap { font-size: 1.6em; font-weight: 800; color: var(--edge); font-variant-numeric: tabular-nums; }
+.sa-dist { font-size: 0.85em; color: var(--dim); }
