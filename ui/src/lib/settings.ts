@@ -23,7 +23,7 @@ export type SettingDef =
   | (Base & { type: 'number'; default: number; min?: number; max?: number; step?: number; unit?: string })
   | (Base & { type: 'color'; default: string })
   | (Base & { type: 'select'; default: string; options: [string, string][] })
-  | (Base & { type: 'text'; default: string; multiline?: boolean; placeholder?: string })
+  | (Base & { type: 'text'; default: string; multiline?: boolean; placeholder?: string; /** Offer a list instead (see form.ts `CHOICES`). */ choices?: string })
   | (Base & { type: 'columns'; default: ColumnSetting[]; columns: ColumnDef[] });
 
 export type Values = Record<string, unknown>;

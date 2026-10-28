@@ -347,7 +347,8 @@ export interface G61Lap {
 export interface G61Reference {
   driver: string;
   lapTime: number;
-  source: 'personal' | 'team';
+  /** personal, team; for the delta bar also teams, team:<slug>, world, session, allTime. */
+  source: string;
   /** Seconds into the lap at equal steps of lap distance (first = start, last = finish). */
   times: number[];
 }
@@ -365,6 +366,18 @@ export interface Garage61 {
   filters: string;
   reference: G61Reference | null;
   referenceNote: string;
+  teams: { slug: string; name: string }[];
+  /** Reference laps the delta bars asked for: personal, teams, team:<slug>, world. */
+  references: Record<string, G61Reference>;
+  referenceNotes: Record<string, string>;
+  /** Fastest lap you can see on Garage 61, telemetry or not. */
+  worldBest: G61Lap | null;
+}
+
+/** Your own reference laps, recorded by the app (`delta` topic). */
+export interface DeltaRefs {
+  session: G61Reference | null;
+  allTime: G61Reference | null;
 }
 
 export interface Status {
@@ -670,6 +683,7 @@ export interface TopicMap {
   incidents: Incidents;
   pit: Pit;
   safety: Safety;
+  delta: DeltaRefs;
   monitor: Monitor;
   garage61: Garage61;
   status: Status;

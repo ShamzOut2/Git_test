@@ -22,10 +22,11 @@ pub enum Topic {
     Incidents,
     Pit,
     Safety,
+    Delta,
 }
 
 impl Topic {
-    pub const ALL: [Topic; 14] = [
+    pub const ALL: [Topic; 15] = [
         Topic::Session,
         Topic::Player,
         Topic::Cars,
@@ -40,6 +41,7 @@ impl Topic {
         Topic::Incidents,
         Topic::Pit,
         Topic::Safety,
+        Topic::Delta,
     ];
 
     pub fn name(self) -> &'static str {
@@ -58,6 +60,7 @@ impl Topic {
             Topic::Incidents => "incidents",
             Topic::Pit => "pit",
             Topic::Safety => "safety",
+            Topic::Delta => "delta",
         }
     }
 
@@ -72,7 +75,7 @@ impl Topic {
             Topic::Standings | Topic::Battle => 6,
             Topic::Session | Topic::Fuel | Topic::Tyres | Topic::Incidents => 15,
             // Only re-sent when they change (see `publish`).
-            Topic::TrackMap | Topic::Car => 1,
+            Topic::TrackMap | Topic::Car | Topic::Delta => 1,
         }
     }
 
@@ -115,9 +118,18 @@ impl Topic {
             Topic::Incidents => serde_json::to_string(&incidents_out(e)),
             Topic::Pit => serde_json::to_string(&e.pit_out),
             Topic::Safety => serde_json::to_string(&crate::safety::build(e)),
+            Topic::Delta => serde_json::to_string(&DeltaOut { session: e.laps.session.as_ref(), all_time: e.laps.all_time.as_ref() }),
         };
         r.unwrap_or_else(|_| "null".into())
     }
+}
+
+/// Your own reference laps for the delta bar (Garage 61's come on the `garage61` topic).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaOut<'a> {
+    pub session: Option<&'a crate::garage61::Reference>,
+    pub all_time: Option<&'a crate::garage61::Reference>,
 }
 
 fn round(v: f32, digits: i32) -> f32 {

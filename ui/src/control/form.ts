@@ -7,6 +7,9 @@ export type OnChange = (key: string, value: unknown) => void;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
+/** Lists for text settings that name one (e.g. your Garage 61 teams), filled in by the pages. */
+export const CHOICES: Record<string, () => [string, string][]> = {};
+
 /** Shown columns in order (drag or ▲▼ to reorder, ✕ to remove), the rest as chips to add
  *  (click, or drag one to where it should go). */
 function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: ColumnSetting[], onChange: OnChange): HTMLElement {
@@ -189,6 +192,21 @@ function control(s: SettingDef, value: unknown, onChange: OnChange): HTMLElement
       return sel;
     }
     case 'text': {
+      const list = s.choices ? CHOICES[s.choices]?.() : undefined;
+      if (list) {
+        const sel = h('select');
+        const v = String(value ?? '');
+        const opts: [string, string][] = [['', list.length ? 'Choose…' : s.placeholder || 'None available'], ...list];
+        if (v && !list.some((o) => o[0] === v)) opts.push([v, `${v} (not available now)`]);
+        for (const [k, l] of opts) {
+          const o = h('option', '', l);
+          o.value = k;
+          sel.append(o);
+        }
+        sel.value = v;
+        sel.onchange = () => onChange(s.key, sel.value);
+        return sel;
+      }
       const i = s.multiline ? h('textarea') : h('input');
       i.value = String(value ?? '');
       if (s.placeholder) i.placeholder = s.placeholder;

@@ -4,13 +4,23 @@ The section for each version is shown in the in-app update pop-up and on the Git
 Each version groups its changes under `### New features`, `### Improvements` and `### Fixes`
 (plus `### Performance` or `### Removed` when needed).
 
-## Unreleased
+## 0.7.0
 
 ### New features
 - **Safety alert overlay**: stays hidden until something needs your attention
   - **Yellow and meatball ahead**: a car up to 10 s ahead (you choose how far) that is stopped, slow, off track or rejoining, or carrying the meatball, shows the waving yellow or meatball flag (the same flags as in the standings) with the driver (number, country, licence, iRating), their car, position, how far ahead they are in seconds and metres, and their speed. It disappears once you have passed them
   - **Faster class behind**: a car of a faster class closing on you shows its class, car, driver, the gap in seconds and metres, how much faster a lap it is and roughly when it will reach you
+- **Delta bar overlay**: your live delta to a reference lap, with a bar, your predicted lap time and a gaining / losing arrow. Compare with:
+  - your best lap this session
+  - your all-time best: the fastest of the laps recorded by Apex Overlays (saved for every car and track) and your Garage 61 best
+  - the fastest lap in one of your Garage 61 teams (pick the team), or in all your teams
+  - the fastest lap on Garage 61 that you can see
+  - until the chosen lap is available it can use your best this session
 - **Fast update rate** (General → Performance): overlays update 20–30 times a second instead of up to 60, for the least CPU. Telemetry is still read 60 times a second
+
+### Improvements
+- The safety alert and delta bar have their own show / hide hotkeys (General → Hotkeys) and are added, switched off, to existing setups
+- Layouts: overlays a saved layout does not have come along switched off when you switch to it, so every overlay's hotkey works in every layout
 
 ### Fixes
 - "Fit the window width to the columns" only appears for overlays that have columns (relative and standings), not for the track map and others
