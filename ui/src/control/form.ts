@@ -7,7 +7,8 @@ export type OnChange = (key: string, value: unknown) => void;
 
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 
-/** Shown columns in order (reorder / remove), the rest as chips to add. */
+/** Shown columns in order (drag or ▲▼ to reorder, ✕ to remove), the rest as chips to add
+ *  (click, or drag one to where it should go). */
 function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: ColumnSetting[], onChange: OnChange): HTMLElement {
   const box = h('div', 'columns');
   const cols = value.map((c) => ({ ...c }));
@@ -16,11 +17,47 @@ function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: Colu
     onChange(s.key, cols.map((x) => ({ ...x })));
     draw();
   };
+  /** Show column `id` just before or after `target` (or last when there is none). */
+  const place = (id: string, target: string | null, after: boolean) => {
+    const c = cols.find((x) => x.id === id);
+    if (!c || id === target) return;
+    c.on = true;
+    cols.splice(cols.indexOf(c), 1);
+    const at = target ? cols.findIndex((x) => x.id === target) + (after ? 1 : 0) : cols.map((x) => x.on).lastIndexOf(true) + 1;
+    cols.splice(at, 0, c);
+    commit();
+  };
+  const MIME = 'text/x-apex-column';
+  const dragFrom = (el: HTMLElement, id: string) => {
+    el.draggable = true;
+    el.addEventListener('dragstart', (e) => {
+      e.dataTransfer!.setData(MIME, id);
+      e.dataTransfer!.effectAllowed = 'move';
+      el.classList.add('dragging');
+    });
+    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+  };
   const draw = () => {
     const shown = cols.filter((c) => c.on);
     const list = h('div', 'col-list');
+    const clear = () => list.querySelectorAll('.drop-before, .drop-after').forEach((x) => x.classList.remove('drop-before', 'drop-after'));
     shown.forEach((c, i) => {
       const item = h('div', 'col-item');
+      dragFrom(item, c.id);
+      const side = (e: DragEvent) => e.offsetX > item.clientWidth / 2;
+      item.addEventListener('dragover', (e) => {
+        if (!e.dataTransfer?.types.includes(MIME)) return;
+        e.preventDefault();
+        clear();
+        item.classList.add(side(e) ? 'drop-after' : 'drop-before');
+      });
+      item.addEventListener('dragleave', () => item.classList.remove('drop-before', 'drop-after'));
+      item.addEventListener('drop', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        clear();
+        place(e.dataTransfer!.getData(MIME), c.id, side(e));
+      });
       const move = (d: number) => (e: Event) => {
         e.preventDefault();
         // Swap with the neighbouring shown column (hidden ones keep their place).
@@ -45,27 +82,37 @@ function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: Colu
         commit();
       };
       const name = h('span', 'col-name', label(c.id));
-      name.title = label(c.id);
-      item.append(h('span', 'col-pos', String(i + 1)), name, up, down, remove);
+      name.title = `${label(c.id)} — drag to move`;
+      item.append(h('span', 'col-grip', '⠿'), h('span', 'col-pos', String(i + 1)), name, up, down, remove);
       list.append(item);
+    });
+    // Dropping on the empty end of the list puts the column last.
+    list.addEventListener('dragover', (e) => {
+      if (e.dataTransfer?.types.includes(MIME)) e.preventDefault();
+    });
+    list.addEventListener('drop', (e) => {
+      e.preventDefault();
+      clear();
+      place(e.dataTransfer!.getData(MIME), null, true);
     });
     if (!shown.length) list.append(h('p', 'dim small', 'No columns shown — add some below.'));
     const hidden = cols.filter((c) => !c.on);
     const chips = h('div', 'col-chips');
     for (const c of hidden) {
       const b = h('button', 'chip', `+ ${label(c.id)}`);
+      b.title = 'Click to add at the end, or drag it to where it should go';
+      dragFrom(b, c.id);
       b.onclick = (e) => {
         e.preventDefault();
-        c.on = true;
-        // Added columns go to the end of the shown ones.
-        cols.splice(cols.indexOf(c), 1);
-        const last = cols.map((x) => x.on).lastIndexOf(true);
-        cols.splice(last + 1, 0, c);
-        commit();
+        place(c.id, null, true);
       };
       chips.append(b);
     }
-    box.replaceChildren(list, ...(hidden.length ? [h('div', 'col-add dim small', 'Add a column'), chips] : []));
+    box.replaceChildren(
+      h('div', 'col-add dim small', 'Shown, in order — drag to rearrange'),
+      list,
+      ...(hidden.length ? [h('div', 'col-add dim small', 'Add a column — click, or drag it into place'), chips] : []),
+    );
   };
   draw();
   return box;

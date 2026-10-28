@@ -996,10 +996,10 @@ const generalPage: Page = {
               type: 'select',
               default: 'balanced',
               options: [
-                ['balanced', 'Balanced — tables a few times a second, inputs/track map/spotter 60/s'],
-                ['full', 'Every tick — everything 60 times a second (as before 0.5.6, more CPU)'],
+                ['balanced', 'Balanced (recommended)'],
+                ['full', 'Every tick (60/s, more CPU)'],
               ],
-              help: 'Balanced sends standings 10/s, relative 20/s, battle 10/s, pit lane 30/s, fuel/session/tyres/incidents 4/s. Applies straight away.',
+              help: 'Balanced: inputs, track map and spotter 60/s; relative 20/s; standings and battle 10/s; the rest a few times a second.',
               group: 'Performance',
             },
             {

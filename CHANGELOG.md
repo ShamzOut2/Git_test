@@ -4,6 +4,9 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 ## 0.5.8
 
+- iRating is shown in a soft frosted pill, with the estimated race gain (green ▲) or loss (red ▼) right next to it instead of in a separate column; switch it off with "iRating gain/loss next to iRating" in the Columns tab
+- Columns: drag columns to rearrange them, or drag a hidden column into place (the ▲▼ buttons still work)
+- Settings: long drop-down options no longer squash the setting's name (e.g. the overlay update rate under General)
 - Closing the settings window now asks whether to close the overlays too or keep them running (from the tray icon), with "don't ask again"; the choice can be changed under General → When I close this window
 
 ## 0.5.7

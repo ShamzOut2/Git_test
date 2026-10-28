@@ -150,7 +150,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
       align: 'center',
       render: (c, r) => chip(c, r.license.split(' ')[0] + ' ' + (r.license.split(' ')[1] ?? '').slice(0, 3), r.licenseColor),
     },
-    { id: 'irating', label: 'iR', width: '3em', align: 'right', render: (c, r) => text(c, r.irating > 0 ? f.iRating(r.irating) : '') },
+    { id: 'irating', label: 'iR', width: s.irGain !== false ? '5.4em' : '3.4em', align: 'right', render: (c, r) => iratingCell(c, r.irating, s.irGain !== false ? r.irDelta : null) },
     { id: 'car', label: 'Car', width: 'minmax(3em, 0.7fr)', render: (c, r) => text(c, r.car) },
     {
       id: 'class',
@@ -173,6 +173,24 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
       },
     },
   ];
+}
+
+/** iRating in a frosted pill, with the estimated race gain (green ▲) or loss (red ▼) beside it. */
+function iratingCell(c: HTMLElement, ir: number, delta: number | null | undefined) {
+  let pill = c.querySelector(':scope > .ir-pill') as HTMLElement | null;
+  let d = c.querySelector(':scope > .ir-delta') as HTMLElement | null;
+  if (!pill || !d) {
+    pill = h('span', 'ir-pill');
+    d = h('span', 'ir-delta');
+    c.replaceChildren(pill, d);
+  }
+  text(pill, ir > 0 ? f.iRating(ir) : '');
+  if (pill.hidden !== !(ir > 0)) pill.hidden = !(ir > 0);
+  const v = delta == null ? 0 : Math.round(delta);
+  text(d, v > 0 ? `▲${v}` : v < 0 ? `▼${-v}` : '');
+  if (d.hidden !== !v) d.hidden = !v;
+  toggle(d, 'up', v > 0);
+  toggle(d, 'down', v < 0);
 }
 
 function signedCell(c: HTMLElement, v: number | null, digits: number) {
@@ -219,7 +237,6 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
       },
     },
     { id: 'incidents', label: 'Inc', width: '2.4em', align: 'right', render: (c, r) => text(c, r.incidents == null ? '' : `${r.incidents}x`) },
-    { id: 'irDelta', label: 'iR ±', width: '3em', align: 'right', render: (c, r) => signedCell(c, r.irDelta, 0) },
     { id: 'srDelta', label: 'SR ±', width: '3.2em', align: 'right', render: (c, r) => signedCell(c, r.srDelta, 2) },
     {
       id: 'points',
@@ -263,6 +280,14 @@ export const COLUMN_STYLE_SETTINGS = [
     default: 'match',
     options: BADGE_COLORS,
     help: 'Match: the badge colour closest to the class colour in this session (iRacing’s or your league’s)',
+    group: 'Columns',
+  },
+  {
+    key: 'irGain',
+    label: 'iRating gain/loss next to iRating',
+    type: 'bool' as const,
+    default: true,
+    help: 'Estimated race result: green ▲ gain, red ▼ loss (official races)',
     group: 'Columns',
   },
   { key: 'outLapText', label: 'Out-lap label', type: 'text' as const, default: 'OUTLAP', group: 'Columns' },
