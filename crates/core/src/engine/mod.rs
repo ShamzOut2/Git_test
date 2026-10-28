@@ -137,6 +137,11 @@ pub struct Row {
     pub gap_laps: i32,
     pub interval: Option<f32>,
     pub interval_laps: i32,
+    /// The same against the overall leader and the car ahead overall, for one overall list.
+    pub gap_overall: Option<f32>,
+    pub gap_overall_laps: i32,
+    pub interval_overall: Option<f32>,
+    pub interval_overall_laps: i32,
 }
 
 #[derive(Debug, Clone)]
@@ -1001,6 +1006,16 @@ impl Engine {
                     row.interval = Some(best(idx) - best(prev_of[ci]));
                 }
             }
+            if n > 0 {
+                let (leader, prev) = (idxs[0], idxs[n - 1]);
+                if race {
+                    (row.gap_overall, row.gap_overall_laps) = self.time_between(idx, leader);
+                    (row.interval_overall, row.interval_overall_laps) = self.time_between(idx, prev);
+                } else if best(idx) < f32::MAX {
+                    row.gap_overall = Some(best(idx) - best(leader));
+                    row.interval_overall = Some(best(idx) - best(prev));
+                }
+            }
             prev_of[ci] = idx;
             rows.push(row);
         }
@@ -1104,7 +1119,15 @@ pub(crate) mod tests {
         e.tick();
         let order: Vec<usize> = e.order.iter().map(|r| r.idx).collect();
         assert_eq!(order, vec![1, 0, 2, 3]);
+        // Overall: one leader (car 1); car 0 leads its class but is 10 s behind overall.
+        assert_eq!(e.row(1).unwrap().gap_overall, None);
+        let r0 = e.row(0).unwrap();
+        assert_eq!(r0.class_pos, 1);
+        assert!((r0.gap_overall.unwrap() - 10.0).abs() < 1e-3, "{:?}", r0.gap_overall);
+        assert!((r0.interval_overall.unwrap() - 10.0).abs() < 1e-3);
         let r2 = e.row(2).unwrap();
+        assert!((r2.gap_overall.unwrap() - 20.0).abs() < 1e-3, "{:?}", r2.gap_overall);
+        assert!((r2.interval_overall.unwrap() - 10.0).abs() < 1e-3);
         assert_eq!(r2.class_pos, 2);
         assert!((r2.gap.unwrap() - 10.0).abs() < 1e-3, "{:?}", r2.gap);
         let r3 = e.row(3).unwrap();
