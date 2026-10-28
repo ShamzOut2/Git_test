@@ -136,6 +136,7 @@ fn run(
     e.source = source.name();
     let mut cfg_rx = config.subscribe();
     let mut keys = Keys::default();
+    let mut last_session_layout: (i64, i32, &'static str) = (0, -1, "");
     loop {
         if cfg_rx.has_changed().unwrap_or(false) {
             cfg_rx.mark_unchanged();
@@ -218,6 +219,21 @@ fn run(
                     if (c.track_temp, c.wet) != (temp, wet) {
                         (c.track_temp, c.wet) = (temp, wet);
                     }
+                }
+                // Session layouts: when a new event or a different kind of session starts, switch
+                // to the layout set for it (once — the user can still pick another by hand).
+                let category = e.session_def().map(|s| crate::config::session_category(&s.kind)).unwrap_or("");
+                let session_key = (e.info.subsession_id, e.tel.session_num, category);
+                if session_key != last_session_layout && !category.is_empty() {
+                    if last_session_layout.0 != session_key.0 || last_session_layout.2 != category {
+                        config.update(|c| {
+                            if let Some(id) = c.layout_for_session(category).filter(|id| *id != c.active_layout) {
+                                log::info!("{category} session: switching to layout {id}");
+                                c.apply_layout(&id);
+                            }
+                        });
+                    }
+                    last_session_layout = session_key;
                 }
                 let t0 = std::time::Instant::now();
                 e.tick();

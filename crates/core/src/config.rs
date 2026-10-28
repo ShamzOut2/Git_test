@@ -225,6 +225,26 @@ pub struct Layout {
     pub id: String,
     pub name: String,
     pub overlays: Vec<OverlayInstance>,
+    /// Session types this layout is switched to automatically when one starts:
+    /// "practice", "qualifying", "warmup", "race".
+    pub sessions: Vec<String>,
+}
+
+/// The kind of session for automatic layouts, from iRacing's SessionType ("Lone Qualify",
+/// "Open Practice", "Race", "Warmup", "Offline Testing"...).
+pub fn session_category(kind: &str) -> &'static str {
+    let k = kind.to_lowercase();
+    if k.contains("race") || k.contains("heat") || k.contains("feature") {
+        "race"
+    } else if k.contains("qual") {
+        "qualifying"
+    } else if k.contains("warm") {
+        "warmup"
+    } else if k.is_empty() {
+        ""
+    } else {
+        "practice"
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -485,6 +505,14 @@ impl Config {
         true
     }
 
+    /// The saved layout set to switch to for this kind of session.
+    pub fn layout_for_session(&self, category: &str) -> Option<String> {
+        if category.is_empty() {
+            return None;
+        }
+        self.layouts.iter().find(|l| l.sessions.iter().any(|s| s == category)).map(|l| l.id.clone())
+    }
+
     /// The saved layout after the one in use (wrapping round).
     pub fn next_layout(&self) -> Option<String> {
         let i = self.layouts.iter().position(|l| l.id == self.active_layout).map_or(0, |i| i + 1);
@@ -587,8 +615,8 @@ mod tests {
         let mut c = Config {
             overlays: vec![ov("a", 0)],
             layouts: vec![
-                Layout { id: "race".into(), name: "Race".into(), overlays: vec![ov("a", 0)] },
-                Layout { id: "quali".into(), name: "Quali".into(), overlays: vec![ov("b", 5)] },
+                Layout { id: "race".into(), name: "Race".into(), overlays: vec![ov("a", 0)], ..Default::default() },
+                Layout { id: "quali".into(), name: "Quali".into(), overlays: vec![ov("b", 5)], ..Default::default() },
             ],
             active_layout: "race".into(),
             ..Default::default()
@@ -604,5 +632,12 @@ mod tests {
         c.toggle_overlay("a");
         assert!(!c.overlays[0].enabled);
         assert_eq!(Config::default().next_layout(), None);
+        // Automatic layouts per session type.
+        c.layouts[1].sessions = vec!["qualifying".into()];
+        assert_eq!(c.layout_for_session(session_category("Lone Qualify")).as_deref(), Some("quali"));
+        assert_eq!(c.layout_for_session(session_category("Race")), None);
+        assert_eq!(session_category("Offline Testing"), "practice");
+        assert_eq!(session_category("Warmup"), "warmup");
+        assert_eq!(session_category("Heat 1"), "race");
     }
 }

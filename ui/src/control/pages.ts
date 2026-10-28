@@ -2,7 +2,7 @@ import { h } from '../lib/dom';
 import * as f from '../lib/format';
 import { commonFor, merge, type SettingDef } from '../lib/settings';
 import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
-import type { OverlayInstance } from '../lib/types';
+import type { OverlayInstance, SavedLayout } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
 import { field, form } from './form';
 import { hotkeyInput } from './hotkey';
@@ -36,9 +36,23 @@ type SharedOverlay = Pick<OverlayInstance, 'kind' | 'name' | 'enabled' | 'x' | '
 interface ShareFile {
   apexOverlays: 'overlay' | 'layout';
   version: string;
+  /** A saved layout's name and the session types it is used for. */
+  name?: string;
+  sessions?: string[];
   overlays: SharedOverlay[];
   theme?: Record<string, unknown>;
 }
+
+/** Session types a layout can be switched to automatically (id, button, name). */
+const SESSION_TYPES: [string, string, string][] = [
+  ['practice', 'P', 'Practice'],
+  ['qualifying', 'Q', 'Qualifying'],
+  ['warmup', 'W', 'Warmup'],
+  ['race', 'R', 'Race'],
+];
+
+/** A menu to show open again after the page redraws. */
+let openMenu = '';
 
 const shareable = (o: OverlayInstance): SharedOverlay => ({ kind: o.kind, name: o.name, enabled: o.enabled, x: o.x, y: o.y, width: o.width, height: o.height, settings: structuredClone(o.settings) });
 const fileName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'overlay';
@@ -73,7 +87,14 @@ async function readShare(): Promise<ShareFile | null> {
     alert('That file has no overlays this version of Apex Overlays knows.');
     return null;
   }
-  return { apexOverlays: d.apexOverlays === 'overlay' ? 'overlay' : 'layout', version: String(d.version ?? ''), overlays, theme: d.theme as Record<string, unknown> | undefined };
+  return {
+    apexOverlays: d.apexOverlays === 'overlay' ? 'overlay' : 'layout',
+    version: String(d.version ?? ''),
+    name: typeof d.name === 'string' ? d.name : undefined,
+    sessions: Array.isArray(d.sessions) ? d.sessions.filter((x): x is string => typeof x === 'string') : undefined,
+    overlays,
+    theme: d.theme as Record<string, unknown> | undefined,
+  };
 }
 
 const instanceFrom = (o: SharedOverlay): OverlayInstance => {
@@ -122,6 +143,8 @@ function menu(label: string, items: [string, () => void, string?][], cls = ''): 
 
 // Close open menus when clicking elsewhere.
 document.addEventListener('click', (e) => {
+  // A click that redrew the page landed on an element that is gone: keep menus as they are.
+  if (!(e.target as Node).isConnected) return;
   for (const d of document.querySelectorAll<HTMLDetailsElement>('details.menu[open]')) if (!d.contains(e.target as Node)) d.open = false;
 });
 
@@ -371,28 +394,67 @@ const overlaysPage: Page = {
     const editing = state.status?.editMode ?? false;
     const visible = state.status?.visible ?? true;
 
-    // Move all overlays at once and share layouts: tucked into one menu.
-    const layout = h('details', 'menu layout-menu');
-    const activeName = (cfg.layouts ?? []).find((l) => l.id === cfg.activeLayout)?.name;
-    layout.append(h('summary', '', activeName ? `Layout: ${activeName} ▾` : 'Layout & sharing ▾'));
-    const pop = h('div', 'menu-pop wide');
-    // Saved layouts: switch between arrangements (each keeps its own overlays and settings).
     cfg.layouts ??= [];
-    const saved = h('div', 'layout-list');
+    const version = state.status?.version ?? '';
+    // Keep a menu open when an action inside it redraws the page.
+    const reopen = (menu: string) => {
+      openMenu = menu;
+      rerender();
+    };
+    const remember = (d: HTMLDetailsElement, name: string) => {
+      d.open = openMenu === name;
+      d.addEventListener('toggle', () => {
+        if (d.open) openMenu = name;
+        else if (openMenu === name) openMenu = '';
+      });
+    };
+
+    // Saved layouts: switch, share, and pick the session types each one is used for.
+    const layoutsMenu = h('details', 'menu layout-menu');
+    const active = cfg.layouts.find((l) => l.id === cfg.activeLayout);
+    layoutsMenu.append(h('summary', '', active ? `Layout: ${active.name} ▾` : 'Layouts ▾'));
+    const lpop = h('div', 'menu-pop wide');
+    const layoutList = h('div', 'layout-list');
+    const exportSaved = (l: SavedLayout) => {
+      const overlays = l.id === cfg.activeLayout ? cfg.overlays : l.overlays;
+      const file: ShareFile = { apexOverlays: 'layout', version, name: l.name, sessions: l.sessions ?? [], overlays: overlays.map(shareable), theme: structuredClone(cfg.theme) };
+      download(`apex-layout-${fileName(l.name)}.json`, file);
+    };
     for (const l of cfg.layouts) {
-      const item = h('div', `layout-item${l.id === cfg.activeLayout ? ' active' : ''}`);
+      l.sessions ??= [];
+      const isActive = l.id === cfg.activeLayout;
+      const item = h('div', `layout-item${isActive ? ' active' : ''}`);
+      const chips = h('span', 'session-chips');
+      for (const [id, short, long] of SESSION_TYPES) {
+        const on = l.sessions.includes(id);
+        const b = button(
+          short,
+          () => {
+            // A session type belongs to one layout at most.
+            for (const other of cfg.layouts) other.sessions = (other.sessions ?? []).filter((s) => s !== id);
+            if (!on) l.sessions.push(id);
+            save(true);
+            reopen('layouts');
+          },
+          `chip-toggle${on ? ' on' : ''}`,
+        );
+        b.title = on ? `Used automatically for ${long} sessions — click to stop` : `Use this layout automatically when a ${long} session starts`;
+        chips.append(b);
+      }
       item.append(
-        h('span', 'layout-name', `${l.id === cfg.activeLayout ? '● ' : ''}${l.name}`),
-        h('span', 'dim small', `${l.overlays.filter((o) => o.enabled).length} overlays`),
+        h('span', 'layout-name', `${isActive ? '● ' : ''}${l.name}`),
+        chips,
         button(
-          l.id === cfg.activeLayout ? 'In use' : 'Use',
+          isActive ? 'In use' : 'Use',
           () => {
             applyLayout(l.id);
-            layout.open = false;
+            layoutsMenu.open = false;
+            openMenu = '';
             rerender();
           },
           'mini',
         ),
+        button('⇩', () => exportSaved(l), 'mini subtle'),
         button(
           '✎',
           () => {
@@ -400,7 +462,7 @@ const overlaysPage: Page = {
             if (!name) return;
             l.name = name;
             save(true);
-            rerender();
+            reopen('layouts');
           },
           'mini subtle',
         ),
@@ -412,27 +474,56 @@ const overlaysPage: Page = {
             if (cfg.activeLayout === l.id) cfg.activeLayout = '';
             delete cfg.hotkeys.layouts?.[l.id];
             save(true);
-            rerender();
+            reopen('layouts');
           },
           'mini subtle',
         ),
       );
-      saved.append(item);
+      const [, , , exp, ren, del] = [...item.children] as HTMLElement[];
+      exp.title = 'Export this layout to a file to share';
+      ren.title = 'Rename';
+      del.title = 'Delete';
+      layoutList.append(item);
     }
-    const saveAs = button('Save current layout as…', () => {
-      const name = prompt('Name this layout (e.g. Race, Qualifying, Streaming)')?.trim();
-      if (!name) return;
-      const l = { id: uid('layout'), name, overlays: structuredClone(cfg.overlays) };
-      cfg.layouts.push(l);
-      cfg.activeLayout = l.id;
-      save(true);
-      rerender();
-    });
-    pop.append(
-      h('h3', '', 'Saved layouts'),
-      ...(cfg.layouts.length ? [saved] : [h('p', 'dim small', 'Save the overlays you have now as a layout, set up another, and switch between them here or with a hotkey (General → Hotkeys).')]),
-      saveAs,
+    const layoutActions = h('div', 'toolbar');
+    layoutActions.append(
+      button('Save current overlays as a layout…', () => {
+        const name = prompt('Name this layout (e.g. Race, Qualifying, Streaming)')?.trim();
+        if (!name) return;
+        const l: SavedLayout = { id: uid('layout'), name, overlays: structuredClone(cfg.overlays), sessions: [] };
+        cfg.layouts.push(l);
+        cfg.activeLayout = l.id;
+        save(true);
+        reopen('layouts');
+      }),
+      button('Import a layout file…', async () => {
+        const f = await readShare();
+        if (!f) return;
+        const name = (prompt('Name for the imported layout', f.name || 'Imported layout') ?? '').trim();
+        if (!name) return;
+        const l: SavedLayout = { id: uid('layout'), name, overlays: f.overlays.map(instanceFrom), sessions: [] };
+        // Session types from the file, where no layout of yours already has them.
+        for (const s of f.sessions ?? []) if (SESSION_TYPES.some((t) => t[0] === s) && !cfg.layouts.some((o) => o.sessions?.includes(s))) l.sessions.push(s);
+        cfg.layouts.push(l);
+        if (f.theme && confirm('Also use the colour theme from this layout?')) cfg.theme = f.theme;
+        if (confirm(`Use “${name}” now?`)) applyLayout(l.id);
+        else save(true);
+        reopen('layouts');
+      }),
     );
+    lpop.append(
+      ...(cfg.layouts.length
+        ? [layoutList, h('p', 'dim small', 'P Q W R: switch to that layout automatically when a Practice, Qualifying, Warmup or Race session starts. ⇩ exports a layout to share; hotkeys are under General → Hotkeys.')]
+        : [h('p', 'dim small', 'Save the overlays you have now as a layout, set up another, and switch between them here, with a hotkey, or automatically by session type.')]),
+      layoutActions,
+    );
+    layoutsMenu.append(lpop);
+    remember(layoutsMenu, 'layouts');
+
+    // Moving every overlay at once, and sharing single overlays.
+    const moveMenu = h('details', 'menu layout-menu');
+    moveMenu.append(h('summary', '', 'Move & share ▾'));
+    const pop = h('div', 'menu-pop wide');
     const together = h('label', 'inline');
     const tcb = h('input');
     tcb.type = 'checkbox';
@@ -468,23 +559,12 @@ const overlaysPage: Page = {
         const added = f.overlays.map(instanceFrom);
         cfg.overlays.push(...added);
         selected = added[0].id;
-        layout.open = false;
+        moveMenu.open = false;
+        openMenu = '';
         save(true);
         rerender();
       }),
-      button('Share my layout…', exportLayout),
-      button('Import a layout…', async () => {
-        const f = await readShare();
-        if (!f) return;
-        const replace = confirm(`Replace your ${cfg.overlays.length} overlays with the ${f.overlays.length} in this file?\n\nOK = replace, Cancel = add them to yours.`);
-        const added = f.overlays.map(instanceFrom);
-        cfg.overlays = replace ? added : [...cfg.overlays, ...added];
-        if (f.theme && confirm('Also use the colour theme from this layout?')) cfg.theme = f.theme;
-        selected = added[0].id;
-        layout.open = false;
-        save(true);
-        rerender();
-      }),
+      button('Export all current overlays…', exportLayout),
     );
     pop.append(
       h('h3', '', 'Move'),
@@ -492,16 +572,18 @@ const overlaysPage: Page = {
       arrows,
       h('h3', '', 'Share'),
       sharing,
-      h('p', 'dim small', 'Layouts contain your overlays, their settings and the theme — never tokens, logins or leagues.'),
+      h('p', 'dim small', 'Shared files contain overlays, their settings and the theme — never tokens, logins or leagues.'),
     );
-    layout.append(pop);
+    moveMenu.append(pop);
+    remember(moveMenu, 'move');
 
     const bar = h('div', 'toolbar');
     bar.append(
       button(editing ? 'Done moving' : 'Edit mode (move & resize)', () => client.send({ op: 'setEditMode', value: !editing }), editing ? 'primary active' : 'primary'),
       button(visible ? 'Hide all overlays' : 'Show all overlays', () => client.send({ op: 'setVisible', value: !visible })),
       h('span', 'spacer'),
-      layout,
+      layoutsMenu,
+      moveMenu,
     );
 
     const addOverlay = (kind: string) => {

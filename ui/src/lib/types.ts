@@ -617,6 +617,8 @@ export interface SavedLayout {
   id: string;
   name: string;
   overlays: OverlayInstance[];
+  /** Session types it is switched to automatically: practice, qualifying, warmup, race. */
+  sessions: string[];
 }
 
 export interface TopicMap {
