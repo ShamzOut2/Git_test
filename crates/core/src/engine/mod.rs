@@ -944,10 +944,9 @@ impl Engine {
         // Before the start the standings show the grid, including drivers still loading in.
         let pre_start = race && t.session_state < STATE_RACING && !self.grid.is_empty();
         let grid_pos = |i: usize| self.grid.iter().position(|&g| g == i).map(|p| p as i32 + 1).unwrap_or(i32::MAX);
-        let mut idxs: Vec<usize> = (0..MAX_CARS)
-            .filter(|&i| self.statics[i].as_ref().is_some_and(|s| !s.hidden))
-            .filter(|&i| t.cars[i].in_world() || self.hist[i].seen || result_pos(i) > 0 || (pre_start && self.grid.contains(&i)))
-            .collect();
+        // Every driver in the session is listed, also those in the garage or still loading in
+        // (spectators and the pace car are not drivers).
+        let mut idxs: Vec<usize> = (0..MAX_CARS).filter(|&i| self.statics[i].as_ref().is_some_and(|s| !s.hidden)).collect();
         let num = |i: usize| self.statics[i].as_ref().and_then(|s| s.number.parse::<i32>().ok()).unwrap_or(9999);
         let pos_or_max = |p: i32| if p > 0 { p } else { i32::MAX };
         if race && t.session_state == STATE_RACING {
@@ -1099,6 +1098,22 @@ pub(crate) mod tests {
         place(&mut e, 3, 1, 0.90);
         e.tick();
         assert_eq!(e.row(3).unwrap().gap_laps, 1);
+    }
+
+    #[test]
+    fn standings_list_drivers_in_the_garage() {
+        for race in [false, true] {
+            let mut e = engine(3, race);
+            place(&mut e, 0, 3, 0.5);
+            place(&mut e, 1, 3, 0.6);
+            // Car 2 is connected but has never left the garage.
+            e.tel.cars[2] = CarTel { surface: surface::NOT_IN_WORLD, pct: -1.0, ..Default::default() };
+            e.tick();
+            let mut order: Vec<usize> = e.order.iter().map(|r| r.idx).collect();
+            order.sort();
+            assert_eq!(order, vec![0, 1, 2], "race: {race}");
+            assert_eq!(e.order.last().map(|r| r.idx), Some(2), "in the garage, listed last");
+        }
     }
 
     #[test]

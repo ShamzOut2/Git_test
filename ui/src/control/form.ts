@@ -30,15 +30,27 @@ function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: Colu
     cols.splice(at, 0, c);
     commit();
   };
-  const MIME = 'text/x-apex-column';
+  // The column being dragged is kept here rather than read back from the drag data: some
+  // browsers (WebView2 on Windows) do not report custom data types while dragging.
+  let dragged: string | null = null;
   const dragFrom = (el: HTMLElement, id: string) => {
     el.draggable = true;
     el.addEventListener('dragstart', (e) => {
-      e.dataTransfer!.setData(MIME, id);
-      e.dataTransfer!.effectAllowed = 'move';
+      dragged = id;
+      e.dataTransfer?.setData('text/plain', id);
+      if (e.dataTransfer) e.dataTransfer.effectAllowed = 'move';
       el.classList.add('dragging');
     });
-    el.addEventListener('dragend', () => el.classList.remove('dragging'));
+    el.addEventListener('dragend', () => {
+      dragged = null;
+      el.classList.remove('dragging');
+    });
+  };
+  const accept = (e: DragEvent) => {
+    if (dragged == null) return false;
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+    return true;
   };
   const draw = () => {
     const shown = cols.filter((c) => c.on);
@@ -48,9 +60,9 @@ function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: Colu
       const item = h('div', 'col-item');
       dragFrom(item, c.id);
       const side = (e: DragEvent) => e.offsetX > item.clientWidth / 2;
+      item.addEventListener('dragenter', (e) => accept(e));
       item.addEventListener('dragover', (e) => {
-        if (!e.dataTransfer?.types.includes(MIME)) return;
-        e.preventDefault();
+        if (!accept(e)) return;
         clear();
         item.classList.add(side(e) ? 'drop-after' : 'drop-before');
       });
@@ -59,7 +71,7 @@ function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: Colu
         e.preventDefault();
         e.stopPropagation();
         clear();
-        place(e.dataTransfer!.getData(MIME), c.id, side(e));
+        if (dragged != null) place(dragged, c.id, side(e));
       });
       const move = (d: number) => (e: Event) => {
         e.preventDefault();
@@ -90,13 +102,12 @@ function columnsControl(s: Extract<SettingDef, { type: 'columns' }>, value: Colu
       list.append(item);
     });
     // Dropping on the empty end of the list puts the column last.
-    list.addEventListener('dragover', (e) => {
-      if (e.dataTransfer?.types.includes(MIME)) e.preventDefault();
-    });
+    list.addEventListener('dragenter', (e) => accept(e));
+    list.addEventListener('dragover', (e) => accept(e));
     list.addEventListener('drop', (e) => {
       e.preventDefault();
       clear();
-      place(e.dataTransfer!.getData(MIME), null, true);
+      if (dragged != null) place(dragged, null, true);
     });
     if (!shown.length) list.append(h('p', 'dim small', 'No columns shown — add some below.'));
     const hidden = cols.filter((c) => !c.on);

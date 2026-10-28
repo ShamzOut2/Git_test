@@ -78,8 +78,8 @@ export const relative: OverlayDef = {
       {
         id: 'gap',
         label: s.gapMode === 'leader' ? 'Leader' : s.gapMode === 'ahead' ? 'Int' : 'Gap',
-        width: '3.8em',
-        align: 'right',
+        width: '3.5em',
+        align: 'center',
         render: (c, r) => {
           const dec = s.gapDecimals as number;
           if (s.gapMode === 'leader' || s.gapMode === 'ahead') {

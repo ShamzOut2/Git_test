@@ -155,7 +155,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
     { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' && r.country !== 'GLOBE' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
     { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), r as NameRow, s) },
     { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
-    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string, s.makePlate !== false) },
+    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string, s.makePlate === true) },
     {
       id: 'license',
       label: 'Lic',
@@ -163,7 +163,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
       align: 'center',
       render: (c, r) => chip(c, r.license.split(' ')[0] + ' ' + (r.license.split(' ')[1] ?? '').slice(0, 3), r.licenseColor),
     },
-    { id: 'irating', label: 'iR', width: s.irGain !== false ? '5.4em' : '3.4em', align: 'right', render: (c, r) => iratingCell(c, r.irating, s.irGain !== false ? r.irDelta : null) },
+    { id: 'irating', label: 'iR', width: s.irGain !== false ? '5em' : '3.2em', align: 'center', render: (c, r) => iratingCell(c, r.irating, s.irGain !== false ? r.irDelta : null) },
     { id: 'car', label: 'Car', width: 'minmax(3em, 0.7fr)', render: (c, r) => text(c, r.car) },
     {
       id: 'class',
@@ -218,7 +218,7 @@ function signedCell(c: HTMLElement, v: number | null, digits: number) {
 /** Columns from the per-car extras (stint, ratings, points, ...). */
 export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
   return [
-    { id: 'lap', label: 'Lap', width: '2.6em', align: 'right', render: (c, r) => text(c, r.lap ? String(r.lap) : '') },
+    { id: 'lap', label: 'Lap', width: '2.6em', align: 'center', render: (c, r) => text(c, r.lap ? String(r.lap) : '') },
     {
       id: 'stint',
       label: 'Stint',
@@ -233,8 +233,8 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
     {
       id: 'bestLap',
       label: 'Best',
-      width: '4.6em',
-      align: 'right',
+      width: '4.7em',
+      align: 'center',
       render: (c, r) => {
         text(c, r.bestLap ? f.lapTime(r.bestLap) : '');
         toggle(c, 'best', s.highlightBest !== false && r.classBest);
@@ -243,8 +243,8 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
     {
       id: 'lastLap',
       label: 'Last',
-      width: '4.6em',
-      align: 'right',
+      width: '4.7em',
+      align: 'center',
       render: (c, r) => {
         text(c, r.lastLap ? f.lapTime(r.lastLap) : '');
         // Purple = fastest lap of the class, green = the driver's personal best.
@@ -252,19 +252,19 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
         toggle(c, 'pb', s.highlightBest !== false && r.lastIsPb && !r.classBest);
       },
     },
-    { id: 'incidents', label: 'Inc', width: '2.4em', align: 'right', render: (c, r) => text(c, r.incidents == null ? '' : `${r.incidents}x`) },
-    { id: 'srDelta', label: 'SR ±', width: '3.2em', align: 'right', render: (c, r) => signedCell(c, r.srDelta, 2) },
+    { id: 'incidents', label: 'Inc', width: '2.4em', align: 'center', render: (c, r) => text(c, r.incidents == null ? '' : `${r.incidents}x`) },
+    { id: 'srDelta', label: 'SR ±', width: '3.2em', align: 'center', render: (c, r) => signedCell(c, r.srDelta, 2) },
     {
       id: 'points',
       label: 'Pts',
       width: '2.8em',
-      align: 'right',
+      align: 'center',
       render: (c, r) => {
         text(c, r.points == null ? '' : `${s.pointsPlus ? '+' : ''}${+r.points.toFixed(1)}`);
         toggle(c, 'good', r.points != null && r.points > 0);
       },
     },
-    { id: 'seasonPoints', label: 'Champ', width: '3.2em', align: 'right', render: (c, r) => text(c, r.seasonPoints == null ? '' : String(+r.seasonPoints.toFixed(1))) },
+    { id: 'seasonPoints', label: 'Champ', width: '3.2em', align: 'center', render: (c, r) => text(c, r.seasonPoints == null ? '' : String(+r.seasonPoints.toFixed(1))) },
   ];
 }
 
@@ -280,7 +280,7 @@ export const COLUMN_STYLE_SETTINGS = [
     help: 'Logos for iRacing’s manufacturers are built in; your own images in the data folder under logos/ (e.g. porsche.png) take priority',
     group: 'Columns',
   },
-  { key: 'makePlate', label: 'Light background behind manufacturer logos', type: 'bool' as const, default: true, group: 'Columns', help: 'Keeps dark logos visible on dark overlays' },
+  { key: 'makePlate', label: 'Light background behind manufacturer logos', type: 'bool' as const, default: false, group: 'Columns', help: 'Off: logos sit on the overlay with a thin light outline so dark ones stay visible' },
   {
     key: 'classStyle',
     label: 'Class column',

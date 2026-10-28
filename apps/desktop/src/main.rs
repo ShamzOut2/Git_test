@@ -76,6 +76,9 @@ fn show_settings(app: &AppHandle) {
         .title("Apex Overlays")
         .inner_size(1240.0, 860.0)
         .min_inner_size(900.0, 600.0)
+        // Tauri's file-drop handler swallows drag & drop on Windows; the page needs it to
+        // reorder columns.
+        .disable_drag_drop_handler()
         .build();
 }
 

@@ -10,11 +10,15 @@ Each version groups its changes under `### New features`, `### Improvements` and
 - **SLOW badge**: drivers serving a slow-down penalty get an orange SLOW badge next to their name in the standings, relative and safety alert. Hover it to see how long they have been slowing and roughly how much time they have given up
 - **Possible overtake** (safety alert): when a car just ahead (3 s by default) is serving a slow-down, the alert shows it with how long it has been slowing, the time it has given up so far and its speed against yours. iRacing does not say how long a slow-down lasts, so the app measures the time given up from the car's own pace
 
-### Fixes
-- Manufacturer logos: the standings and relative could get stuck showing short names (BMW, CHE, MCL) instead of the logos. Each logo is now found in one request (your own image in the logos folder first, then the built-in one) and is tried again if it ever fails to load
-
 ### Improvements
+- Standings list every driver in the session in practice, qualifying and the race, also those still in the garage or loading in (shown dimmed with OUT)
+- Relative and standings: column titles are centred over their columns, numbers and times are centred under them, and the spacing between columns is tighter and even
+- Manufacturer logos sit straight on the overlay (no white box), with a thin light outline so dark logos stay visible; the white background is still an option under Columns
 - The Flags overlay calls iRacing's furled black flag what it is used for now: SLOW DOWN
+
+### Fixes
+- Dragging columns to reorder them works in the app on Windows (it showed a "not allowed" cursor)
+- Manufacturer logos: the standings and relative could get stuck showing short names (BMW, CHE, MCL) instead of the logos. Each logo is now found in one request (your own image in the logos folder first, then the built-in one) and is tried again if it ever fails to load
 
 ## 0.7.0
 

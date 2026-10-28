@@ -106,9 +106,9 @@ export const standings: OverlayDef = {
           toggle(c, 'bad', g < 0);
         },
       },
-      { id: 'gap', label: 'Gap', width: '3.8em', align: 'right', render: (c, r) => text(c, r.classPosition === 1 ? 'Leader' : f.gap(r.gap, r.gapLaps, dec)) },
-      { id: 'interval', label: 'Int', width: '3.6em', align: 'right', render: (c, r) => text(c, r.classPosition === 1 ? '' : f.gap(r.interval, r.intervalLaps, dec)) },
-      { id: 'laps', label: 'Laps', width: '2.6em', align: 'right', render: (c, r) => text(c, String(r.laps)) },
+      { id: 'gap', label: 'Gap', width: '3.8em', align: 'center', render: (c, r) => text(c, r.classPosition === 1 ? 'Leader' : f.gap(r.gap, r.gapLaps, dec)) },
+      { id: 'interval', label: 'Int', width: '3.6em', align: 'center', render: (c, r) => text(c, r.classPosition === 1 ? '' : f.gap(r.interval, r.intervalLaps, dec)) },
+      { id: 'laps', label: 'Laps', width: '2.6em', align: 'center', render: (c, r) => text(c, String(r.laps)) },
       { id: 'pits', label: 'Stops', width: '2.8em', align: 'center', render: (c, r) => text(c, r.pitStops ? String(r.pitStops) : '') },
       { id: 'tire', label: 'Tyre', width: '2.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
       ...extraCols<StandRow>(s),
