@@ -4,7 +4,7 @@ The section for each version is shown in the in-app update pop-up and on the Git
 Each version groups its changes under `### New features`, `### Improvements` and `### Fixes`
 (plus `### Performance` or `### Removed` when needed).
 
-## 0.5.9
+## 0.6.0
 
 ### New features
 - **Saved layouts**: save the overlays you have as a named layout (Race, Qualifying, Streaming…), set up others, and switch between them from Overlays → Layouts. Each layout remembers its own overlays, positions and settings
