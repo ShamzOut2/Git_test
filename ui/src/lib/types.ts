@@ -514,7 +514,7 @@ export interface Config {
   /** Track map outline: iRacing's official map when available, or the one recorded from your driving. */
   trackOutline: 'iracing' | 'recorded';
   /** 'balanced': timing tables a few times a second; 'full': everything 60 times a second. */
-  updateRate: 'balanced' | 'full';
+  updateRate: 'fast' | 'balanced' | 'full';
   /** Closing the settings window: ask, close everything, or keep the overlays running. */
   closeAction: 'ask' | 'quit' | 'keep';
 }
@@ -622,7 +622,7 @@ export interface SavedLayout {
 }
 
 /** A car ahead causing a yellow or carrying the meatball (see crates/core/src/safety.rs). */
-export interface Hazard extends Driver {
+export interface Hazard extends Driver, Extras {
   flag: 'yellow' | 'repair';
   reason: 'stopped' | 'slow' | 'offTrack' | 'rejoining' | 'damaged';
   /** Seconds and metres ahead of you. */
@@ -632,11 +632,11 @@ export interface Hazard extends Driver {
   speed: number;
   position: number;
   classPosition: number;
-  incidents: number | null;
+  tireWet: boolean | null;
 }
 
 /** A car of a faster class behind you. */
-export interface Approach extends Driver {
+export interface Approach extends Driver, Extras {
   /** Seconds and metres behind you. */
   gap: number;
   distance: number;
@@ -647,6 +647,7 @@ export interface Approach extends Driver {
   speed: number;
   position: number;
   classPosition: number;
+  tireWet: boolean | null;
 }
 
 export interface Safety {

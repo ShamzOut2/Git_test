@@ -107,9 +107,11 @@ export const COMMON: SettingDef[] = [
 ];
 
 /** Common options with an overlay's own defaults applied (e.g. standings auto-fits by default). */
-export function commonFor(defaults?: Values): SettingDef[] {
-  if (!defaults) return COMMON;
-  return COMMON.map((s) => (s.key in defaults ? ({ ...s, default: defaults[s.key] } as SettingDef) : s));
+export function commonFor(defaults?: Values, fitsWidth = false): SettingDef[] {
+  // Fitting the width to the columns only means something for overlays with columns.
+  const common = fitsWidth ? COMMON : COMMON.filter((s) => s.key !== 'autoWidth');
+  if (!defaults) return common;
+  return common.map((s) => (s.key in defaults ? ({ ...s, default: defaults[s.key] } as SettingDef) : s));
 }
 
 export const NAME_STYLES: [string, string][] = [

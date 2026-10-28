@@ -76,6 +76,16 @@ impl Topic {
         }
     }
 
+    /// The "fast" update rate, for the least CPU: nothing above 30/s, timing tables as in
+    /// balanced. Telemetry is still read at 60/s, so nothing is missed, only shown less often.
+    pub fn every_fast(self) -> u64 {
+        match self {
+            Topic::Player | Topic::Cars | Topic::Spotter | Topic::Pit => 2,
+            Topic::Relative | Topic::Safety => 3,
+            t => t.every(),
+        }
+    }
+
     pub fn from_name(s: &str) -> Option<Self> {
         Self::ALL.into_iter().find(|t| t.name() == s)
     }
@@ -525,7 +535,7 @@ pub struct Extras {
     pub season_points: Option<f32>,
 }
 
-fn extras(e: &Engine, idx: usize) -> Extras {
+pub fn extras(e: &Engine, idx: usize) -> Extras {
     let c = &e.tel.cars[idx];
     let (stint_state, stint_lap) = match e.stint(idx) {
         Stint::Pit => ("pit", None),

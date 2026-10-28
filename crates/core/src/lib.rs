@@ -257,13 +257,18 @@ struct Keys {
 
 fn publish(e: &Engine, hub: &Hub, keys: &mut Keys, force: bool) {
     keys.tick += 1;
-    let full = e.cfg.update_rate == "full";
+    let rate = e.cfg.update_rate.as_str();
     for (i, t) in Topic::ALL.into_iter().enumerate() {
         if !force && !hub.has_subscribers(t.name()) {
             continue;
         }
         // Spread the slower topics over different ticks.
-        if !force && !full && !(keys.tick + i as u64).is_multiple_of(t.every()) {
+        let every = match rate {
+            "full" => 1,
+            "fast" => t.every_fast(),
+            _ => t.every(),
+        };
+        if !force && !(keys.tick + i as u64).is_multiple_of(every) {
             continue;
         }
         if t == Topic::TrackMap {

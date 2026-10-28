@@ -250,7 +250,7 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
   preview.style.height = `${o.height * scale + 16}px`;
   preview.append(frame);
 
-  const common = commonFor(def.commonDefaults);
+  const common = commonFor(def.commonDefaults, def.fitsWidth);
   const values = merge([...common, ...def.settings], o.settings);
   const entries = [...def.settings.map((s) => ({ s, tab: tabOf(s, false) })), ...common.map((s) => ({ s, tab: tabOf(s, true) }))];
   const tabs = [...new Set(entries.map((e) => e.tab))].sort((a, b) => tabRank(a) - tabRank(b));
@@ -1323,10 +1323,11 @@ const generalPage: Page = {
               type: 'select',
               default: 'balanced',
               options: [
+                ['fast', 'Fast (lightest on CPU, 20–30/s)'],
                 ['balanced', 'Balanced (recommended)'],
-                ['full', 'Every tick (60/s, more CPU)'],
+                ['full', 'Every tick (60/s, most CPU)'],
               ],
-              help: 'Balanced: inputs, track map and spotter 60/s; relative and safety alert 20/s; standings and battle 10/s; the rest a few times a second.',
+              help: 'Fast: inputs, track map, spotter and pit 30/s; relative and safety alert 20/s; standings and battle 10/s. Balanced: as Fast but inputs, track map and spotter 60/s. Telemetry is always read 60 times a second, so nothing is missed.',
               group: 'Performance',
             },
             {
@@ -1351,7 +1352,7 @@ const generalPage: Page = {
             if (k === 'lanAccess') cfg.server.lanAccess = v as boolean;
             if (k === 'ratingsOfficialOnly') cfg.ratingsOfficialOnly = v as boolean;
             if (k === 'shortClassNames') cfg.shortClassNames = v as boolean;
-            if (k === 'updateRate') cfg.updateRate = v as 'balanced' | 'full';
+            if (k === 'updateRate') cfg.updateRate = v as 'fast' | 'balanced' | 'full';
             if (k === 'closeAction') cfg.closeAction = v as 'ask' | 'quit' | 'keep';
             save();
           },

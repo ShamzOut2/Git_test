@@ -7,9 +7,13 @@ Each version groups its changes under `### New features`, `### Improvements` and
 ## Unreleased
 
 ### New features
-- **Safety alert overlay**: stays hidden until something needs your attention
-  - **Yellow and meatball ahead**: a car up to 10 s ahead (you choose how far) that is stopped, slow, off track or rejoining, or carrying the meatball, shows a waving flag with the driver (number, country, licence, iRating), their car, position, how far ahead they are in seconds and metres, and their speed. It disappears once you have passed them
-  - **Faster class behind**: a car of a faster class closing on you shows its class, car, driver, the gap in seconds and metres, how much faster a lap it is and roughly when it will reach you
+- **Safety alert overlay**: stays hidden until something needs your attention. Built like the standings: the same flag marks, columns (pick, drag to reorder), column styles, header and colours
+  - **Yellow and meatball ahead**: cars up to 10 s ahead (you choose how far) that are stopped, slow, off track or rejoining, or carrying the meatball, with the driver, their status, how far ahead in seconds and metres, and any other standings column you want. A car drops off once you have passed it
+  - **Faster class behind**: cars of a faster class closing on you, with their class, car, driver, the gap in seconds and metres, how much faster a lap they are and roughly when they will reach you
+- **Fast update rate** (General → Performance): overlays update 20–30 times a second instead of up to 60, for the least CPU. Telemetry is still read 60 times a second
+
+### Fixes
+- "Fit the window width to the columns" only appears for overlays that have columns (relative, standings, safety alert), not for the track map and others
 
 ## 0.6.0
 

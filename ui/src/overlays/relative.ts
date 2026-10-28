@@ -37,6 +37,7 @@ export const relative: OverlayDef = {
   description: 'Cars around you on track with live time gaps, lap-ahead/behind colouring and class colours.',
   topics: ['relative', 'session'],
   size: [600, 320],
+  fitsWidth: true,
   settings: [
     { key: 'carsAhead', label: 'Cars ahead', type: 'number', default: 4, min: 0, max: 10, group: 'Layout' },
     { key: 'carsBehind', label: 'Cars behind', type: 'number', default: 4, min: 0, max: 10, group: 'Layout' },

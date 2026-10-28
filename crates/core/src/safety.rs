@@ -4,7 +4,7 @@
 
 use crate::engine::Engine;
 use crate::model::{flags, surface};
-use crate::topics::{driver, DriverOut};
+use crate::topics::{driver, extras, DriverOut, Extras};
 use serde::Serialize;
 
 /// Furthest ahead / behind (seconds) a car is reported.
@@ -19,6 +19,9 @@ const MAX: usize = 4;
 pub struct Hazard<'a> {
     #[serde(flatten)]
     pub d: DriverOut<'a>,
+    /// Lap times, flags, penalty, incidents… as in the standings.
+    #[serde(flatten)]
+    pub x: Extras,
     /// "yellow" (causing one) or "repair" (meatball).
     pub flag: &'static str,
     /// What the car is doing: "stopped", "slow", "offTrack", "rejoining" or "damaged".
@@ -30,7 +33,7 @@ pub struct Hazard<'a> {
     pub speed: f32,
     pub position: i32,
     pub class_position: i32,
-    pub incidents: Option<i32>,
+    pub tire_wet: Option<bool>,
 }
 
 #[derive(Serialize)]
@@ -38,6 +41,8 @@ pub struct Hazard<'a> {
 pub struct Approach<'a> {
     #[serde(flatten)]
     pub d: DriverOut<'a>,
+    #[serde(flatten)]
+    pub x: Extras,
     /// Seconds behind you on track, and metres.
     pub gap: f32,
     pub distance: f32,
@@ -48,6 +53,7 @@ pub struct Approach<'a> {
     pub speed: f32,
     pub position: i32,
     pub class_position: i32,
+    pub tire_wet: Option<bool>,
 }
 
 #[derive(Serialize, Default)]
@@ -124,6 +130,7 @@ pub fn build(e: &Engine) -> SafetyOut<'_> {
                 };
                 out.hazards.push(Hazard {
                     d: driver(e, s),
+                    x: extras(e, i),
                     flag: if yellow { "yellow" } else { "repair" },
                     reason,
                     gap: round(gap, 1),
@@ -131,7 +138,7 @@ pub fn build(e: &Engine) -> SafetyOut<'_> {
                     speed: round(h.speed, 1),
                     position: r.pos,
                     class_position: r.class_pos,
-                    incidents: e.incidents_visible(i).then(|| e.incidents(i)),
+                    tire_wet: e.info.tire_shown(c),
                 });
             }
         } else if gap < 0.0 && -gap <= RANGE && s.class.id != my.class.id {
@@ -147,6 +154,7 @@ pub fn build(e: &Engine) -> SafetyOut<'_> {
             let catch_in = (faster_by > 0.05).then(|| -gap * theirs / faster_by);
             out.approaching.push(Approach {
                 d: driver(e, s),
+                x: extras(e, i),
                 gap: round(-gap, 1),
                 distance,
                 faster_by: round(faster_by, 1),
@@ -154,6 +162,7 @@ pub fn build(e: &Engine) -> SafetyOut<'_> {
                 speed: round(h.speed, 1),
                 position: r.pos,
                 class_position: r.class_pos,
+                tire_wet: e.info.tire_shown(c),
             });
         }
     }

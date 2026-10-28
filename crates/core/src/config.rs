@@ -47,8 +47,9 @@ pub struct Config {
     pub short_class_names: bool,
     /// Track map outline: "iracing" (iRacing's official map when available) or "recorded".
     pub track_outline: String,
-    /// How often live data is sent to overlays: "balanced" (timing tables a few times a
-    /// second, driving aids every tick) or "full" (everything every tick, as before 0.5.6).
+    /// How often live data is sent to overlays: "fast" (nothing above 30/s, least CPU),
+    /// "balanced" (timing tables a few times a second, driving aids every tick) or "full"
+    /// (everything every tick, as before 0.5.6).
     pub update_rate: String,
     /// Closing the settings window: "ask", "quit" (overlays close too) or "keep" (overlays
     /// keep running, the app stays in the tray).
@@ -119,7 +120,7 @@ impl Default for Config {
                 o("flags", "flags", 860, 70, 220, 110),
                 o("spotter", "spotter", 850, 520, 220, 200),
                 o("pit", "pit", 845, 300, 230, 200),
-                o("safety", "safety", 760, 160, 400, 230),
+                o("safety", "safety", 700, 160, 520, 200),
                 OverlayInstance { enabled: false, ..o("incidents", "incidents", 40, 700, 340, 230) },
                 OverlayInstance { enabled: false, ..o("weather", "weather", 1240, 680, 300, 170) },
                 OverlayInstance { enabled: false, ..o("garage61", "garage61", 1540, 850, 300, 170) },
