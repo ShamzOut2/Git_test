@@ -5,10 +5,11 @@
 //!
 //! Auth is a personal access token sent as `Authorization: Bearer <token>`.
 
-use crate::config::{ConfigStore, Garage61Config};
+use crate::config::{Config, ConfigStore, Garage61Config};
 use crate::hub::Hub;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -73,6 +74,37 @@ pub struct G61State {
     pub reference: Option<Reference>,
     /// Why there is no reference lap (or why a fallback was used).
     pub reference_note: String,
+    /// Your Garage 61 teams.
+    pub teams: Vec<TeamOut>,
+    /// Reference laps the delta bars asked for: "personal", "teams" (fastest in all your
+    /// teams), "team:<slug>" and "world" (fastest you can see on Garage 61).
+    pub references: BTreeMap<String, Reference>,
+    /// Why one of those has no reference lap.
+    pub reference_notes: BTreeMap<String, String>,
+    /// Fastest lap you can see on Garage 61, telemetry or not.
+    pub world_best: Option<LapInfo>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, PartialEq)]
+pub struct TeamOut {
+    pub slug: String,
+    pub name: String,
+}
+
+/// The Garage 61 reference laps the enabled delta bars use (see [`G61State::references`]).
+pub fn wanted_refs(c: &Config) -> BTreeSet<String> {
+    let mut out = BTreeSet::new();
+    for o in c.overlays.iter().filter(|o| o.kind == "delta" && o.enabled) {
+        let get = |k: &str| o.settings.get(k).and_then(|v| v.as_str()).unwrap_or("");
+        match get("reference") {
+            "" | "allTime" | "g61Personal" => out.insert("personal".to_string()),
+            "g61Teams" => out.insert("teams".to_string()),
+            "g61Team" if !get("team").is_empty() => out.insert(format!("team:{}", get("team"))),
+            "g61World" => out.insert("world".to_string()),
+            _ => false,
+        };
+    }
+    out
 }
 
 struct Client {
@@ -345,7 +377,7 @@ fn reference_lap(client: &Client, lap: &LapInfo, source: &str, cache: &Path) -> 
     Ok(r)
 }
 
-fn fetch(client: &mut Client, combo: &Combo, cfg: &Garage61Config, cache: &Path) -> Result<G61State, String> {
+fn fetch(client: &mut Client, combo: &Combo, cfg: &Garage61Config, refs: &BTreeSet<String>, cache: &Path) -> Result<G61State, String> {
     if client.me.is_none() {
         client.me = Some(client.get("/me", &[])?);
     }
@@ -379,11 +411,20 @@ fn fetch(client: &mut Client, combo: &Combo, cfg: &Garage61Config, cache: &Path)
         l.is_me = true;
         l
     });
-    let teams: Vec<String> = me
+    st.teams = me
         .get("teams")
         .and_then(|t| t.as_array())
-        .map(|a| a.iter().filter_map(|t| t.get("slug").and_then(|s| s.as_str()).map(String::from)).collect())
+        .map(|a| {
+            a.iter()
+                .filter_map(|t| {
+                    let slug = t.get("slug").and_then(|s| s.as_str())?.to_string();
+                    let name = t.get("name").and_then(|s| s.as_str()).unwrap_or(&slug).to_string();
+                    Some(TeamOut { slug, name })
+                })
+                .collect()
+        })
         .unwrap_or_default();
+    let teams: Vec<String> = st.teams.iter().map(|t| t.slug.clone()).collect();
     if cfg.include_team && !teams.is_empty() {
         let team = client.get("/laps", &[base.as_slice(), &[("teams", teams.join(",")), ("limit", "10".into())]].concat())?;
         st.leaderboard = Client::items(team).iter().filter_map(|l| lap_info(l, &slug)).collect();
@@ -424,6 +465,43 @@ fn fetch(client: &mut Client, combo: &Combo, cfg: &Garage61Config, cache: &Path)
         notes.push("No lap to compare with yet".into());
     }
     st.reference_note = notes.join("; ");
+
+    // References for the delta bars. Only laps whose telemetry you may see can be compared
+    // with, so the searches ask for those.
+    let fastest = |client: &Client, extra: &[(&'static str, String)]| -> Result<Option<LapInfo>, String> {
+        let q = [base.as_slice(), extra, &[("limit", "1".into())]].concat();
+        Ok(Client::items(client.get("/laps", &q)?).first().and_then(|l| lap_info(l, &slug)))
+    };
+    let telemetry = ("seeTelemetry", "true".to_string());
+    for key in refs {
+        let lap = match key.as_str() {
+            "personal" => Ok(st.personal_best.clone()),
+            "teams" if teams.is_empty() => Err("you are not in a Garage 61 team".to_string()),
+            "teams" => fastest(client, &[("teams", teams.join(",")), telemetry.clone()]),
+            "world" => {
+                st.world_best = fastest(client, &[]).ok().flatten();
+                fastest(client, std::slice::from_ref(&telemetry))
+            }
+            k => match k.strip_prefix("team:") {
+                Some(t) if teams.iter().any(|x| x == t) => fastest(client, &[("teams", t.to_string()), telemetry.clone()]),
+                Some(_) => Err("you are no longer in that team".to_string()),
+                None => continue,
+            },
+        };
+        let result = match lap {
+            Ok(Some(l)) => reference_lap(client, &l, key, cache),
+            Ok(None) => Err("no lap with shared telemetry for this car and track yet".to_string()),
+            Err(e) => Err(e),
+        };
+        match result {
+            Ok(r) => {
+                st.references.insert(key.clone(), r);
+            }
+            Err(e) => {
+                st.reference_notes.insert(key.clone(), e);
+            }
+        }
+    }
     Ok(st)
 }
 
@@ -433,19 +511,20 @@ pub fn spawn(hub: Arc<Hub>, config: ConfigStore, combo: Arc<Mutex<Combo>>, data_
         .name("garage61".into())
         .spawn(move || {
             let cache = data_dir.join("garage61");
-            let mut last: Option<(Combo, Garage61Config)> = None;
+            let mut last: Option<(Combo, Garage61Config, BTreeSet<String>)> = None;
             let mut last_fetch = Instant::now() - Duration::from_secs(3600);
             let mut client: Option<Client> = None;
             let publish = |s: &G61State| {
                 hub.publish("garage61", &serde_json::to_string(s).unwrap_or_default());
             };
             loop {
-                let cfg = config.read(|c| c.garage61.clone());
+                let (cfg, wanted) = config.read(|c| (c.garage61.clone(), wanted_refs(c)));
                 let cur = combo.lock().unwrap().clone();
                 // What changes the search. Conditions only count when filtering on them, and a
                 // small drift in temperature is not worth a new search.
-                let changed = last.as_ref().is_none_or(|(c, k)| {
-                    c.car_id != cur.car_id
+                let changed = last.as_ref().is_none_or(|(c, k, w)| {
+                    *w != wanted
+                        || c.car_id != cur.car_id
                         || c.track_id != cur.track_id
                         || k.token != cfg.token
                         || k.include_team != cfg.include_team
@@ -468,13 +547,13 @@ pub fn spawn(hub: Arc<Hub>, config: ConfigStore, combo: Arc<Mutex<Combo>>, data_
                         client = Some(Client::new(&cfg.token));
                     }
                     publish(&G61State { status: "loading".into(), car: cur.car_name.clone(), track: cur.track_name.clone(), ..Default::default() });
-                    let st = fetch(client.as_mut().unwrap(), &cur, &cfg, &cache).unwrap_or_else(|e| G61State {
+                    let st = fetch(client.as_mut().unwrap(), &cur, &cfg, &wanted, &cache).unwrap_or_else(|e| G61State {
                         status: "error".into(),
                         message: e,
                         ..Default::default()
                     });
                     publish(&st);
-                    last = Some((cur, cfg));
+                    last = Some((cur, cfg, wanted));
                     last_fetch = Instant::now();
                 }
                 std::thread::sleep(Duration::from_secs(2));
@@ -487,6 +566,24 @@ pub fn spawn(hub: Arc<Hub>, config: ConfigStore, combo: Arc<Mutex<Combo>>, data_
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn delta_bars_ask_for_their_reference_laps() {
+        use crate::config::OverlayInstance;
+        let bar = |enabled: bool, settings: Value| OverlayInstance { kind: "delta".into(), enabled, settings, ..Default::default() };
+        let c = Config {
+            overlays: vec![
+                bar(true, json!({})),
+                bar(true, json!({ "reference": "g61Team", "team": "fast-crew" })),
+                bar(true, json!({ "reference": "g61World" })),
+                bar(true, json!({ "reference": "session" })),
+                bar(false, json!({ "reference": "g61Teams" })),
+            ],
+            ..Default::default()
+        };
+        let w: Vec<String> = wanted_refs(&c).into_iter().collect();
+        assert_eq!(w, vec!["personal", "team:fast-crew", "world"]);
+    }
 
     #[test]
     fn matches_cars_and_tracks() {

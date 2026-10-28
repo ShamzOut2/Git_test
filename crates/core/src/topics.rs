@@ -21,10 +21,12 @@ pub enum Topic {
     Spotter,
     Incidents,
     Pit,
+    Safety,
+    Delta,
 }
 
 impl Topic {
-    pub const ALL: [Topic; 13] = [
+    pub const ALL: [Topic; 15] = [
         Topic::Session,
         Topic::Player,
         Topic::Cars,
@@ -38,6 +40,8 @@ impl Topic {
         Topic::Spotter,
         Topic::Incidents,
         Topic::Pit,
+        Topic::Safety,
+        Topic::Delta,
     ];
 
     pub fn name(self) -> &'static str {
@@ -55,6 +59,8 @@ impl Topic {
             Topic::Spotter => "spotter",
             Topic::Incidents => "incidents",
             Topic::Pit => "pit",
+            Topic::Safety => "safety",
+            Topic::Delta => "delta",
         }
     }
 
@@ -65,11 +71,21 @@ impl Topic {
         match self {
             Topic::Player | Topic::Cars | Topic::Spotter => 1,
             Topic::Pit => 2,
-            Topic::Relative => 3,
+            Topic::Relative | Topic::Safety => 3,
             Topic::Standings | Topic::Battle => 6,
             Topic::Session | Topic::Fuel | Topic::Tyres | Topic::Incidents => 15,
             // Only re-sent when they change (see `publish`).
-            Topic::TrackMap | Topic::Car => 1,
+            Topic::TrackMap | Topic::Car | Topic::Delta => 1,
+        }
+    }
+
+    /// The "fast" update rate, for the least CPU: nothing above 30/s, timing tables as in
+    /// balanced. Telemetry is still read at 60/s, so nothing is missed, only shown less often.
+    pub fn every_fast(self) -> u64 {
+        match self {
+            Topic::Player | Topic::Cars | Topic::Spotter | Topic::Pit => 2,
+            Topic::Relative | Topic::Safety => 3,
+            t => t.every(),
         }
     }
 
@@ -101,9 +117,19 @@ impl Topic {
             Topic::Spotter => serde_json::to_string(&spotter(e)),
             Topic::Incidents => serde_json::to_string(&incidents_out(e)),
             Topic::Pit => serde_json::to_string(&e.pit_out),
+            Topic::Safety => serde_json::to_string(&crate::safety::build(e)),
+            Topic::Delta => serde_json::to_string(&DeltaOut { session: e.laps.session.as_ref(), all_time: e.laps.all_time.as_ref() }),
         };
         r.unwrap_or_else(|_| "null".into())
     }
+}
+
+/// Your own reference laps for the delta bar (Garage 61's come on the `garage61` topic).
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DeltaOut<'a> {
+    pub session: Option<&'a crate::garage61::Reference>,
+    pub all_time: Option<&'a crate::garage61::Reference>,
 }
 
 fn round(v: f32, digits: i32) -> f32 {
@@ -463,7 +489,7 @@ pub struct DriverOut<'a> {
     pub is_focus: bool,
 }
 
-fn driver<'a>(e: &Engine, s: &'a Static) -> DriverOut<'a> {
+pub fn driver<'a>(e: &Engine, s: &'a Static) -> DriverOut<'a> {
     DriverOut {
         idx: s.idx,
         number: &s.number,
@@ -521,7 +547,7 @@ pub struct Extras {
     pub season_points: Option<f32>,
 }
 
-fn extras(e: &Engine, idx: usize) -> Extras {
+pub fn extras(e: &Engine, idx: usize) -> Extras {
     let c = &e.tel.cars[idx];
     let (stint_state, stint_lap) = match e.stint(idx) {
         Stint::Pit => ("pit", None),

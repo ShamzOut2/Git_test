@@ -15,6 +15,7 @@ pub mod lookup;
 pub mod model;
 pub mod monitor;
 pub mod net;
+pub mod safety;
 pub mod server;
 pub mod source;
 pub mod svgmap;
@@ -250,19 +251,25 @@ fn run(
 struct Keys {
     map: Option<(u64, i32, i64)>,
     car: Option<(u64, i64, i32, i32)>,
+    delta: Option<u64>,
     /// Ticks published, for topics sent at a lower rate.
     tick: u64,
 }
 
 fn publish(e: &Engine, hub: &Hub, keys: &mut Keys, force: bool) {
     keys.tick += 1;
-    let full = e.cfg.update_rate == "full";
+    let rate = e.cfg.update_rate.as_str();
     for (i, t) in Topic::ALL.into_iter().enumerate() {
         if !force && !hub.has_subscribers(t.name()) {
             continue;
         }
         // Spread the slower topics over different ticks.
-        if !force && !full && !(keys.tick + i as u64).is_multiple_of(t.every()) {
+        let every = match rate {
+            "full" => 1,
+            "fast" => t.every_fast(),
+            _ => t.every(),
+        };
+        if !force && !(keys.tick + i as u64).is_multiple_of(every) {
             continue;
         }
         if t == Topic::TrackMap {
@@ -272,6 +279,12 @@ fn publish(e: &Engine, hub: &Hub, keys: &mut Keys, force: bool) {
                 continue;
             }
             keys.map = Some(key);
+        }
+        if t == Topic::Delta {
+            if keys.delta == Some(e.laps.revision) && !force {
+                continue;
+            }
+            keys.delta = Some(e.laps.revision);
         }
         if t == Topic::Car {
             let key = (e.car_revision, e.info.subsession_id, e.info.player_car_idx, e.tel.session_num);

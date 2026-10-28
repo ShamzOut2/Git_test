@@ -23,7 +23,7 @@ export type SettingDef =
   | (Base & { type: 'number'; default: number; min?: number; max?: number; step?: number; unit?: string })
   | (Base & { type: 'color'; default: string })
   | (Base & { type: 'select'; default: string; options: [string, string][] })
-  | (Base & { type: 'text'; default: string; multiline?: boolean; placeholder?: string })
+  | (Base & { type: 'text'; default: string; multiline?: boolean; placeholder?: string; /** Offer a list instead (see form.ts `CHOICES`). */ choices?: string })
   | (Base & { type: 'columns'; default: ColumnSetting[]; columns: ColumnDef[] });
 
 export type Values = Record<string, unknown>;
@@ -107,9 +107,11 @@ export const COMMON: SettingDef[] = [
 ];
 
 /** Common options with an overlay's own defaults applied (e.g. standings auto-fits by default). */
-export function commonFor(defaults?: Values): SettingDef[] {
-  if (!defaults) return COMMON;
-  return COMMON.map((s) => (s.key in defaults ? ({ ...s, default: defaults[s.key] } as SettingDef) : s));
+export function commonFor(defaults?: Values, fitsWidth = false): SettingDef[] {
+  // Fitting the width to the columns only means something for overlays with columns.
+  const common = fitsWidth ? COMMON : COMMON.filter((s) => s.key !== 'autoWidth');
+  if (!defaults) return common;
+  return common.map((s) => (s.key in defaults ? ({ ...s, default: defaults[s.key] } as SettingDef) : s));
 }
 
 export const NAME_STYLES: [string, string][] = [

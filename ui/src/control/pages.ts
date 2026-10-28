@@ -4,7 +4,7 @@ import { commonFor, merge, type SettingDef } from '../lib/settings';
 import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
 import type { OverlayInstance, SavedLayout } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
-import { field, form } from './form';
+import { CHOICES, field, form } from './form';
 import { hotkeyInput } from './hotkey';
 import { releaseNotes } from './releaseNotes';
 import { STATS } from '../lib/monitorStats';
@@ -155,7 +155,7 @@ const ADVANCED_TAB = 'Advanced';
 const tabOf = (s: SettingDef, common: boolean) => (common ? (s.group === 'Advanced' ? ADVANCED_TAB : SIZE_TAB) : (TAB_ALIAS[s.group ?? 'Options'] ?? s.group ?? 'Settings'));
 
 /** What to show and how it is laid out first; looks and behaviour after; window options last. */
-const FIRST = ['What to show', 'Layout', 'Columns', 'Header'];
+const FIRST = ['Reference lap', 'What to show', 'Layout', 'Columns', 'Header'];
 const LAST = ['Look', 'Colours', 'Alerts', 'Behaviour', SIZE_TAB, ADVANCED_TAB];
 const tabRank = (t: string) => (FIRST.includes(t) ? FIRST.indexOf(t) - 100 : LAST.includes(t) ? LAST.indexOf(t) + 100 : 0);
 
@@ -250,7 +250,7 @@ function overlayEditor(o: OverlayInstance, rerender: () => void): HTMLElement {
   preview.style.height = `${o.height * scale + 16}px`;
   preview.append(frame);
 
-  const common = commonFor(def.commonDefaults);
+  const common = commonFor(def.commonDefaults, def.fitsWidth);
   const values = merge([...common, ...def.settings], o.settings);
   const entries = [...def.settings.map((s) => ({ s, tab: tabOf(s, false) })), ...common.map((s) => ({ s, tab: tabOf(s, true) }))];
   const tabs = [...new Set(entries.map((e) => e.tab))].sort((a, b) => tabRank(a) - tabRank(b));
@@ -1096,13 +1096,19 @@ function cornersCard(rerender: () => void): HTMLElement {
 }
 
 /** Switch to a saved layout, keeping the arrangement in use in the layout it came from. */
+// Your Garage 61 teams, for the delta bar's team choice.
+CHOICES.g61Teams = () => (state.garage61?.teams ?? []).map((t) => [t.slug, t.name]);
+
 export function applyLayout(id: string) {
   const cfg = state.config!;
   const next = cfg.layouts?.find((l) => l.id === id);
   if (!next) return;
   const active = cfg.layouts.find((l) => l.id === cfg.activeLayout);
   if (active) active.overlays = structuredClone(cfg.overlays);
-  cfg.overlays = structuredClone(next.overlays);
+  // Overlays the layout does not have come along switched off (same id), so their hotkeys
+  // work in every layout. Matches Config::apply_layout in the app.
+  const missing = cfg.overlays.filter((o) => !next.overlays.some((n) => n.id === o.id)).map((o) => ({ ...structuredClone(o), enabled: false }));
+  cfg.overlays = [...structuredClone(next.overlays), ...missing];
   cfg.activeLayout = id;
   save(true);
 }
@@ -1170,7 +1176,7 @@ function hotkeysCard(): HTMLElement {
           },
         ),
       ),
-      ...(layouts.length ? [] : [h('p', 'dim small', 'Save layouts under Overlays → Layout & sharing, then give each one a hotkey here.')]),
+      ...(layouts.length ? [] : [h('p', 'dim small', 'Save layouts under Overlays → Layouts, then give each one a hotkey here.')]),
     ),
     group(
       'Show / hide one overlay',
@@ -1323,10 +1329,11 @@ const generalPage: Page = {
               type: 'select',
               default: 'balanced',
               options: [
+                ['fast', 'Fast (lightest on CPU, 20–30/s)'],
                 ['balanced', 'Balanced (recommended)'],
-                ['full', 'Every tick (60/s, more CPU)'],
+                ['full', 'Every tick (60/s, most CPU)'],
               ],
-              help: 'Balanced: inputs, track map and spotter 60/s; relative 20/s; standings and battle 10/s; the rest a few times a second.',
+              help: 'Fast: inputs, track map, spotter and pit 30/s; relative and safety alert 20/s; standings and battle 10/s. Balanced: as Fast but inputs, track map and spotter 60/s. Telemetry is always read 60 times a second, so nothing is missed.',
               group: 'Performance',
             },
             {
@@ -1351,7 +1358,7 @@ const generalPage: Page = {
             if (k === 'lanAccess') cfg.server.lanAccess = v as boolean;
             if (k === 'ratingsOfficialOnly') cfg.ratingsOfficialOnly = v as boolean;
             if (k === 'shortClassNames') cfg.shortClassNames = v as boolean;
-            if (k === 'updateRate') cfg.updateRate = v as 'balanced' | 'full';
+            if (k === 'updateRate') cfg.updateRate = v as 'fast' | 'balanced' | 'full';
             if (k === 'closeAction') cfg.closeAction = v as 'ask' | 'quit' | 'keep';
             save();
           },

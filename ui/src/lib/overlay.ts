@@ -32,10 +32,12 @@ export interface OverlayDef {
   settings: SettingDef[];
   /** Overrides for the defaults of the common options (scale, autoHeight, ...). */
   commonDefaults?: Values;
+  /** Has table columns, so "fit the window width to the columns" applies. */
+  fitsWidth?: boolean;
   create(root: HTMLElement, ctx: Ctx): View;
 }
 
 /** Full settings schema of an overlay: its own options plus the common ones. */
 export function schemaOf(def: OverlayDef): SettingDef[] {
-  return [...def.settings, ...commonFor(def.commonDefaults)];
+  return [...def.settings, ...commonFor(def.commonDefaults, def.fitsWidth)];
 }

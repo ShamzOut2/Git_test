@@ -3,6 +3,7 @@
 pub mod battle;
 pub mod fuel;
 pub mod incidents;
+pub mod laps;
 pub mod pit;
 pub mod ratings;
 pub mod sectors;
@@ -157,6 +158,8 @@ pub struct Engine {
     pub weather: weather::WeatherTracker,
     pub battle: battle::BattleTracker,
     pub map: trackmap::Recorder,
+    /// Your best laps (this session, all time) for the delta bar.
+    pub laps: laps::LapRecorder,
     pub sectors: sectors::SectorTracker,
     pub incidents: incidents::IncidentTracker,
     pub pit: pit::PitTracker,
@@ -204,6 +207,7 @@ impl Engine {
             weather: Default::default(),
             battle: Default::default(),
             map: trackmap::Recorder::new(data_dir.as_ref().map(|d| d.join("trackmaps"))),
+            laps: laps::LapRecorder::new(data_dir.as_ref().map(|d| d.join("laps"))),
             incidents: Default::default(),
             pit: pit::PitTracker::new(data_dir.as_ref().map(|d| d.join("pit-lines.json"))),
             pit_out: Default::default(),
@@ -729,6 +733,8 @@ impl Engine {
         }
         self.weather.update(&self.tel);
         self.map.update(&self.tel, &self.info);
+        let me = usize::try_from(self.tel.player_idx).ok().and_then(|i| self.static_of(i)).map(|s| s.name.clone()).unwrap_or_default();
+        self.laps.update(&self.tel, &self.info, &me);
         self.sectors.update(&self.tel, &self.info.sectors);
         self.incidents.update(&self.tel, &self.info);
         self.pit.update(&self.tel, self.info.track_id);

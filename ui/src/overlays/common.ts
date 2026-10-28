@@ -176,7 +176,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
 }
 
 /** iRating in a frosted pill, with the estimated race gain (green ▲) or loss (red ▼) beside it. */
-function iratingCell(c: HTMLElement, ir: number, delta: number | null | undefined) {
+export function iratingCell(c: HTMLElement, ir: number, delta: number | null | undefined) {
   let pill = c.querySelector(':scope > .ir-pill') as HTMLElement | null;
   let val = pill?.querySelector(':scope > .ir-val') as HTMLElement | null;
   let d = pill?.querySelector(':scope > .ir-delta') as HTMLElement | null;

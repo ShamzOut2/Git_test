@@ -53,6 +53,7 @@ export const standings: OverlayDef = {
   topics: ['standings', 'session'],
   size: [700, 380],
   commonDefaults: { autoHeight: true, autoWidth: true },
+  fitsWidth: true,
   settings: [
     { key: 'mode', label: 'Show', type: 'select', default: 'multiclass', options: [['multiclass', 'All classes'], ['myClass', 'My class only'], ['overall', 'Single overall list']], group: 'Layout' },
     { key: 'maxRows', label: 'Rows in my class', type: 'number', default: 10, min: 1, max: 64, group: 'Layout' },

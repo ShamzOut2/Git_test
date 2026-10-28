@@ -347,7 +347,8 @@ export interface G61Lap {
 export interface G61Reference {
   driver: string;
   lapTime: number;
-  source: 'personal' | 'team';
+  /** personal, team; for the delta bar also teams, team:<slug>, world, session, allTime. */
+  source: string;
   /** Seconds into the lap at equal steps of lap distance (first = start, last = finish). */
   times: number[];
 }
@@ -365,6 +366,18 @@ export interface Garage61 {
   filters: string;
   reference: G61Reference | null;
   referenceNote: string;
+  teams: { slug: string; name: string }[];
+  /** Reference laps the delta bars asked for: personal, teams, team:<slug>, world. */
+  references: Record<string, G61Reference>;
+  referenceNotes: Record<string, string>;
+  /** Fastest lap you can see on Garage 61, telemetry or not. */
+  worldBest: G61Lap | null;
+}
+
+/** Your own reference laps, recorded by the app (`delta` topic). */
+export interface DeltaRefs {
+  session: G61Reference | null;
+  allTime: G61Reference | null;
 }
 
 export interface Status {
@@ -514,7 +527,7 @@ export interface Config {
   /** Track map outline: iRacing's official map when available, or the one recorded from your driving. */
   trackOutline: 'iracing' | 'recorded';
   /** 'balanced': timing tables a few times a second; 'full': everything 60 times a second. */
-  updateRate: 'balanced' | 'full';
+  updateRate: 'fast' | 'balanced' | 'full';
   /** Closing the settings window: ask, close everything, or keep the overlays running. */
   closeAction: 'ask' | 'quit' | 'keep';
 }
@@ -621,6 +634,40 @@ export interface SavedLayout {
   sessions: string[];
 }
 
+/** A car ahead causing a yellow or carrying the meatball (see crates/core/src/safety.rs). */
+export interface Hazard extends Driver, Extras {
+  flag: 'yellow' | 'repair';
+  reason: 'stopped' | 'slow' | 'offTrack' | 'rejoining' | 'damaged';
+  /** Seconds and metres ahead of you. */
+  gap: number;
+  distance: number;
+  /** m/s */
+  speed: number;
+  position: number;
+  classPosition: number;
+  tireWet: boolean | null;
+}
+
+/** A car of a faster class behind you. */
+export interface Approach extends Driver, Extras {
+  /** Seconds and metres behind you. */
+  gap: number;
+  distance: number;
+  /** Seconds a lap faster than you. */
+  fasterBy: number;
+  /** Seconds until they reach you. */
+  catchIn: number | null;
+  speed: number;
+  position: number;
+  classPosition: number;
+  tireWet: boolean | null;
+}
+
+export interface Safety {
+  hazards: Hazard[];
+  approaching: Approach[];
+}
+
 export interface TopicMap {
   session: Session;
   player: Player;
@@ -635,6 +682,8 @@ export interface TopicMap {
   spotter: Spotter;
   incidents: Incidents;
   pit: Pit;
+  safety: Safety;
+  delta: DeltaRefs;
   monitor: Monitor;
   garage61: Garage61;
   status: Status;

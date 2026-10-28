@@ -47,8 +47,9 @@ pub struct Config {
     pub short_class_names: bool,
     /// Track map outline: "iracing" (iRacing's official map when available) or "recorded".
     pub track_outline: String,
-    /// How often live data is sent to overlays: "balanced" (timing tables a few times a
-    /// second, driving aids every tick) or "full" (everything every tick, as before 0.5.6).
+    /// How often live data is sent to overlays: "fast" (nothing above 30/s, least CPU),
+    /// "balanced" (timing tables a few times a second, driving aids every tick) or "full"
+    /// (everything every tick, as before 0.5.6).
     pub update_rate: String,
     /// Closing the settings window: "ask", "quit" (overlays close too) or "keep" (overlays
     /// keep running, the app stays in the tray).
@@ -119,6 +120,8 @@ impl Default for Config {
                 o("flags", "flags", 860, 70, 220, 110),
                 o("spotter", "spotter", 850, 520, 220, 200),
                 o("pit", "pit", 845, 300, 230, 200),
+                o("safety", "safety", 760, 160, 400, 230),
+                o("delta", "delta", 760, 400, 420, 96),
                 OverlayInstance { enabled: false, ..o("incidents", "incidents", 40, 700, 340, 230) },
                 OverlayInstance { enabled: false, ..o("weather", "weather", 1240, 680, 300, 170) },
                 OverlayInstance { enabled: false, ..o("garage61", "garage61", 1540, 850, 300, 170) },
@@ -496,13 +499,40 @@ impl Config {
         }
         let current = self.overlays.clone();
         if let Some(active) = self.layouts.iter_mut().find(|l| l.id == self.active_layout) {
-            active.overlays = current;
+            active.overlays = current.clone();
         }
         if let Some(next) = self.layouts.iter().find(|l| l.id == id) {
-            self.overlays = next.overlays.clone();
+            let mut overlays = next.overlays.clone();
+            // Overlays the layout does not have come along switched off, with the same id, so
+            // their hotkeys work in every layout and they can be switched on there too.
+            for o in current.into_iter().filter(|o| !next.overlays.iter().any(|n| n.id == o.id)) {
+                overlays.push(OverlayInstance { enabled: false, ..o });
+            }
+            self.overlays = overlays;
         }
         self.active_layout = id.to_string();
         true
+    }
+
+    /// Overlay kinds added in later versions, set up (switched off) in existing configs so
+    /// they appear in the overlay list and the hotkeys straight away.
+    pub fn add_new_kinds(&mut self) {
+        let defaults = Config::default().overlays;
+        for kind in ["safety", "delta"] {
+            if self.overlays.iter().any(|o| o.kind == kind) {
+                continue;
+            }
+            let Some(mut o) = defaults.iter().find(|o| o.kind == kind).cloned() else { continue };
+            let mut id = kind.to_string();
+            let mut n = 2;
+            while self.overlays.iter().any(|x| x.id == id) {
+                id = format!("{kind}-{n}");
+                n += 1;
+            }
+            o.id = id;
+            o.enabled = false;
+            self.overlays.push(o);
+        }
     }
 
     /// The saved layout set to switch to for this kind of session.
@@ -541,6 +571,8 @@ impl ConfigStore {
                 }
             })
             .unwrap_or_default();
+        let mut cfg = cfg;
+        cfg.add_new_kinds();
         let s = Self::new(cfg, Some(path));
         s.save();
         s
@@ -639,5 +671,18 @@ mod tests {
         assert_eq!(session_category("Offline Testing"), "practice");
         assert_eq!(session_category("Warmup"), "warmup");
         assert_eq!(session_category("Heat 1"), "race");
+        // An overlay only in one layout comes along, switched off, so its hotkey still works.
+        c.apply_layout("quali");
+        assert_eq!(c.overlays.iter().map(|o| (o.id.as_str(), o.enabled)).collect::<Vec<_>>(), vec![("b", true), ("a", false)]);
+    }
+
+    #[test]
+    fn new_overlay_kinds_are_added_switched_off() {
+        let mut c = Config { overlays: vec![OverlayInstance { id: "safety".into(), kind: "relative".into(), ..Default::default() }], ..Default::default() };
+        c.add_new_kinds();
+        let added: Vec<_> = c.overlays.iter().skip(1).map(|o| (o.id.as_str(), o.kind.as_str(), o.enabled)).collect();
+        assert_eq!(added, vec![("safety-2", "safety", false), ("delta", "delta", false)]);
+        c.add_new_kinds();
+        assert_eq!(c.overlays.len(), 3);
     }
 }
