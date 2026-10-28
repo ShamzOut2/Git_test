@@ -422,6 +422,7 @@ fn import_league(s: AppState, league_id: i64, season_id: Option<i64>) {
                         league.points.finish_bonus = existing.points.finish_bonus;
                         league.points.default_points = existing.points.default_points;
                         league.fallback = existing.fallback.clone();
+                        league.strip_name_class = existing.strip_name_class;
                         league.id = existing.id.clone();
                         *existing = league;
                     }

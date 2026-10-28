@@ -204,6 +204,7 @@ pub fn build_league(league: &Value, season: Option<&Value>, sessions: &[Value], 
         driver_overrides,
         season_points,
         imported_at: String::new(),
+        strip_name_class: false,
     }
 }
 

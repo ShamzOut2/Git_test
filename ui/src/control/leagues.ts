@@ -58,6 +58,7 @@ const newLeague = (name: string): League => ({
   points: emptyPoints(),
   seasonPoints: [],
   importedAt: '',
+  stripNameClass: false,
 });
 
 function btn(label: string, fn: () => void, cls = '') {
@@ -353,6 +354,38 @@ function sessionRows() {
   return (state.standings?.classes.flatMap((c) => c.rows) ?? []).sort((a, b) => a.position - b.position);
 }
 
+/** "(P) Max Power" → "Max Power": the class tags some leagues put in names (as `strip_name_class` in the app). */
+function stripNameClass(name: string): string {
+  let out = '';
+  let depth = 0;
+  for (const ch of name) {
+    if (ch === '(') depth++;
+    else if (ch === ')' && depth > 0) depth--;
+    else if (depth === 0) out += ch;
+  }
+  out = out.split(/\s+/).filter(Boolean).join(' ');
+  return out || name.trim();
+}
+
+/**
+ * With "Remove Driver Class in Name" on: the class tag comes out of each name, and the
+ * display name (nickname) is filled with the full name, so overlays show it cleanly. A
+ * nickname of the driver's own is kept, just without a tag. Returns whether anything changed.
+ */
+function applyStripNames(l: League): boolean {
+  let changed = false;
+  for (const o of l.driverOverrides) {
+    const name = stripNameClass(o.name ?? '');
+    const nick = o.displayName ? stripNameClass(o.displayName) : name;
+    if (name !== o.name || nick !== o.displayName) {
+      o.name = name;
+      o.displayName = nick;
+      changed = true;
+    }
+  }
+  return changed;
+}
+
 /** League roster: drivers pulled automatically from the session (names, numbers), editable by hand. */
 function rosterCard(l: League, rerender: () => void) {
   const c = h('section', 'card');
@@ -396,6 +429,21 @@ function rosterCard(l: League, rerender: () => void) {
     }),
     btn('Show Flag Abbreviations', showFlagCodes),
   );
+  // Drivers added since the box was ticked get the same treatment.
+  if (l.stripNameClass && applyStripNames(l)) save();
+  const strip = h('label', 'inline');
+  const stripBox = h('input');
+  stripBox.type = 'checkbox';
+  stripBox.checked = !!l.stripNameClass;
+  stripBox.onchange = () => {
+    l.stripNameClass = stripBox.checked;
+    if (l.stripNameClass) applyStripNames(l);
+    save();
+    rerender();
+  };
+  strip.title = 'For leagues that put the class in front of names, e.g. “(P) Max Power” or “(PA) Max Power”: the brackets and what is in them come out, and the display name is set to the full name, so the overlays show “Max Power”. Drivers not on the roster are shown without the tag too.';
+  strip.append(stripBox, ' Remove Driver Class in Name');
+  bar.append(strip);
   if (l.driverOverrides.length) {
     bar.append(
       btn(

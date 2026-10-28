@@ -4,6 +4,11 @@ The section for each version is shown in the in-app update pop-up and on the Git
 Each version groups its changes under `### New features`, `### Improvements` and `### Fixes`
 (plus `### Performance` or `### Removed` when needed).
 
+## Unreleased
+
+### New features
+- **Remove Driver Class in Name** (League builder → Drivers): for leagues that put the class in front of names, such as “(P) Max Power” or “(PA) Max Power”. Tick it and the brackets and what is in them come out, the space in front goes, and the display name is filled with the driver's full name, so the overlays show “Max Power”. A nickname of the driver's own is kept (without a tag), drivers added later are cleaned up too, and drivers not on the roster show without the tag as well
+
 ## 0.7.1
 
 ### New features

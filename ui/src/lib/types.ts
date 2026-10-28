@@ -465,6 +465,8 @@ export interface League {
   points: PointsConfig;
   seasonPoints: SeasonEntry[];
   importedAt: string;
+  /** Leave out class tags in names: "(P) Max Power" shows as "Max Power". */
+  stripNameClass: boolean;
 }
 
 export interface LeagueImport {

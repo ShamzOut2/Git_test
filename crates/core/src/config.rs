@@ -318,6 +318,9 @@ pub struct League {
     /// Championship totals before the current race, from the league's season standings.
     pub season_points: Vec<SeasonEntry>,
     pub imported_at: String,
+    /// Leave out the class tags some leagues put in names ("(P) Max Power" shows as
+    /// "Max Power").
+    pub strip_name_class: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]

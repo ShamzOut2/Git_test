@@ -74,12 +74,35 @@ impl Resolver {
 
     /// (display name, team name, hidden)
     pub fn display(&self, d: &Driver) -> (String, String, bool) {
+        let strip = self.league.as_ref().is_some_and(|l| l.strip_name_class);
+        let clean = |n: &str| if strip { strip_name_class(n) } else { n.to_string() };
         if let Some(o) = self.league.as_ref().and_then(|l| l.driver_overrides.iter().find(|o| o.customer_id == d.user_id)) {
-            let name = if o.display_name.is_empty() { d.name.clone() } else { o.display_name.clone() };
+            let name = if o.display_name.is_empty() { clean(&d.name) } else { o.display_name.clone() };
             let team = if o.team_name.is_empty() { d.team_name.clone() } else { o.team_name.clone() };
             return (name, team, o.hidden);
         }
-        (d.name.clone(), d.team_name.clone(), false)
+        (clean(&d.name), d.team_name.clone(), false)
+    }
+}
+
+/// A name without the class tags leagues add in brackets: "(P) Max Power", "(PA)Max Power"
+/// and "Max Power (P)" all become "Max Power". A name that is only a tag is kept.
+pub fn strip_name_class(name: &str) -> String {
+    let mut out = String::with_capacity(name.len());
+    let mut depth = 0;
+    for ch in name.chars() {
+        match ch {
+            '(' => depth += 1,
+            ')' if depth > 0 => depth -= 1,
+            _ if depth == 0 => out.push(ch),
+            _ => {}
+        }
+    }
+    let out = out.split_whitespace().collect::<Vec<_>>().join(" ");
+    if out.is_empty() {
+        name.trim().to_string()
+    } else {
+        out
     }
 }
 
@@ -144,6 +167,15 @@ pub fn glob(pattern: &str, text: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn strips_class_tags_from_names() {
+        assert_eq!(strip_name_class("(P) Max Power"), "Max Power");
+        assert_eq!(strip_name_class("(PA)Max  Power"), "Max Power");
+        assert_eq!(strip_name_class("Max Power (Am)"), "Max Power");
+        assert_eq!(strip_name_class("Max Power"), "Max Power");
+        assert_eq!(strip_name_class("(P)"), "(P)");
+    }
     use crate::config::{ClassRules, DriverOverride};
 
     #[test]
