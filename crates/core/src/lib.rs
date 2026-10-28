@@ -7,6 +7,7 @@ pub mod config;
 pub mod corners;
 pub mod countries;
 pub mod engine;
+pub mod g61auth;
 pub mod garage61;
 pub mod hub;
 pub mod iracing_api;
@@ -72,7 +73,7 @@ pub fn start(opts: Options) -> std::io::Result<App> {
     listener.set_nonblocking(true)?;
     let addr = listener.local_addr()?;
 
-    let state = server::AppState { hub: hub.clone(), config: config.clone(), ui_dir: opts.ui_dir.clone(), data_dir: opts.data_dir.clone() };
+    let state = server::AppState { hub: hub.clone(), config: config.clone(), ui_dir: opts.ui_dir.clone(), data_dir: opts.data_dir.clone(), port: addr.port() };
     std::thread::Builder::new().name("http".into()).spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread().enable_all().build().expect("tokio runtime");
         rt.block_on(async move {

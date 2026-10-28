@@ -379,6 +379,8 @@ export interface Garage61 {
   referenceNotes: Record<string, string>;
   /** Fastest lap you can see on Garage 61, telemetry or not. */
   worldBest: G61Lap | null;
+  /** Signed in from the app (available = the app has a Garage 61 client ID). */
+  login: { available: boolean; loggedIn: boolean; account: string; via: '' | 'login' | 'token' };
 }
 
 /** Your own reference laps, recorded by the app (`delta` topic). */
@@ -522,6 +524,11 @@ export interface Config {
     reference: 'personal' | 'team' | 'off';
     matchConditions: boolean;
     tempRange: number;
+    /** Logging in from the app: client ID (blank = built in), sign-in and token addresses, permissions. */
+    clientId: string;
+    authUrl: string;
+    tokenUrl: string;
+    scope: string;
   };
   savedThemes: SavedTheme[];
   trackCorners: Record<string, Corner[]>;

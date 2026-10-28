@@ -83,6 +83,8 @@ pub struct G61State {
     pub reference_notes: BTreeMap<String, String>,
     /// Fastest lap you can see on Garage 61, telemetry or not.
     pub world_best: Option<LapInfo>,
+    /// Signed in from the app or not (no secrets).
+    pub login: crate::g61auth::LoginOut,
 }
 
 #[derive(Debug, Clone, Default, Serialize, PartialEq)]
@@ -511,7 +513,8 @@ pub fn spawn(hub: Arc<Hub>, config: ConfigStore, combo: Arc<Mutex<Combo>>, data_
         .name("garage61".into())
         .spawn(move || {
             let cache = data_dir.join("garage61");
-            let mut last: Option<(Combo, Garage61Config, BTreeSet<String>)> = None;
+            // Combo, settings, delta bar references and who is signed in, at the last search.
+            let mut last: Option<(Combo, Garage61Config, BTreeSet<String>, String)> = None;
             let mut last_fetch = Instant::now() - Duration::from_secs(3600);
             let mut client: Option<Client> = None;
             let publish = |s: &G61State| {
@@ -520,13 +523,29 @@ pub fn spawn(hub: Arc<Hub>, config: ConfigStore, combo: Arc<Mutex<Combo>>, data_
             loop {
                 let (cfg, wanted) = config.read(|c| (c.garage61.clone(), wanted_refs(c)));
                 let cur = combo.lock().unwrap().clone();
+                // Who to search as: the login from the app, else a personal access token.
+                let (cred, via, login_error) = match crate::g61auth::bearer(&cfg, &data_dir) {
+                    Ok(Some(t)) => (t, "login", None),
+                    Ok(None) if !cfg.token.trim().is_empty() => (cfg.token.trim().to_string(), "token", None),
+                    Ok(None) => (String::new(), "", None),
+                    Err(e) => (String::new(), "", Some(e)),
+                };
+                let login = crate::g61auth::LoginOut {
+                    available: !crate::g61auth::client_id(&cfg).is_empty(),
+                    logged_in: via == "login",
+                    account: if via == "login" { crate::g61auth::load(&data_dir).map(|l| l.account).unwrap_or_default() } else { String::new() },
+                    via,
+                };
+                // Renewing the access token is not a new user; signing in as someone else is.
+                let who = if via == "token" { format!("token:{}", cfg.token.trim()) } else { format!("{via}:{}", login.account) };
+                let state = |status: &str, message: String| G61State { status: status.into(), message, login: login.clone(), ..Default::default() };
                 // What changes the search. Conditions only count when filtering on them, and a
                 // small drift in temperature is not worth a new search.
-                let changed = last.as_ref().is_none_or(|(c, k, w)| {
+                let changed = last.as_ref().is_none_or(|(c, k, w, u)| {
                     *w != wanted
+                        || *u != who
                         || c.car_id != cur.car_id
                         || c.track_id != cur.track_id
-                        || k.token != cfg.token
                         || k.include_team != cfg.include_team
                         || k.period != cfg.period
                         || k.reference != cfg.reference
@@ -535,26 +554,33 @@ pub fn spawn(hub: Arc<Hub>, config: ConfigStore, combo: Arc<Mutex<Combo>>, data_
                         || cfg.match_conditions && (c.wet != cur.wet || (c.track_temp - cur.track_temp).abs() as f32 > cfg.temp_range / 2.0)
                 });
                 if !cfg.enabled {
-                    publish(&G61State { status: "disabled".into(), message: "Enable Garage 61 in Settings → Garage 61".into(), ..Default::default() });
+                    publish(&state("disabled", "Log in to Garage 61 in Settings → Garage 61".into()));
                     last = None;
-                } else if cfg.token.trim().is_empty() {
-                    publish(&G61State { status: "noToken".into(), message: "Add your Garage 61 token in Settings".into(), ..Default::default() });
+                } else if cred.is_empty() {
+                    publish(&state("noToken", login_error.unwrap_or_else(|| "Log in to Garage 61 in Settings → Garage 61".into())));
                     last = None;
                 } else if cur.car_id == 0 || cur.track_id == 0 {
-                    publish(&G61State { status: "waiting".into(), message: "Waiting for a car and track".into(), ..Default::default() });
+                    publish(&state("waiting", "Waiting for a car and track".into()));
                 } else if changed || last_fetch.elapsed() > Duration::from_secs(cfg.refresh_minutes.max(1) as u64 * 60) {
-                    if client.as_ref().is_none_or(|c| c.token != cfg.token) {
-                        client = Some(Client::new(&cfg.token));
+                    match client.as_mut() {
+                        Some(c) if last.as_ref().is_some_and(|l| l.3 == who) => c.token = cred.clone(),
+                        _ => client = Some(Client::new(&cred)),
                     }
-                    publish(&G61State { status: "loading".into(), car: cur.car_name.clone(), track: cur.track_name.clone(), ..Default::default() });
-                    let st = fetch(client.as_mut().unwrap(), &cur, &cfg, &wanted, &cache).unwrap_or_else(|e| G61State {
-                        status: "error".into(),
-                        message: e,
+                    publish(&G61State {
+                        status: "loading".into(),
+                        car: cur.car_name.clone(),
+                        track: cur.track_name.clone(),
+                        login: login.clone(),
                         ..Default::default()
                     });
+                    let mut st = fetch(client.as_mut().unwrap(), &cur, &cfg, &wanted, &cache).unwrap_or_else(|e| state("error", e));
+                    st.login = login.clone();
                     publish(&st);
-                    last = Some((cur, cfg, wanted));
+                    last = Some((cur, cfg, wanted, who));
                     last_fetch = Instant::now();
+                } else if let Some(c) = client.as_mut() {
+                    // Keep using the renewed access token for the next search.
+                    c.token = cred;
                 }
                 std::thread::sleep(Duration::from_secs(2));
             }

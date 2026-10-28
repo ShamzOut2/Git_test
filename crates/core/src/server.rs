@@ -30,6 +30,8 @@ pub struct AppState {
     pub ui_dir: Option<PathBuf>,
     /// User data directory; `<data>/logos` holds optional manufacturer logo images.
     pub data_dir: PathBuf,
+    /// Port the server listens on (Garage 61 sends the browser back here after signing in).
+    pub port: u16,
 }
 
 pub fn router(state: AppState) -> Router {
@@ -41,6 +43,7 @@ pub fn router(state: AppState) -> Router {
         .route("/ws", get(ws))
         .route("/logos/{file}", get(logo))
         .route("/make-logo/{name}", get(make_logo))
+        .route(crate::g61auth::CALLBACK, get(garage61_callback))
         .route("/api/session-info", get(session_info))
         .fallback(|s: State<AppState>, uri: Uri| async move { asset(&s, uri.path().trim_start_matches('/')) })
         .with_state(state)
@@ -81,6 +84,39 @@ async fn logo(State(s): State<AppState>, Path(file): Path<String>) -> Response {
     match std::fs::read(s.data_dir.join("logos").join(&file)) {
         Ok(bytes) => ([(header::CONTENT_TYPE, mime_for(&file)), (header::CACHE_CONTROL, "max-age=300")], bytes).into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
+    }
+}
+
+/// Garage 61 sends the browser back here after signing in.
+async fn garage61_callback(State(s): State<AppState>, axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>) -> Response {
+    let page = |title: &str, text: &str| {
+        let esc = |t: &str| t.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;");
+        axum::response::Html(format!(
+            "<!doctype html><meta charset=utf-8><title>Apex Overlays</title><body style=\"font:16px system-ui;background:#0b0e13;color:#f2f4f8;display:grid;place-items:center;height:90vh;text-align:center\"><div><h1 style=\"color:#ff3d57\">{}</h1><p>{}</p></div>",
+            esc(title),
+            esc(text)
+        ))
+        .into_response()
+    };
+    if let Some(e) = q.get("error") {
+        let why = q.get("error_description").unwrap_or(e);
+        return page("Not logged in", &format!("Garage 61 did not sign you in: {why}. You can close this tab and try again from Apex Overlays."));
+    }
+    let (Some(code), Some(state)) = (q.get("code"), q.get("state")) else {
+        return page("Not logged in", "Garage 61 did not send a sign-in code. You can close this tab and try again from Apex Overlays.");
+    };
+    let cfg = s.config.read(|c| c.garage61.clone());
+    let dir = s.data_dir.clone();
+    let (code, state) = (code.clone(), state.clone());
+    let result = tokio::task::spawn_blocking(move || crate::g61auth::finish(&cfg, &dir, &code, &state)).await.unwrap_or_else(|e| Err(e.to_string()));
+    match result {
+        Ok(l) => {
+            // Turn the integration on: logging in is the way to use it.
+            s.config.update(|c| c.garage61.enabled = true);
+            let who = if l.account.is_empty() { String::new() } else { format!(" as {}", l.account) };
+            page("Logged in to Garage 61", &format!("You are logged in{who}. You can close this tab and go back to Apex Overlays."))
+        }
+        Err(e) => page("Not logged in", &format!("{e}. You can close this tab and try again from Apex Overlays.")),
     }
 }
 
@@ -207,6 +243,9 @@ enum ClientMsg {
     },
     CheckUpdate,
     InstallUpdate,
+    /// Open Garage 61's sign-in page in the browser / forget the Garage 61 login.
+    Garage61Login,
+    Garage61Logout,
     /// Update pop-up: remind me in `days` days, or skip this version when `days` is absent.
     PostponeUpdate {
         version: String,
@@ -359,6 +398,17 @@ fn handle(s: &AppState, m: ClientMsg, subs: &mut HashSet<String>, send_now: &mut
             s.hub.host(HostEvent::CloseApp { quit });
         }
         ClientMsg::InstallUpdate => s.hub.host(HostEvent::InstallUpdate),
+        ClientMsg::Garage61Login => {
+            let cfg = s.config.read(|c| c.garage61.clone());
+            if let Err(e) = crate::g61auth::begin(&cfg, s.port).and_then(|url| crate::g61auth::open_in_browser(&url)) {
+                log::warn!("Garage 61 login: {e}");
+            }
+        }
+        ClientMsg::Garage61Logout => {
+            crate::g61auth::logout(&s.data_dir);
+            // The integration notices on its next check and shows "not logged in".
+            s.config.update(|_| {});
+        }
     }
 }
 
