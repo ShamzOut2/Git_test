@@ -6,6 +6,7 @@ import type { OverlayInstance } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
 import { field, form } from './form';
 import { hotkeyInput } from './hotkey';
+import { releaseNotes } from './releaseNotes';
 import { STATS } from '../lib/monitorStats';
 import { client, download, listen, save, state, uid, upload } from './state';
 
@@ -870,7 +871,7 @@ function updatesCard(): HTMLElement {
       );
     }
   }
-  if (u?.status === 'available' && u.notes) c.append(h('p', 'dim small', u.notes));
+  if (u?.status === 'available' && u.notes) c.append(h('h3', '', `What’s new in ${u.version}`), releaseNotes(u.notes));
   return c;
 }
 

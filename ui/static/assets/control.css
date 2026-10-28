@@ -188,7 +188,27 @@ body.prompt nav { display: none; }
 body.prompt main { padding: 14px; }
 .update-prompt { margin: 0; }
 .update-prompt h2 { margin-top: 0; }
-.update-prompt .notes { max-height: 110px; overflow: auto; white-space: pre-wrap; padding: 8px 10px; margin-bottom: 12px; border-radius: 6px; background: var(--panel-2); }
+.update-prompt .release-notes { max-height: 300px; overflow: auto; margin-bottom: 12px; }
+.update-prompt h3 { margin: 6px 0 6px; }
+
+/* Release notes: sections with bullet points */
+.release-notes { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 8px; background: var(--panel-2); border: 1px solid var(--line); }
+.release-notes ul { margin: 0 0 6px; padding-left: 20px; }
+.release-notes li { margin: 3px 0; line-height: 1.45; }
+.release-notes li::marker { color: var(--dim); }
+.release-notes p { margin: 2px 0 6px; color: var(--dim); }
+.rn-head { display: flex; align-items: center; gap: 8px; margin-top: 4px; font-weight: 700; font-size: 13px; letter-spacing: 0.02em; }
+.rn-icon { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; color: #0b0e13; }
+.rn-new .rn-icon { background: #3ddc84; }
+.rn-new { color: #3ddc84; }
+.rn-improved .rn-icon { background: #4da3ff; }
+.rn-improved { color: #4da3ff; }
+.rn-fixed .rn-icon { background: #ffb020; }
+.rn-fixed { color: #ffb020; }
+.rn-perf .rn-icon { background: #c38bff; }
+.rn-perf { color: #c38bff; }
+.rn-removed .rn-icon { background: #8d97a8; }
+.rn-removed { color: #8d97a8; }
 .update-prompt .bad { color: var(--bad); }
 .update-prompt .toolbar { margin-bottom: 0; }
 button.subtle { background: transparent; border-color: transparent; color: var(--dim); }

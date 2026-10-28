@@ -1,16 +1,25 @@
 # Changelog
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
+Each version groups its changes under `### New features`, `### Improvements` and `### Fixes`
+(plus `### Performance` or `### Removed` when needed).
 
 ## 0.5.9
 
-- Saved layouts: save the overlays you have as a named layout (Race, Qualifying, Streaming…), set up others, and switch between them from Overlays → Layout & sharing; each layout remembers its own overlays, positions and settings
-- Hotkeys card under General: click a box (it shows Recording…), press the keys and the hotkey is saved straight away. Besides edit mode and show/hide all: next layout, one per saved layout, and one per overlay to show or hide it (all blank until you set them). A hotkey used twice is flagged, and changes apply without restarting
+### New features
+- **Saved layouts**: save the overlays you have as a named layout (Race, Qualifying, Streaming…), set up others, and switch between them from Overlays → Layout & sharing. Each layout remembers its own overlays, positions and settings
+- **More hotkeys** (General → Hotkeys): next layout, one per saved layout, and one per overlay to show or hide it — all blank until you set them. Click a box (it shows Recording…), press the keys and it is saved straight away; a hotkey used twice is flagged
+- **Monitoring** (General): live CPU and memory use of Apex Overlays and its overlay windows (with a one-minute CPU graph), your PC's CPU, data sent to the overlays, telemetry rate, engine time per update, windows open and uptime
+- **Performance monitor overlay**: a small on-screen widget with the readings you pick and order; CPU turns amber or red above a level you choose
+- **Flag abbreviations** (League builder → Drivers): every flag code the Flag box accepts, with the flag and country name — searchable, click a row to copy the code
+
+### Improvements
 - General is now the first page in the settings window
-- New Monitoring section under General: live CPU and memory use of Apex Overlays and its overlay windows (with a one-minute CPU graph), your PC's CPU, data sent to the overlays, telemetry rate, engine time per update, windows open and uptime — hover any reading for what it means
-- New Performance monitor overlay: a small on-screen widget with the readings you pick and order (switch it on from Monitoring, or add it like any overlay); CPU turns amber or red above a level you choose
+- Hotkeys apply straight away, no restart needed
+- The update pop-up shows what's new grouped into new features, improvements and fixes
+
+### Fixes
 - iRating pill: the gain/loss (green ▲ / red ▼) now sits inside the pill with the rating
-- League builder: "Show Flag Abbreviations" next to the drivers lists every flag code the Flag box accepts, with the flag and country name — searchable, click a row to copy the code (includes England, Scotland and Wales)
 
 ## 0.5.8
 

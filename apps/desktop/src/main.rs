@@ -89,7 +89,7 @@ fn show_update_prompt(app: &AppHandle) {
     let url = format!("{}?prompt=update", app.state::<Core>().url).parse().expect("valid url");
     let _ = WebviewWindowBuilder::new(app, UPDATE_PROMPT, WebviewUrl::External(url))
         .title("Apex Overlays – update available")
-        .inner_size(480.0, 340.0)
+        .inner_size(560.0, 560.0)
         .resizable(false)
         .minimizable(false)
         .maximizable(false)
