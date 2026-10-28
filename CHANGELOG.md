@@ -4,7 +4,7 @@ The section for each version is shown in the in-app update pop-up and on the Git
 Each version groups its changes under `### New features`, `### Improvements` and `### Fixes`
 (plus `### Performance` or `### Removed` when needed).
 
-## Unreleased
+## 0.7.1
 
 ### New features
 - **SLOW badge**: drivers serving a slow-down penalty get an orange SLOW badge next to their name in the standings, relative and safety alert. Hover it to see how long they have been slowing and roughly how much time they have given up
