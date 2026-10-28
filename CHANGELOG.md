@@ -2,6 +2,11 @@
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
 
+## 0.5.9
+
+- iRating pill: the gain/loss (green ▲ / red ▼) now sits inside the pill with the rating
+- League builder: "Show Flag Abbreviations" next to the drivers lists every flag code the Flag box accepts, with the flag and country name — searchable, click a row to copy the code (includes England, Scotland and Wales)
+
 ## 0.5.8
 
 - iRating is shown in a soft frosted pill, with the estimated race gain (green ▲) or loss (red ▼) right next to it instead of in a separate column; switch it off with "iRating gain/loss next to iRating" in the Columns tab

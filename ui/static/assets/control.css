@@ -192,3 +192,16 @@ body.prompt main { padding: 14px; }
 .update-prompt .bad { color: var(--bad); }
 .update-prompt .toolbar { margin-bottom: 0; }
 button.subtle { background: transparent; border-color: transparent; color: var(--dim); }
+
+/* Flag abbreviations pop-up */
+.modal.flag-codes { width: min(520px, 100%); display: flex; flex-direction: column; max-height: calc(100vh - 100px); position: relative; }
+.flag-codes input.search { margin: 4px 0 10px; }
+.flag-list { display: flex; flex-direction: column; gap: 2px; overflow: auto; min-height: 120px; padding-right: 4px; }
+button.flag-row { display: grid; grid-template-columns: 30px 64px 1fr; align-items: center; gap: 10px; padding: 6px 10px; text-align: left; background: transparent; border-color: transparent; border-radius: 6px; }
+button.flag-row:nth-child(odd) { background: color-mix(in srgb, var(--panel-2) 60%, transparent); }
+button.flag-row:hover { background: var(--panel-2); border-color: var(--line); }
+.flag-row .flag-emoji { font-size: 20px; line-height: 1; }
+.flag-code { font-family: Consolas, 'Cascadia Mono', monospace; font-weight: 700; letter-spacing: 0.04em; color: var(--text); }
+.flag-name { color: var(--dim); }
+.flag-toast { position: absolute; right: 56px; top: 20px; transform: translateY(-4px); padding: 6px 12px; border-radius: 999px; background: var(--accent); color: var(--accent-text, #fff); font-weight: 600; opacity: 0; pointer-events: none; transition: opacity 0.15s, transform 0.15s; }
+.flag-toast.on { opacity: 1; transform: translateY(0); }
