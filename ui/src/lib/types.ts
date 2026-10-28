@@ -471,7 +471,19 @@ export interface Config {
   units: 'auto' | 'metric' | 'imperial';
   theme: Record<string, unknown>;
   overlays: OverlayInstance[];
-  hotkeys: { toggleEdit: string; toggleVisibility: string };
+  hotkeys: {
+    toggleEdit: string;
+    toggleVisibility: string;
+    /** Switch to the next saved layout. */
+    nextLayout: string;
+    /** Layout id → hotkey. */
+    layouts: Record<string, string>;
+    /** Overlay id → hotkey that shows / hides it. */
+    overlays: Record<string, string>;
+  };
+  /** Saved arrangements of overlays, and the one in use. */
+  layouts: SavedLayout[];
+  activeLayout: string;
   fuel: { avgLaps: number; marginLaps: number; includeCautionLaps: boolean; includePitLaps: boolean };
   tyres: { wetThreshold: number; dryThreshold: number; useField: boolean; useCrossover: boolean; crossoverMargin: number };
   battle: { maxGap: number };
@@ -599,6 +611,12 @@ export interface Monitor {
   engineCpu: number;
   uptime: number;
   cores: number;
+}
+
+export interface SavedLayout {
+  id: string;
+  name: string;
+  overlays: OverlayInstance[];
 }
 
 export interface TopicMap {

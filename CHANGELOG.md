@@ -4,6 +4,8 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 ## 0.5.9
 
+- Saved layouts: save the overlays you have as a named layout (Race, Qualifying, Streaming…), set up others, and switch between them from Overlays → Layout & sharing; each layout remembers its own overlays, positions and settings
+- Hotkeys card under General: click a box and press the keys to set a hotkey. Besides edit mode and show/hide all: next layout, one per saved layout, and one per overlay to show or hide it (all blank until you set them). A hotkey used twice is flagged, and changes apply without restarting
 - General is now the first page in the settings window
 - New Monitoring section under General: live CPU and memory use of Apex Overlays and its overlay windows (with a one-minute CPU graph), your PC's CPU, data sent to the overlays, telemetry rate, engine time per update, windows open and uptime — hover any reading for what it means
 - New Performance monitor overlay: a small on-screen widget with the readings you pick and order (switch it on from Monitoring, or add it like any overlay); CPU turns amber or red above a level you choose

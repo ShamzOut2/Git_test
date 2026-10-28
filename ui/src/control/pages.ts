@@ -5,6 +5,7 @@ import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
 import type { OverlayInstance } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
 import { field, form } from './form';
+import { hotkeyInput } from './hotkey';
 import { STATS } from '../lib/monitorStats';
 import { client, download, listen, save, state, uid, upload } from './state';
 
@@ -371,8 +372,66 @@ const overlaysPage: Page = {
 
     // Move all overlays at once and share layouts: tucked into one menu.
     const layout = h('details', 'menu layout-menu');
-    layout.append(h('summary', '', 'Layout & sharing ▾'));
+    const activeName = (cfg.layouts ?? []).find((l) => l.id === cfg.activeLayout)?.name;
+    layout.append(h('summary', '', activeName ? `Layout: ${activeName} ▾` : 'Layout & sharing ▾'));
     const pop = h('div', 'menu-pop wide');
+    // Saved layouts: switch between arrangements (each keeps its own overlays and settings).
+    cfg.layouts ??= [];
+    const saved = h('div', 'layout-list');
+    for (const l of cfg.layouts) {
+      const item = h('div', `layout-item${l.id === cfg.activeLayout ? ' active' : ''}`);
+      item.append(
+        h('span', 'layout-name', `${l.id === cfg.activeLayout ? '● ' : ''}${l.name}`),
+        h('span', 'dim small', `${l.overlays.filter((o) => o.enabled).length} overlays`),
+        button(
+          l.id === cfg.activeLayout ? 'In use' : 'Use',
+          () => {
+            applyLayout(l.id);
+            layout.open = false;
+            rerender();
+          },
+          'mini',
+        ),
+        button(
+          '✎',
+          () => {
+            const name = prompt('Layout name', l.name)?.trim();
+            if (!name) return;
+            l.name = name;
+            save(true);
+            rerender();
+          },
+          'mini subtle',
+        ),
+        button(
+          '✕',
+          () => {
+            if (!confirm(`Delete the layout “${l.name}”? Your overlays on screen stay as they are.`)) return;
+            cfg.layouts = cfg.layouts.filter((x) => x !== l);
+            if (cfg.activeLayout === l.id) cfg.activeLayout = '';
+            delete cfg.hotkeys.layouts?.[l.id];
+            save(true);
+            rerender();
+          },
+          'mini subtle',
+        ),
+      );
+      saved.append(item);
+    }
+    const saveAs = button('Save current layout as…', () => {
+      const name = prompt('Name this layout (e.g. Race, Qualifying, Streaming)')?.trim();
+      if (!name) return;
+      const l = { id: uid('layout'), name, overlays: structuredClone(cfg.overlays) };
+      cfg.layouts.push(l);
+      cfg.activeLayout = l.id;
+      save(true);
+      rerender();
+    });
+    pop.append(
+      h('h3', '', 'Saved layouts'),
+      ...(cfg.layouts.length ? [saved] : [h('p', 'dim small', 'Save the overlays you have now as a layout, set up another, and switch between them here or with a hotkey (General → Hotkeys).')]),
+      saveAs,
+    );
     const together = h('label', 'inline');
     const tcb = h('input');
     tcb.type = 'checkbox';
@@ -953,6 +1012,103 @@ function cornersCard(rerender: () => void): HTMLElement {
   return c;
 }
 
+/** Switch to a saved layout, keeping the arrangement in use in the layout it came from. */
+export function applyLayout(id: string) {
+  const cfg = state.config!;
+  const next = cfg.layouts?.find((l) => l.id === id);
+  if (!next) return;
+  const active = cfg.layouts.find((l) => l.id === cfg.activeLayout);
+  if (active) active.overlays = structuredClone(cfg.overlays);
+  cfg.overlays = structuredClone(next.overlays);
+  cfg.activeLayout = id;
+  save(true);
+}
+
+/** Every hotkey: editing, layouts, and one per overlay. All but the first two start blank. */
+function hotkeysCard(): HTMLElement {
+  const cfg = state.config!;
+  const hk = cfg.hotkeys;
+  hk.layouts ??= {};
+  hk.overlays ??= {};
+  const c = card('Hotkeys');
+  c.append(h('p', 'dim', 'Click a box and press the keys you want (Ctrl, Alt or Shift plus a key, or an F-key / number-pad key on its own). Backspace clears a hotkey. Desktop app only; changes apply straight away.'));
+  const all = (): string[] => [hk.toggleEdit, hk.toggleVisibility, hk.nextLayout, ...Object.values(hk.layouts), ...Object.values(hk.overlays)].filter((k) => k?.trim());
+  const rows: { warn: HTMLElement; get: () => string }[] = [];
+  const checkClashes = () => {
+    const used = all().map((k) => k.toLowerCase());
+    for (const r of rows) {
+      const k = r.get().toLowerCase();
+      const clash = !!k && used.filter((u) => u === k).length > 1;
+      r.warn.hidden = !clash;
+    }
+  };
+  const row = (label: string, get: () => string, set: (v: string) => void, sub = '') => {
+    const el = h('div', 'field hotkey-row');
+    const lab = h('span', 'field-label');
+    lab.append(h('span', 'field-name', label));
+    if (sub) lab.append(h('small', 'help', sub));
+    const warn = h('small', 'help bad', 'Also used by another hotkey');
+    warn.hidden = true;
+    lab.append(warn);
+    rows.push({ warn, get });
+    el.append(
+      lab,
+      hotkeyInput(get() ?? '', (v) => {
+        set(v);
+        save(true);
+        checkClashes();
+      }),
+    );
+    return el;
+  };
+  const group = (title: string, ...children: (Node | string)[]) => {
+    const fs = h('fieldset');
+    fs.append(h('legend', '', title), ...children);
+    return fs;
+  };
+  const layouts = cfg.layouts ?? [];
+  const grid = h('div', 'form hotkeys');
+  grid.append(
+    group(
+      'Overlays',
+      row('Edit mode (move & resize)', () => hk.toggleEdit, (v) => (hk.toggleEdit = v)),
+      row('Show / hide all overlays', () => hk.toggleVisibility, (v) => (hk.toggleVisibility = v)),
+    ),
+    group(
+      'Layouts',
+      row('Next layout', () => hk.nextLayout ?? '', (v) => (hk.nextLayout = v), 'Cycles through your saved layouts'),
+      ...layouts.map((l) =>
+        row(
+          `Switch to “${l.name}”`,
+          () => hk.layouts[l.id] ?? '',
+          (v) => {
+            if (v) hk.layouts[l.id] = v;
+            else delete hk.layouts[l.id];
+          },
+        ),
+      ),
+      ...(layouts.length ? [] : [h('p', 'dim small', 'Save layouts under Overlays → Layout & sharing, then give each one a hotkey here.')]),
+    ),
+    group(
+      'Show / hide one overlay',
+      ...cfg.overlays.map((o) =>
+        row(
+          o.name || byKind(o.kind)?.name || o.kind,
+          () => hk.overlays[o.id] ?? '',
+          (v) => {
+            if (v) hk.overlays[o.id] = v;
+            else delete hk.overlays[o.id];
+          },
+          o.name ? byKind(o.kind)?.name : '',
+        ),
+      ),
+    ),
+  );
+  c.append(grid);
+  checkClashes();
+  return c;
+}
+
 /** Live readings of what Apex Overlays uses, updated in place once a second. */
 const monitorView = { tiles: new Map<string, HTMLElement>(), spark: null as SVGPolylineElement | null, cpu: [] as number[] };
 
@@ -1051,8 +1207,6 @@ const generalPage: Page = {
       units: cfg.units,
       port: cfg.server.port,
       lanAccess: cfg.server.lanAccess,
-      toggleEdit: cfg.hotkeys.toggleEdit,
-      toggleVisibility: cfg.hotkeys.toggleVisibility,
       ratingsOfficialOnly: cfg.ratingsOfficialOnly,
       shortClassNames: cfg.shortClassNames,
       updateRate: cfg.updateRate ?? 'balanced',
@@ -1104,8 +1258,6 @@ const generalPage: Page = {
               ],
               group: 'Display',
             },
-            { key: 'toggleEdit', label: 'Toggle edit mode', type: 'text', default: 'CmdOrCtrl+Shift+E', group: 'Hotkeys (desktop app, restart to apply)' },
-            { key: 'toggleVisibility', label: 'Show / hide overlays', type: 'text', default: 'CmdOrCtrl+Shift+H', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'port', label: 'Port', type: 'number', default: 8182, min: 1024, max: 65535, group: 'Server (restart to apply)' },
             { key: 'lanAccess', label: 'Allow other PCs on my network (streaming PC)', type: 'bool', default: false, group: 'Server (restart to apply)' },
           ],
@@ -1114,8 +1266,6 @@ const generalPage: Page = {
             if (k === 'units') cfg.units = v as typeof cfg.units;
             if (k === 'port') cfg.server.port = v as number;
             if (k === 'lanAccess') cfg.server.lanAccess = v as boolean;
-            if (k === 'toggleEdit') cfg.hotkeys.toggleEdit = v as string;
-            if (k === 'toggleVisibility') cfg.hotkeys.toggleVisibility = v as string;
             if (k === 'ratingsOfficialOnly') cfg.ratingsOfficialOnly = v as boolean;
             if (k === 'shortClassNames') cfg.shortClassNames = v as boolean;
             if (k === 'updateRate') cfg.updateRate = v as 'balanced' | 'full';
@@ -1124,6 +1274,7 @@ const generalPage: Page = {
           },
         ),
       ),
+      hotkeysCard(),
       monitoringCard(),
       updatesCard(),
       cornersCard(() => this.render(el)),

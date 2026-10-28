@@ -217,3 +217,16 @@ button.flag-row:hover { background: var(--panel-2); border-color: var(--line); }
 .mon-spark { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 34px; opacity: 0.55; }
 .mon-spark polyline { fill: none; stroke: var(--accent); stroke-width: 1.5; vector-effect: non-scaling-stroke; }
 .mon-widget { margin: 0; }
+
+/* Hotkeys */
+.hotkey { display: inline-flex; align-items: center; gap: 4px; }
+button.hotkey-box { min-width: 150px; font-family: Consolas, 'Cascadia Mono', monospace; font-size: 13px; text-align: center; }
+button.hotkey-box.unset { color: var(--dim); font-family: inherit; font-style: italic; }
+button.hotkey-box.listening { border-color: var(--accent); color: var(--text); font-style: normal; font-family: inherit; box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 35%, transparent); }
+.form.hotkeys .help.bad { color: var(--bad); }
+
+/* Saved layouts */
+.layout-list { display: flex; flex-direction: column; gap: 4px; margin-bottom: 6px; }
+.layout-item { display: grid; grid-template-columns: 1fr auto auto auto auto; gap: 6px; align-items: center; padding: 4px 6px 4px 10px; border-radius: 6px; background: var(--panel-2); }
+.layout-item.active { box-shadow: inset 3px 0 var(--accent); }
+.layout-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
