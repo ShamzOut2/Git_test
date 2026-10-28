@@ -241,8 +241,12 @@ async fn client(mut socket: WebSocket, s: AppState) {
             }
             r = rx.recv() => match r {
                 Ok((topic, msg)) => {
-                    if subs.contains(&*topic) && socket.send(Message::Text(msg.to_string().into())).await.is_err() {
-                        break;
+                    if subs.contains(&*topic) {
+                        if socket.send(Message::Text(msg.to_string().into())).await.is_err() {
+                            break;
+                        }
+                        s.hub.stats.bytes_sent.fetch_add(msg.len() as u64, Ordering::Relaxed);
+                        s.hub.stats.messages_sent.fetch_add(1, Ordering::Relaxed);
                     }
                 }
                 Err(RecvError::Lagged(_)) => {

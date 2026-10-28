@@ -2,10 +2,13 @@ import { h } from '../lib/dom';
 import * as f from '../lib/format';
 import { commonFor, merge, type SettingDef } from '../lib/settings';
 import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
-import type { OverlayInstance } from '../lib/types';
+import type { OverlayInstance, SavedLayout } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
 import { field, form } from './form';
-import { client, download, save, state, uid, upload } from './state';
+import { hotkeyInput } from './hotkey';
+import { releaseNotes } from './releaseNotes';
+import { STATS } from '../lib/monitorStats';
+import { client, download, listen, save, state, uid, upload } from './state';
 
 export type Page = { id: string; title: string; render(el: HTMLElement): void };
 
@@ -33,9 +36,23 @@ type SharedOverlay = Pick<OverlayInstance, 'kind' | 'name' | 'enabled' | 'x' | '
 interface ShareFile {
   apexOverlays: 'overlay' | 'layout';
   version: string;
+  /** A saved layout's name and the session types it is used for. */
+  name?: string;
+  sessions?: string[];
   overlays: SharedOverlay[];
   theme?: Record<string, unknown>;
 }
+
+/** Session types a layout can be switched to automatically (id, button, name). */
+const SESSION_TYPES: [string, string, string][] = [
+  ['practice', 'P', 'Practice'],
+  ['qualifying', 'Q', 'Qualifying'],
+  ['warmup', 'W', 'Warmup'],
+  ['race', 'R', 'Race'],
+];
+
+/** A menu to show open again after the page redraws. */
+let openMenu = '';
 
 const shareable = (o: OverlayInstance): SharedOverlay => ({ kind: o.kind, name: o.name, enabled: o.enabled, x: o.x, y: o.y, width: o.width, height: o.height, settings: structuredClone(o.settings) });
 const fileName = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'overlay';
@@ -70,7 +87,14 @@ async function readShare(): Promise<ShareFile | null> {
     alert('That file has no overlays this version of Apex Overlays knows.');
     return null;
   }
-  return { apexOverlays: d.apexOverlays === 'overlay' ? 'overlay' : 'layout', version: String(d.version ?? ''), overlays, theme: d.theme as Record<string, unknown> | undefined };
+  return {
+    apexOverlays: d.apexOverlays === 'overlay' ? 'overlay' : 'layout',
+    version: String(d.version ?? ''),
+    name: typeof d.name === 'string' ? d.name : undefined,
+    sessions: Array.isArray(d.sessions) ? d.sessions.filter((x): x is string => typeof x === 'string') : undefined,
+    overlays,
+    theme: d.theme as Record<string, unknown> | undefined,
+  };
 }
 
 const instanceFrom = (o: SharedOverlay): OverlayInstance => {
@@ -119,6 +143,8 @@ function menu(label: string, items: [string, () => void, string?][], cls = ''): 
 
 // Close open menus when clicking elsewhere.
 document.addEventListener('click', (e) => {
+  // A click that redrew the page landed on an element that is gone: keep menus as they are.
+  if (!(e.target as Node).isConnected) return;
   for (const d of document.querySelectorAll<HTMLDetailsElement>('details.menu[open]')) if (!d.contains(e.target as Node)) d.open = false;
 });
 
@@ -368,9 +394,135 @@ const overlaysPage: Page = {
     const editing = state.status?.editMode ?? false;
     const visible = state.status?.visible ?? true;
 
-    // Move all overlays at once and share layouts: tucked into one menu.
-    const layout = h('details', 'menu layout-menu');
-    layout.append(h('summary', '', 'Layout & sharing ▾'));
+    cfg.layouts ??= [];
+    const version = state.status?.version ?? '';
+    // Keep a menu open when an action inside it redraws the page.
+    const reopen = (menu: string) => {
+      openMenu = menu;
+      rerender();
+    };
+    const remember = (d: HTMLDetailsElement, name: string) => {
+      d.open = openMenu === name;
+      d.addEventListener('toggle', () => {
+        if (d.open) openMenu = name;
+        else if (openMenu === name) openMenu = '';
+      });
+    };
+
+    // Saved layouts: switch, share, and pick the session types each one is used for.
+    const layoutsMenu = h('details', 'menu layout-menu');
+    const active = cfg.layouts.find((l) => l.id === cfg.activeLayout);
+    layoutsMenu.append(h('summary', '', active ? `Layout: ${active.name} ▾` : 'Layouts ▾'));
+    const lpop = h('div', 'menu-pop wide');
+    const layoutList = h('div', 'layout-list');
+    const exportSaved = (l: SavedLayout) => {
+      const overlays = l.id === cfg.activeLayout ? cfg.overlays : l.overlays;
+      const file: ShareFile = { apexOverlays: 'layout', version, name: l.name, sessions: l.sessions ?? [], overlays: overlays.map(shareable), theme: structuredClone(cfg.theme) };
+      download(`apex-layout-${fileName(l.name)}.json`, file);
+    };
+    for (const l of cfg.layouts) {
+      l.sessions ??= [];
+      const isActive = l.id === cfg.activeLayout;
+      const item = h('div', `layout-item${isActive ? ' active' : ''}`);
+      const chips = h('span', 'session-chips');
+      for (const [id, short, long] of SESSION_TYPES) {
+        const on = l.sessions.includes(id);
+        const b = button(
+          short,
+          () => {
+            // A session type belongs to one layout at most.
+            for (const other of cfg.layouts) other.sessions = (other.sessions ?? []).filter((s) => s !== id);
+            if (!on) l.sessions.push(id);
+            save(true);
+            reopen('layouts');
+          },
+          `chip-toggle${on ? ' on' : ''}`,
+        );
+        b.title = on ? `Used automatically for ${long} sessions — click to stop` : `Use this layout automatically when a ${long} session starts`;
+        chips.append(b);
+      }
+      item.append(
+        h('span', 'layout-name', `${isActive ? '● ' : ''}${l.name}`),
+        chips,
+        button(
+          isActive ? 'In use' : 'Use',
+          () => {
+            applyLayout(l.id);
+            layoutsMenu.open = false;
+            openMenu = '';
+            rerender();
+          },
+          'mini',
+        ),
+        button('⇩', () => exportSaved(l), 'mini subtle'),
+        button(
+          '✎',
+          () => {
+            const name = prompt('Layout name', l.name)?.trim();
+            if (!name) return;
+            l.name = name;
+            save(true);
+            reopen('layouts');
+          },
+          'mini subtle',
+        ),
+        button(
+          '✕',
+          () => {
+            if (!confirm(`Delete the layout “${l.name}”? Your overlays on screen stay as they are.`)) return;
+            cfg.layouts = cfg.layouts.filter((x) => x !== l);
+            if (cfg.activeLayout === l.id) cfg.activeLayout = '';
+            delete cfg.hotkeys.layouts?.[l.id];
+            save(true);
+            reopen('layouts');
+          },
+          'mini subtle',
+        ),
+      );
+      const [, , , exp, ren, del] = [...item.children] as HTMLElement[];
+      exp.title = 'Export this layout to a file to share';
+      ren.title = 'Rename';
+      del.title = 'Delete';
+      layoutList.append(item);
+    }
+    const layoutActions = h('div', 'toolbar');
+    layoutActions.append(
+      button('Save current overlays as a layout…', () => {
+        const name = prompt('Name this layout (e.g. Race, Qualifying, Streaming)')?.trim();
+        if (!name) return;
+        const l: SavedLayout = { id: uid('layout'), name, overlays: structuredClone(cfg.overlays), sessions: [] };
+        cfg.layouts.push(l);
+        cfg.activeLayout = l.id;
+        save(true);
+        reopen('layouts');
+      }),
+      button('Import a layout file…', async () => {
+        const f = await readShare();
+        if (!f) return;
+        const name = (prompt('Name for the imported layout', f.name || 'Imported layout') ?? '').trim();
+        if (!name) return;
+        const l: SavedLayout = { id: uid('layout'), name, overlays: f.overlays.map(instanceFrom), sessions: [] };
+        // Session types from the file, where no layout of yours already has them.
+        for (const s of f.sessions ?? []) if (SESSION_TYPES.some((t) => t[0] === s) && !cfg.layouts.some((o) => o.sessions?.includes(s))) l.sessions.push(s);
+        cfg.layouts.push(l);
+        if (f.theme && confirm('Also use the colour theme from this layout?')) cfg.theme = f.theme;
+        if (confirm(`Use “${name}” now?`)) applyLayout(l.id);
+        else save(true);
+        reopen('layouts');
+      }),
+    );
+    lpop.append(
+      ...(cfg.layouts.length
+        ? [layoutList, h('p', 'dim small', 'P Q W R: switch to that layout automatically when a Practice, Qualifying, Warmup or Race session starts. ⇩ exports a layout to share; hotkeys are under General → Hotkeys.')]
+        : [h('p', 'dim small', 'Save the overlays you have now as a layout, set up another, and switch between them here, with a hotkey, or automatically by session type.')]),
+      layoutActions,
+    );
+    layoutsMenu.append(lpop);
+    remember(layoutsMenu, 'layouts');
+
+    // Moving every overlay at once, and sharing single overlays.
+    const moveMenu = h('details', 'menu layout-menu');
+    moveMenu.append(h('summary', '', 'Move & share ▾'));
     const pop = h('div', 'menu-pop wide');
     const together = h('label', 'inline');
     const tcb = h('input');
@@ -407,23 +559,12 @@ const overlaysPage: Page = {
         const added = f.overlays.map(instanceFrom);
         cfg.overlays.push(...added);
         selected = added[0].id;
-        layout.open = false;
+        moveMenu.open = false;
+        openMenu = '';
         save(true);
         rerender();
       }),
-      button('Share my layout…', exportLayout),
-      button('Import a layout…', async () => {
-        const f = await readShare();
-        if (!f) return;
-        const replace = confirm(`Replace your ${cfg.overlays.length} overlays with the ${f.overlays.length} in this file?\n\nOK = replace, Cancel = add them to yours.`);
-        const added = f.overlays.map(instanceFrom);
-        cfg.overlays = replace ? added : [...cfg.overlays, ...added];
-        if (f.theme && confirm('Also use the colour theme from this layout?')) cfg.theme = f.theme;
-        selected = added[0].id;
-        layout.open = false;
-        save(true);
-        rerender();
-      }),
+      button('Export all current overlays…', exportLayout),
     );
     pop.append(
       h('h3', '', 'Move'),
@@ -431,16 +572,18 @@ const overlaysPage: Page = {
       arrows,
       h('h3', '', 'Share'),
       sharing,
-      h('p', 'dim small', 'Layouts contain your overlays, their settings and the theme — never tokens, logins or leagues.'),
+      h('p', 'dim small', 'Shared files contain overlays, their settings and the theme — never tokens, logins or leagues.'),
     );
-    layout.append(pop);
+    moveMenu.append(pop);
+    remember(moveMenu, 'move');
 
     const bar = h('div', 'toolbar');
     bar.append(
       button(editing ? 'Done moving' : 'Edit mode (move & resize)', () => client.send({ op: 'setEditMode', value: !editing }), editing ? 'primary active' : 'primary'),
       button(visible ? 'Hide all overlays' : 'Show all overlays', () => client.send({ op: 'setVisible', value: !visible })),
       h('span', 'spacer'),
-      layout,
+      layoutsMenu,
+      moveMenu,
     );
 
     const addOverlay = (kind: string) => {
@@ -810,7 +953,7 @@ function updatesCard(): HTMLElement {
       );
     }
   }
-  if (u?.status === 'available' && u.notes) c.append(h('p', 'dim small', u.notes));
+  if (u?.status === 'available' && u.notes) c.append(h('h3', '', `What’s new in ${u.version}`), releaseNotes(u.notes));
   return c;
 }
 
@@ -952,6 +1095,192 @@ function cornersCard(rerender: () => void): HTMLElement {
   return c;
 }
 
+/** Switch to a saved layout, keeping the arrangement in use in the layout it came from. */
+export function applyLayout(id: string) {
+  const cfg = state.config!;
+  const next = cfg.layouts?.find((l) => l.id === id);
+  if (!next) return;
+  const active = cfg.layouts.find((l) => l.id === cfg.activeLayout);
+  if (active) active.overlays = structuredClone(cfg.overlays);
+  cfg.overlays = structuredClone(next.overlays);
+  cfg.activeLayout = id;
+  save(true);
+}
+
+/** Every hotkey: editing, layouts, and one per overlay. All but the first two start blank. */
+function hotkeysCard(): HTMLElement {
+  const cfg = state.config!;
+  const hk = cfg.hotkeys;
+  hk.layouts ??= {};
+  hk.overlays ??= {};
+  const c = card('Hotkeys');
+  c.append(h('p', 'dim', 'Click a box and press the keys you want (Ctrl, Alt or Shift plus a key, or an F-key / number-pad key on its own). Backspace clears a hotkey. Desktop app only; changes apply straight away.'));
+  const all = (): string[] => [hk.toggleEdit, hk.toggleVisibility, hk.nextLayout, ...Object.values(hk.layouts), ...Object.values(hk.overlays)].filter((k) => k?.trim());
+  const rows: { warn: HTMLElement; get: () => string }[] = [];
+  const checkClashes = () => {
+    const used = all().map((k) => k.toLowerCase());
+    for (const r of rows) {
+      const k = r.get().toLowerCase();
+      const clash = !!k && used.filter((u) => u === k).length > 1;
+      r.warn.hidden = !clash;
+    }
+  };
+  const row = (label: string, get: () => string, set: (v: string) => void, sub = '') => {
+    const el = h('div', 'field hotkey-row');
+    const lab = h('span', 'field-label');
+    lab.append(h('span', 'field-name', label));
+    if (sub) lab.append(h('small', 'help', sub));
+    const warn = h('small', 'help bad', 'Also used by another hotkey');
+    warn.hidden = true;
+    lab.append(warn);
+    rows.push({ warn, get });
+    el.append(
+      lab,
+      hotkeyInput(get() ?? '', (v) => {
+        set(v);
+        save(true);
+        checkClashes();
+      }),
+    );
+    return el;
+  };
+  const group = (title: string, ...children: (Node | string)[]) => {
+    const fs = h('fieldset');
+    fs.append(h('legend', '', title), ...children);
+    return fs;
+  };
+  const layouts = cfg.layouts ?? [];
+  const grid = h('div', 'form hotkeys');
+  grid.append(
+    group(
+      'Overlays',
+      row('Edit mode (move & resize)', () => hk.toggleEdit, (v) => (hk.toggleEdit = v)),
+      row('Show / hide all overlays', () => hk.toggleVisibility, (v) => (hk.toggleVisibility = v)),
+    ),
+    group(
+      'Layouts',
+      row('Next layout', () => hk.nextLayout ?? '', (v) => (hk.nextLayout = v), 'Cycles through your saved layouts'),
+      ...layouts.map((l) =>
+        row(
+          `Switch to “${l.name}”`,
+          () => hk.layouts[l.id] ?? '',
+          (v) => {
+            if (v) hk.layouts[l.id] = v;
+            else delete hk.layouts[l.id];
+          },
+        ),
+      ),
+      ...(layouts.length ? [] : [h('p', 'dim small', 'Save layouts under Overlays → Layout & sharing, then give each one a hotkey here.')]),
+    ),
+    group(
+      'Show / hide one overlay',
+      ...cfg.overlays.map((o) =>
+        row(
+          o.name || byKind(o.kind)?.name || o.kind,
+          () => hk.overlays[o.id] ?? '',
+          (v) => {
+            if (v) hk.overlays[o.id] = v;
+            else delete hk.overlays[o.id];
+          },
+          o.name ? byKind(o.kind)?.name : '',
+        ),
+      ),
+    ),
+  );
+  c.append(grid);
+  checkClashes();
+  return c;
+}
+
+/** Live readings of what Apex Overlays uses, updated in place once a second. */
+const monitorView = { tiles: new Map<string, HTMLElement>(), spark: null as SVGPolylineElement | null, cpu: [] as number[] };
+
+function drawMonitor() {
+  const m = state.monitor;
+  if (!m) return;
+  monitorView.cpu.push(m.cpu);
+  if (monitorView.cpu.length > 60) monitorView.cpu.shift();
+  for (const s of STATS) {
+    const el = monitorView.tiles.get(s.id);
+    if (!el) continue;
+    el.textContent = s.value(m);
+    const lvl = s.level?.(m, 5) ?? '';
+    el.classList.toggle('warn', lvl === 'warn');
+    el.classList.toggle('bad', lvl === 'bad');
+  }
+  // CPU over the last minute, scaled to its own peak (at least 5%).
+  const pts = monitorView.cpu;
+  const top = Math.max(5, ...pts);
+  monitorView.spark?.setAttribute('points', pts.map((v, i) => `${(i / 59) * 100},${30 - (v / top) * 28}`).join(' '));
+}
+
+listen((t) => {
+  if (t === 'monitor' && monitorView.tiles.size && document.contains([...monitorView.tiles.values()][0])) drawMonitor();
+});
+
+function monitoringCard(): HTMLElement {
+  const cfg = state.config!;
+  const c = card('Monitoring');
+  c.append(h('p', 'dim', 'What Apex Overlays uses right now: the app and all its overlay windows. Hover a reading for what it means.'));
+  const grid = h('div', 'mon-tiles');
+  monitorView.tiles.clear();
+  for (const s of STATS) {
+    const tile = h('div', 'mon-tile');
+    tile.title = s.help;
+    const v = h('div', 'mon-tile-val', '–');
+    tile.append(h('div', 'mon-tile-label', s.label), v);
+    if (s.id === 'cpu') {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 100 30');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.classList.add('mon-spark');
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      svg.append(line);
+      monitorView.spark = line;
+      tile.append(svg);
+      tile.classList.add('wide');
+    }
+    monitorView.tiles.set(s.id, v);
+    grid.append(tile);
+  }
+  // The on-screen widget: one Performance monitor overlay.
+  const widget = cfg.overlays.find((o) => o.kind === 'monitor');
+  const row = h('div', 'toolbar mon-widget');
+  const sw = h('label', 'inline');
+  const cb = h('input');
+  cb.type = 'checkbox';
+  cb.className = 'switch';
+  cb.checked = !!widget?.enabled;
+  cb.onchange = () => {
+    let o = cfg.overlays.find((x) => x.kind === 'monitor');
+    if (!o && cb.checked) {
+      const d = byKind('monitor')!;
+      o = { id: uid('monitor'), kind: 'monitor', name: '', enabled: true, x: 1680, y: 40, width: d.size[0], height: d.size[1], settings: {} };
+      cfg.overlays.push(o);
+    } else if (o) o.enabled = cb.checked;
+    save(true);
+  };
+  sw.append(cb, ' Show a performance widget on screen');
+  row.append(
+    sw,
+    button('Choose what it shows…', () => {
+      let o = cfg.overlays.find((x) => x.kind === 'monitor');
+      if (!o) {
+        const d = byKind('monitor')!;
+        o = { id: uid('monitor'), kind: 'monitor', name: '', enabled: false, x: 1680, y: 40, width: d.size[0], height: d.size[1], settings: {} };
+        cfg.overlays.push(o);
+        save(true);
+      }
+      selected = o.id;
+      ui.tab.set(o.id, 'What to show');
+      location.hash = '#overlays';
+    }),
+  );
+  c.append(grid, row);
+  drawMonitor();
+  return c;
+}
+
 const generalPage: Page = {
   id: 'general',
   title: 'General',
@@ -961,8 +1290,6 @@ const generalPage: Page = {
       units: cfg.units,
       port: cfg.server.port,
       lanAccess: cfg.server.lanAccess,
-      toggleEdit: cfg.hotkeys.toggleEdit,
-      toggleVisibility: cfg.hotkeys.toggleVisibility,
       ratingsOfficialOnly: cfg.ratingsOfficialOnly,
       shortClassNames: cfg.shortClassNames,
       updateRate: cfg.updateRate ?? 'balanced',
@@ -1014,8 +1341,6 @@ const generalPage: Page = {
               ],
               group: 'Display',
             },
-            { key: 'toggleEdit', label: 'Toggle edit mode', type: 'text', default: 'CmdOrCtrl+Shift+E', group: 'Hotkeys (desktop app, restart to apply)' },
-            { key: 'toggleVisibility', label: 'Show / hide overlays', type: 'text', default: 'CmdOrCtrl+Shift+H', group: 'Hotkeys (desktop app, restart to apply)' },
             { key: 'port', label: 'Port', type: 'number', default: 8182, min: 1024, max: 65535, group: 'Server (restart to apply)' },
             { key: 'lanAccess', label: 'Allow other PCs on my network (streaming PC)', type: 'bool', default: false, group: 'Server (restart to apply)' },
           ],
@@ -1024,8 +1349,6 @@ const generalPage: Page = {
             if (k === 'units') cfg.units = v as typeof cfg.units;
             if (k === 'port') cfg.server.port = v as number;
             if (k === 'lanAccess') cfg.server.lanAccess = v as boolean;
-            if (k === 'toggleEdit') cfg.hotkeys.toggleEdit = v as string;
-            if (k === 'toggleVisibility') cfg.hotkeys.toggleVisibility = v as string;
             if (k === 'ratingsOfficialOnly') cfg.ratingsOfficialOnly = v as boolean;
             if (k === 'shortClassNames') cfg.shortClassNames = v as boolean;
             if (k === 'updateRate') cfg.updateRate = v as 'balanced' | 'full';
@@ -1034,6 +1357,8 @@ const generalPage: Page = {
           },
         ),
       ),
+      hotkeysCard(),
+      monitoringCard(),
       updatesCard(),
       cornersCard(() => this.render(el)),
       card(

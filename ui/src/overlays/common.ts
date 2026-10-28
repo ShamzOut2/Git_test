@@ -178,13 +178,16 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
 /** iRating in a frosted pill, with the estimated race gain (green ▲) or loss (red ▼) beside it. */
 function iratingCell(c: HTMLElement, ir: number, delta: number | null | undefined) {
   let pill = c.querySelector(':scope > .ir-pill') as HTMLElement | null;
-  let d = c.querySelector(':scope > .ir-delta') as HTMLElement | null;
-  if (!pill || !d) {
+  let val = pill?.querySelector(':scope > .ir-val') as HTMLElement | null;
+  let d = pill?.querySelector(':scope > .ir-delta') as HTMLElement | null;
+  if (!pill || !val || !d) {
     pill = h('span', 'ir-pill');
+    val = h('span', 'ir-val');
     d = h('span', 'ir-delta');
-    c.replaceChildren(pill, d);
+    pill.append(val, d);
+    c.replaceChildren(pill);
   }
-  text(pill, ir > 0 ? f.iRating(ir) : '');
+  text(val, ir > 0 ? f.iRating(ir) : '');
   if (pill.hidden !== !(ir > 0)) pill.hidden = !(ir > 0);
   const v = delta == null ? 0 : Math.round(delta);
   text(d, v > 0 ? `▲${v}` : v < 0 ? `▼${-v}` : '');

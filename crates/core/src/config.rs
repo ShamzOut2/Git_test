@@ -17,6 +17,9 @@ pub struct Config {
     pub units: String,
     pub theme: serde_json::Value,
     pub overlays: Vec<OverlayInstance>,
+    /// Saved layouts, and the one in use ("" = none).
+    pub layouts: Vec<Layout>,
+    pub active_layout: String,
     pub hotkeys: Hotkeys,
     pub fuel: FuelConfig,
     pub tyres: TyreConfig,
@@ -120,6 +123,8 @@ impl Default for Config {
                 OverlayInstance { enabled: false, ..o("weather", "weather", 1240, 680, 300, 170) },
                 OverlayInstance { enabled: false, ..o("garage61", "garage61", 1540, 850, 300, 170) },
             ],
+            layouts: vec![],
+            active_layout: String::new(),
             hotkeys: Hotkeys::default(),
             fuel: FuelConfig::default(),
             tyres: TyreConfig::default(),
@@ -158,7 +163,7 @@ impl Default for ServerConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", default)]
 pub struct OverlayInstance {
     pub id: String,
@@ -193,11 +198,52 @@ impl Default for OverlayInstance {
 pub struct Hotkeys {
     pub toggle_edit: String,
     pub toggle_visibility: String,
+    /// Switch to the next saved layout ("" = no hotkey).
+    pub next_layout: String,
+    /// Saved layout id → hotkey that switches to it.
+    pub layouts: std::collections::BTreeMap<String, String>,
+    /// Overlay id → hotkey that shows / hides that overlay.
+    pub overlays: std::collections::BTreeMap<String, String>,
 }
 
 impl Default for Hotkeys {
     fn default() -> Self {
-        Self { toggle_edit: "CmdOrCtrl+Shift+E".into(), toggle_visibility: "CmdOrCtrl+Shift+H".into() }
+        Self {
+            toggle_edit: "CmdOrCtrl+Shift+E".into(),
+            toggle_visibility: "CmdOrCtrl+Shift+H".into(),
+            next_layout: String::new(),
+            layouts: Default::default(),
+            overlays: Default::default(),
+        }
+    }
+}
+
+/// A saved arrangement of overlays (which ones, where, and their settings).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase", default)]
+pub struct Layout {
+    pub id: String,
+    pub name: String,
+    pub overlays: Vec<OverlayInstance>,
+    /// Session types this layout is switched to automatically when one starts:
+    /// "practice", "qualifying", "warmup", "race".
+    pub sessions: Vec<String>,
+}
+
+/// The kind of session for automatic layouts, from iRacing's SessionType ("Lone Qualify",
+/// "Open Practice", "Race", "Warmup", "Offline Testing"...).
+pub fn session_category(kind: &str) -> &'static str {
+    let k = kind.to_lowercase();
+    if k.contains("race") || k.contains("heat") || k.contains("feature") {
+        "race"
+    } else if k.contains("qual") {
+        "qualifying"
+    } else if k.contains("warm") {
+        "warmup"
+    } else if k.is_empty() {
+        ""
+    } else {
+        "practice"
     }
 }
 
@@ -441,6 +487,46 @@ pub struct ConfigStore {
     tx: Arc<watch::Sender<u64>>,
 }
 
+impl Config {
+    /// Switch to a saved layout. The arrangement in use is first kept in the layout it came
+    /// from, so moving or changing overlays is never lost by switching.
+    pub fn apply_layout(&mut self, id: &str) -> bool {
+        if !self.layouts.iter().any(|l| l.id == id) {
+            return false;
+        }
+        let current = self.overlays.clone();
+        if let Some(active) = self.layouts.iter_mut().find(|l| l.id == self.active_layout) {
+            active.overlays = current;
+        }
+        if let Some(next) = self.layouts.iter().find(|l| l.id == id) {
+            self.overlays = next.overlays.clone();
+        }
+        self.active_layout = id.to_string();
+        true
+    }
+
+    /// The saved layout set to switch to for this kind of session.
+    pub fn layout_for_session(&self, category: &str) -> Option<String> {
+        if category.is_empty() {
+            return None;
+        }
+        self.layouts.iter().find(|l| l.sessions.iter().any(|s| s == category)).map(|l| l.id.clone())
+    }
+
+    /// The saved layout after the one in use (wrapping round).
+    pub fn next_layout(&self) -> Option<String> {
+        let i = self.layouts.iter().position(|l| l.id == self.active_layout).map_or(0, |i| i + 1);
+        self.layouts.get(i % self.layouts.len().max(1)).map(|l| l.id.clone())
+    }
+
+    /// Show or hide one overlay.
+    pub fn toggle_overlay(&mut self, id: &str) {
+        if let Some(o) = self.overlays.iter_mut().find(|o| o.id == id) {
+            o.enabled = !o.enabled;
+        }
+    }
+}
+
 impl ConfigStore {
     pub fn load(dir: &Path) -> Self {
         let path = dir.join("config.json");
@@ -521,5 +607,37 @@ mod tests {
         assert_eq!(c.fuel.margin_laps, 2.0);
         assert_eq!(c.fuel.avg_laps, 5);
         assert_eq!(c.server.port, 8182);
+    }
+
+    #[test]
+    fn layouts_swap_and_remember_changes() {
+        let ov = |id: &str, x: i32| OverlayInstance { id: id.into(), kind: "relative".into(), enabled: true, x, ..Default::default() };
+        let mut c = Config {
+            overlays: vec![ov("a", 0)],
+            layouts: vec![
+                Layout { id: "race".into(), name: "Race".into(), overlays: vec![ov("a", 0)], ..Default::default() },
+                Layout { id: "quali".into(), name: "Quali".into(), overlays: vec![ov("b", 5)], ..Default::default() },
+            ],
+            active_layout: "race".into(),
+            ..Default::default()
+        };
+        // Move an overlay, swap away and back: the move is kept.
+        c.overlays[0].x = 100;
+        assert!(c.apply_layout("quali"));
+        assert_eq!(c.overlays[0].id, "b");
+        assert_eq!(c.next_layout().as_deref(), Some("race"));
+        c.apply_layout("race");
+        assert_eq!(c.overlays[0].x, 100);
+        assert!(!c.apply_layout("nope"));
+        c.toggle_overlay("a");
+        assert!(!c.overlays[0].enabled);
+        assert_eq!(Config::default().next_layout(), None);
+        // Automatic layouts per session type.
+        c.layouts[1].sessions = vec!["qualifying".into()];
+        assert_eq!(c.layout_for_session(session_category("Lone Qualify")).as_deref(), Some("quali"));
+        assert_eq!(c.layout_for_session(session_category("Race")), None);
+        assert_eq!(session_category("Offline Testing"), "practice");
+        assert_eq!(session_category("Warmup"), "warmup");
+        assert_eq!(session_category("Heat 1"), "race");
     }
 }

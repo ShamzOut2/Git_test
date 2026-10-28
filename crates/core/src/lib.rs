@@ -13,6 +13,7 @@ pub mod iracing_api;
 pub mod league;
 pub mod lookup;
 pub mod model;
+pub mod monitor;
 pub mod net;
 pub mod server;
 pub mod source;
@@ -92,6 +93,7 @@ pub fn start(opts: Options) -> std::io::Result<App> {
         });
     })?;
 
+    monitor::spawn(hub.clone());
     let combo = Arc::new(Mutex::new(garage61::Combo::default()));
     garage61::spawn(hub.clone(), config.clone(), combo.clone(), opts.data_dir.clone());
     let track = Arc::new(Mutex::new((0i64, String::new())));
@@ -134,6 +136,7 @@ fn run(
     e.source = source.name();
     let mut cfg_rx = config.subscribe();
     let mut keys = Keys::default();
+    let mut last_session_layout: (i64, i32, &'static str) = (0, -1, "");
     loop {
         if cfg_rx.has_changed().unwrap_or(false) {
             cfg_rx.mark_unchanged();
@@ -217,8 +220,26 @@ fn run(
                         (c.track_temp, c.wet) = (temp, wet);
                     }
                 }
+                // Session layouts: when a new event or a different kind of session starts, switch
+                // to the layout set for it (once — the user can still pick another by hand).
+                let category = e.session_def().map(|s| crate::config::session_category(&s.kind)).unwrap_or("");
+                let session_key = (e.info.subsession_id, e.tel.session_num, category);
+                if session_key != last_session_layout && !category.is_empty() {
+                    if last_session_layout.0 != session_key.0 || last_session_layout.2 != category {
+                        config.update(|c| {
+                            if let Some(id) = c.layout_for_session(category).filter(|id| *id != c.active_layout) {
+                                log::info!("{category} session: switching to layout {id}");
+                                c.apply_layout(&id);
+                            }
+                        });
+                    }
+                    last_session_layout = session_key;
+                }
+                let t0 = std::time::Instant::now();
                 e.tick();
                 publish(&e, &hub, &mut keys, false);
+                hub.stats.ticks.fetch_add(1, Ordering::Relaxed);
+                hub.stats.tick_ns.fetch_add(t0.elapsed().as_nanos() as u64, Ordering::Relaxed);
             }
         }
     }

@@ -1,6 +1,27 @@
 # Changelog
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
+Each version groups its changes under `### New features`, `### Improvements` and `### Fixes`
+(plus `### Performance` or `### Removed` when needed).
+
+## 0.6.0
+
+### New features
+- **Saved layouts**: save the overlays you have as a named layout (Race, Qualifying, Streaming…), set up others, and switch between them from Overlays → Layouts. Each layout remembers its own overlays, positions and settings
+- **Session layouts**: tick P, Q, W or R next to a saved layout and it is switched to automatically when a Practice, Qualifying, Warmup or Race session starts
+- **Share layouts**: export a saved layout to a file (⇩) and send it to other drivers; they import it as a new saved layout of their own, with its session types and, if they want, its colour theme
+- **More hotkeys** (General → Hotkeys): next layout, one per saved layout, and one per overlay to show or hide it — all blank until you set them. Click a box (it shows Recording…), press the keys and it is saved straight away; a hotkey used twice is flagged
+- **Monitoring** (General): live CPU and memory use of Apex Overlays and its overlay windows (with a one-minute CPU graph), your PC's CPU, data sent to the overlays, telemetry rate, engine time per update, windows open and uptime
+- **Performance monitor overlay**: a small on-screen widget with the readings you pick and order; CPU turns amber or red above a level you choose
+- **Flag abbreviations** (League builder → Drivers): every flag code the Flag box accepts, with the flag and country name — searchable, click a row to copy the code
+
+### Improvements
+- General is now the first page in the settings window
+- Hotkeys apply straight away, no restart needed
+- The update pop-up shows what's new grouped into new features, improvements and fixes
+
+### Fixes
+- iRating pill: the gain/loss (green ▲ / red ▼) now sits inside the pill with the rating
 
 ## 0.5.8
 

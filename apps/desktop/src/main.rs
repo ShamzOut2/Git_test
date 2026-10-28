@@ -89,7 +89,7 @@ fn show_update_prompt(app: &AppHandle) {
     let url = format!("{}?prompt=update", app.state::<Core>().url).parse().expect("valid url");
     let _ = WebviewWindowBuilder::new(app, UPDATE_PROMPT, WebviewUrl::External(url))
         .title("Apex Overlays – update available")
-        .inner_size(480.0, 340.0)
+        .inner_size(560.0, 560.0)
         .resizable(false)
         .minimizable(false)
         .maximizable(false)
@@ -402,25 +402,67 @@ fn flush_geometry(app: &AppHandle) {
     });
 }
 
+/// What a hotkey does.
+#[derive(Clone, Debug)]
+enum HotkeyAction {
+    ToggleEdit,
+    ToggleVisible,
+    NextLayout,
+    Layout(String),
+    Overlay(String),
+}
+
+/// The hotkeys in use and what they do (blank ones and ones for missing layouts / overlays left out).
+fn hotkey_bindings(c: &Config) -> Vec<(String, HotkeyAction)> {
+    let k = &c.hotkeys;
+    let mut out = vec![
+        (k.toggle_edit.clone(), HotkeyAction::ToggleEdit),
+        (k.toggle_visibility.clone(), HotkeyAction::ToggleVisible),
+        (k.next_layout.clone(), HotkeyAction::NextLayout),
+    ];
+    for l in &c.layouts {
+        if let Some(key) = k.layouts.get(&l.id) {
+            out.push((key.clone(), HotkeyAction::Layout(l.id.clone())));
+        }
+    }
+    for o in &c.overlays {
+        if let Some(key) = k.overlays.get(&o.id) {
+            out.push((key.clone(), HotkeyAction::Overlay(o.id.clone())));
+        }
+    }
+    out.retain(|(key, _)| !key.trim().is_empty());
+    out
+}
+
+/// (Re-)register every global hotkey; called at start-up and whenever the bindings change.
 fn register_hotkeys(app: &AppHandle) {
     let core = app.state::<Core>();
-    let keys = core.config.read(|c| c.hotkeys.clone());
+    let bindings = core.config.read(hotkey_bindings);
     let gs = app.global_shortcut();
-    let hub = core.hub.clone();
-    if let Err(e) = gs.on_shortcut(keys.toggle_edit.as_str(), move |_, _, ev| {
-        if ev.state == ShortcutState::Pressed {
-            hub.set_edit_mode(!hub.edit_mode.load(Ordering::Relaxed));
+    let _ = gs.unregister_all();
+    for (key, action) in bindings {
+        let (hub, config) = (core.hub.clone(), core.config.clone());
+        let result = gs.on_shortcut(key.trim(), move |_, _, ev| {
+            if ev.state != ShortcutState::Pressed {
+                return;
+            }
+            match &action {
+                HotkeyAction::ToggleEdit => hub.set_edit_mode(!hub.edit_mode.load(Ordering::Relaxed)),
+                HotkeyAction::ToggleVisible => hub.set_visible(!hub.visible.load(Ordering::Relaxed)),
+                HotkeyAction::NextLayout => config.update(|c| {
+                    if let Some(id) = c.next_layout() {
+                        c.apply_layout(&id);
+                    }
+                }),
+                HotkeyAction::Layout(id) => config.update(|c| {
+                    c.apply_layout(id);
+                }),
+                HotkeyAction::Overlay(id) => config.update(|c| c.toggle_overlay(id)),
+            }
+        });
+        if let Err(e) = result {
+            log::warn!("hotkey {key}: {e}");
         }
-    }) {
-        log::warn!("hotkey {}: {e}", keys.toggle_edit);
-    }
-    let hub = core.hub.clone();
-    if let Err(e) = gs.on_shortcut(keys.toggle_visibility.as_str(), move |_, _, ev| {
-        if ev.state == ShortcutState::Pressed {
-            hub.set_visible(!hub.visible.load(Ordering::Relaxed));
-        }
-    }) {
-        log::warn!("hotkey {}: {e}", keys.toggle_visibility);
     }
 }
 
@@ -497,6 +539,9 @@ fn main() {
                 let mut host = hub.host_events();
                 let mut cfg = config.subscribe();
                 let mut tick = tokio_interval();
+                // Hotkeys are re-registered only when their bindings change.
+                let binding_key = |c: &Config| format!("{:?}", hotkey_bindings(c));
+                let mut bound = config.read(binding_key);
                 loop {
                     tokio::select! {
                         ev = host.recv() => match ev {
@@ -507,6 +552,11 @@ fn main() {
                         r = cfg.changed() => {
                             if r.is_err() { break; }
                             reconcile(&h);
+                            let now = config.read(binding_key);
+                            if now != bound {
+                                bound = now;
+                                register_hotkeys(&h);
+                            }
                         }
                         _ = tick.tick() => flush_geometry(&h),
                     }

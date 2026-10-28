@@ -5,6 +5,7 @@
 import { h } from '../lib/dom';
 import type { ClassRules, League, LeagueClass, PointsConfig } from '../lib/types';
 import { flagEmoji } from '../overlays/common';
+import { showFlagCodes } from './flagCodes';
 import type { Page } from './pages';
 import { client, download, save, state, uid, upload } from './state';
 
@@ -393,6 +394,7 @@ function rosterCard(l: League, rerender: () => void) {
       save();
       rerender();
     }),
+    btn('Show Flag Abbreviations', showFlagCodes),
   );
   if (l.driverOverrides.length) {
     bar.append(
