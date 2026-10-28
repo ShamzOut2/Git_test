@@ -85,6 +85,8 @@ pub struct CarHist {
     /// Estimated speed from track position, m/s.
     pub speed: f32,
     slow_since: Option<f64>,
+    /// Off track since (cleared when back on).
+    off_since: Option<f64>,
     /// Black flag seen; entered the pits while black-flagged; seconds stopped in the box.
     black: bool,
     pen_pit: bool,
@@ -774,13 +776,22 @@ impl Engine {
             h.speed_pct = c.pct;
         }
         let off = c.surface == surface::OFF_TRACK;
+        if off {
+            h.off_since.get_or_insert(now);
+        } else {
+            h.off_since = None;
+        }
+        // Clipping a kerb or cutting a chicane (Monza's Roggia, say) reads as off track for a
+        // moment without being an incident or a danger: it takes a while off, or being slow
+        // off the track, to cause a yellow.
+        let off_yellow = h.off_since.is_some_and(|t| now - t > OFF_YELLOW) || (off && h.speed < OFF_SLOW);
         let crawling = c.surface == surface::ON_TRACK && !c.on_pit_road && h.speed < 8.0 && running;
         if crawling {
             h.slow_since.get_or_insert(now);
         } else {
             h.slow_since = None;
         }
-        if off || h.slow_since.is_some_and(|t| now - t > 1.5) {
+        if off_yellow || h.slow_since.is_some_and(|t| now - t > 1.5) {
             h.yellow_until = now + YELLOW_LINGER;
         }
         let black = c.session_flags & flags::BLACK != 0;
@@ -1039,6 +1050,10 @@ fn override_country(r: &Resolver, user_id: i64) -> String {
 
 /// Penalty / flag tracking that needs history (see [`Engine::track_incidents`]).
 pub const YELLOW_LINGER: f64 = 5.0;
+/// Off track for longer than this (seconds), or slower than `OFF_SLOW` (m/s) while off,
+/// counts as causing a yellow.
+pub const OFF_YELLOW: f64 = 1.0;
+pub const OFF_SLOW: f32 = 20.0;
 
 /// iRacing's strength-of-field formula.
 pub fn sof(irs: &[i32]) -> i32 {
@@ -1252,6 +1267,40 @@ pub(crate) mod tests {
         // "Always use" keeps the selected league whatever the session.
         e.set_config(Config { league_mode: "always".into(), ..cfg });
         assert_eq!(e.resolver.league_name(), Some("b"));
+    }
+
+    #[test]
+    fn a_quick_cut_is_not_a_yellow() {
+        let mut e = engine(2, true);
+        let mut info = e.info.clone();
+        info.track_length_km = 5.8;
+        e.set_session(info);
+        let step = |e: &mut Engine, t: f64, pct: f32, surf: i32| {
+            e.tel.session_time = t;
+            place(e, 0, 3, 0.9);
+            place(e, 1, 3, pct);
+            e.tel.cars[1].surface = surf;
+            e.tick();
+        };
+        let mut t = 0.0;
+        let mut pct = 0.1;
+        // About 58 m/s (0.0005 of a 5.8 km lap every 0.05 s).
+        let mut drive = |e: &mut Engine, secs: f64, surf: i32| {
+            let end = t + secs;
+            while t < end {
+                t += 0.05;
+                pct += 0.0005;
+                step(e, t, pct, surf);
+            }
+        };
+        drive(&mut e, 2.0, surface::ON_TRACK);
+        // Over the kerbs for half a second at speed: no yellow.
+        drive(&mut e, 0.5, surface::OFF_TRACK);
+        drive(&mut e, 0.5, surface::ON_TRACK);
+        assert!(e.car_flags(1).is_empty(), "{:?}", e.car_flags(1));
+        // Off for two seconds: a yellow.
+        drive(&mut e, 2.0, surface::OFF_TRACK);
+        assert_eq!(e.car_flags(1), vec!["yellow"]);
     }
 
     #[test]

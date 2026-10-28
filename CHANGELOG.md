@@ -17,6 +17,7 @@ Each version groups its changes under `### New features`, `### Improvements` and
 - The Flags overlay calls iRacing's furled black flag what it is used for now: SLOW DOWN
 
 ### Fixes
+- Yellow flags: cutting a chicane or running over the kerbs (Monza's turn 5, for example) no longer counts as causing a yellow. A car has to stay off track for over a second, or be slow off the track
 - Dragging columns to reorder them works in the app on Windows (it showed a "not allowed" cursor)
 - Manufacturer logos: the standings and relative could get stuck showing short names (BMW, CHE, MCL) instead of the logos. Each logo is now found in one request (your own image in the logos folder first, then the built-in one) and is tried again if it ever fails to load
 
