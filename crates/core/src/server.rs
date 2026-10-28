@@ -40,6 +40,7 @@ pub fn router(state: AppState) -> Router {
         .route("/api/status", get(|s: State<AppState>| async move { s.hub.latest("status").map(|m| m.to_string()).unwrap_or_default() }))
         .route("/ws", get(ws))
         .route("/logos/{file}", get(logo))
+        .route("/make-logo/{name}", get(make_logo))
         .route("/api/session-info", get(session_info))
         .fallback(|s: State<AppState>, uri: Uri| async move { asset(&s, uri.path().trim_start_matches('/')) })
         .with_state(state)
@@ -81,6 +82,22 @@ async fn logo(State(s): State<AppState>, Path(file): Path<String>) -> Response {
         Ok(bytes) => ([(header::CONTENT_TYPE, mime_for(&file)), (header::CACHE_CONTROL, "max-age=300")], bytes).into_response(),
         Err(_) => StatusCode::NOT_FOUND.into_response(),
     }
+}
+
+/// A manufacturer's logo in one request: the user's own image in `<data dir>/logos`
+/// (`<name>.svg|png|webp`) if there is one, otherwise the one bundled with the app.
+async fn make_logo(State(s): State<AppState>, Path(name): Path<String>) -> Response {
+    let slug: String = name.to_lowercase().split(|c: char| !c.is_ascii_alphanumeric()).filter(|w| !w.is_empty()).collect::<Vec<_>>().join("-");
+    if slug.is_empty() {
+        return StatusCode::BAD_REQUEST.into_response();
+    }
+    for ext in ["svg", "png", "webp"] {
+        let file = format!("{slug}.{ext}");
+        if let Ok(bytes) = std::fs::read(s.data_dir.join("logos").join(&file)) {
+            return ([(header::CONTENT_TYPE, mime_for(&file)), (header::CACHE_CONTROL, "max-age=300")], bytes).into_response();
+        }
+    }
+    asset(&s, &format!("assets/makes/{slug}.png"))
 }
 
 fn mime_for(path: &str) -> &'static str {

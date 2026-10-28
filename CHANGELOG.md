@@ -10,6 +10,9 @@ Each version groups its changes under `### New features`, `### Improvements` and
 - **SLOW badge**: drivers serving a slow-down penalty get an orange SLOW badge next to their name in the standings, relative and safety alert. Hover it to see how long they have been slowing and roughly how much time they have given up
 - **Possible overtake** (safety alert): when a car just ahead (3 s by default) is serving a slow-down, the alert shows it with how long it has been slowing, the time it has given up so far and its speed against yours. iRacing does not say how long a slow-down lasts, so the app measures the time given up from the car's own pace
 
+### Fixes
+- Manufacturer logos: the standings and relative could get stuck showing short names (BMW, CHE, MCL) instead of the logos. Each logo is now found in one request (your own image in the logos folder first, then the built-in one) and is tried again if it ever fails to load
+
 ### Improvements
 - The Flags overlay calls iRacing's furled black flag what it is used for now: SLOW DOWN
 

@@ -22,17 +22,13 @@ export function flagEmoji(code: string): string {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-/**
- * Logo lookup, probed once per name: the user's images in <data dir>/logos/<name>.svg|png|webp
- * first, then (for manufacturers) the logos bundled with the app (car-logos-dataset).
- */
+/** Class logo lookup, probed once per name: the user's images in <data dir>/logos/<name>.svg|png|webp. */
 const logos = new Map<string, string | null>();
-function probeLogo(make: string, done: () => void, bundled = false) {
+function probeLogo(make: string, done: () => void) {
   const key = slug(make);
   if (logos.has(key)) return;
   logos.set(key, null);
   const urls = ['svg', 'png', 'webp'].map((e) => `/logos/${key}.${e}`);
-  if (bundled) urls.push(`/assets/makes/${key}.png`);
   const next = (i: number) => {
     if (i >= urls.length) return;
     const img = new Image();
@@ -56,17 +52,31 @@ export function classLogo(name: string, onFound: () => void): string | null {
   return logos.get(slug(key)) ?? null;
 }
 
+/** Makes whose logo could not be loaded, and when to try again. */
+const noLogo = new Map<string, number>();
+
 function makeCell(c: HTMLElement, make: string, style: string, plate = true) {
   if (!make) return text(c, '');
-  const url = style === 'logo' ? logos.get(slug(make)) : null;
-  if (style === 'logo' && !logos.has(slug(make))) probeLogo(make, () => c.replaceChildren(), true);
+  // One request finds the logo (your own image or the bundled one); if it fails the short
+  // name is shown and the logo is tried again a little later.
+  const key = slug(make);
+  const url = style === 'logo' && key && !((noLogo.get(key) ?? 0) > Date.now()) ? `/make-logo/${key}` : null;
   if (url) {
     let img = c.firstElementChild as HTMLImageElement | null;
     if (!img || img.tagName !== 'IMG') {
       img = h('img', 'make-logo');
       c.replaceChildren(img);
     }
-    if (img.getAttribute('src') !== url) img.src = url;
+    if (img.getAttribute('src') !== url) {
+      // Hidden until it has loaded, so a missing logo never flashes a broken image.
+      img.style.visibility = 'hidden';
+      img.onload = () => (img!.style.visibility = '');
+      img.onerror = () => {
+        noLogo.set(key, Date.now() + 30_000);
+        c.replaceChildren();
+      };
+      img.src = url;
+    }
     toggle(img, 'plate', plate);
     img.alt = make;
     return;
