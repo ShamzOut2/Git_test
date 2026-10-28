@@ -56,10 +56,30 @@ pub struct Approach<'a> {
     pub tire_wet: Option<bool>,
 }
 
+/// A car ahead serving a slow-down penalty: a chance to pass it.
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Overtake<'a> {
+    #[serde(flatten)]
+    pub d: DriverOut<'a>,
+    #[serde(flatten)]
+    pub x: Extras,
+    /// Seconds and metres ahead of you.
+    pub gap: f32,
+    pub distance: f32,
+    /// Their speed and yours, m/s.
+    pub speed: f32,
+    pub my_speed: f32,
+    pub position: i32,
+    pub class_position: i32,
+    pub tire_wet: Option<bool>,
+}
+
 #[derive(Serialize, Default)]
 pub struct SafetyOut<'a> {
     pub hazards: Vec<Hazard<'a>>,
     pub approaching: Vec<Approach<'a>>,
+    pub overtakes: Vec<Overtake<'a>>,
 }
 
 fn round(v: f32, digits: i32) -> f32 {
@@ -112,6 +132,19 @@ pub fn build(e: &Engine) -> SafetyOut<'_> {
         }
         let distance = round((dp * track_m).abs(), 0);
         let h = &e.hist[i];
+        if gap > 0.0 && gap <= RANGE && h.slowdown_since.is_some() {
+            out.overtakes.push(Overtake {
+                d: driver(e, s),
+                x: extras(e, i),
+                gap: round(gap, 1),
+                distance,
+                speed: round(h.speed, 1),
+                my_speed: round(e.hist[focus].speed, 1),
+                position: r.pos,
+                class_position: r.class_pos,
+                tire_wet: e.info.tire_shown(c),
+            });
+        }
         if gap > 0.0 && gap <= RANGE {
             let yellow = now < h.yellow_until;
             let repair = c.session_flags & flags::REPAIR != 0;
@@ -168,6 +201,8 @@ pub fn build(e: &Engine) -> SafetyOut<'_> {
     }
     out.hazards.sort_by(|a, b| a.gap.total_cmp(&b.gap));
     out.approaching.sort_by(|a, b| a.gap.total_cmp(&b.gap));
+    out.overtakes.sort_by(|a, b| a.gap.total_cmp(&b.gap));
+    out.overtakes.truncate(MAX);
     out.hazards.truncate(MAX);
     out.approaching.truncate(MAX);
     out
@@ -217,5 +252,27 @@ mod tests {
         place(&mut e, 0, 3, 0.60);
         e.tick();
         assert!(build(&e).hazards.iter().all(|h| h.d.idx != 2 && h.d.idx != 3));
+    }
+
+    #[test]
+    fn slow_down_ahead_is_an_overtake_chance() {
+        let mut e = engine(2, true);
+        // Car 1 is half a lap's worth of ticks at half speed: it gives time up.
+        for k in 0..40 {
+            e.tel.session_time = k as f64 * 0.1;
+            place(&mut e, 0, 3, 0.40 + k as f32 * 0.001);
+            place(&mut e, 1, 3, 0.45 + k as f32 * 0.0005);
+            e.tel.cars[1].session_flags = flags::FURLED;
+            e.tick();
+        }
+        assert!(e.car_flags(1).contains(&"slow"));
+        let out = build(&e);
+        assert_eq!(out.overtakes.len(), 1);
+        let sd = out.overtakes[0].x.slowdown.unwrap();
+        assert!(sd.seconds > 3.5 && sd.lost > 1.0, "{} {}", sd.seconds, sd.lost);
+        // Flag lowered: no longer an overtake chance.
+        e.tel.cars[1].session_flags = 0;
+        e.tick();
+        assert!(build(&e).overtakes.is_empty());
     }
 }

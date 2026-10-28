@@ -93,6 +93,11 @@ pub struct CarHist {
     pub served: Option<(String, f64)>,
     pub pitted: bool,
     pub exit_completed: i32,
+    /// Slow-down penalty (iRacing's furled black flag): since when, and the time given up so
+    /// far compared with the car's normal pace. iRacing does not say how long it is.
+    pub slowdown_since: Option<f64>,
+    pub slowdown_lost: f32,
+    slowdown_at: (f64, f32),
 }
 
 /// Where a car is in its stint, for the "stint lap" column.
@@ -695,6 +700,7 @@ impl Engine {
             self.checkered_at = None;
         }
         self.update_hist();
+        self.update_slowdowns();
         self.compute_order();
         self.compute_ir();
         if self.is_race() && self.tel.session_state >= STATE_CHECKERED && self.checkered_at.is_none() {
@@ -795,6 +801,39 @@ impl Engine {
         h.black = black;
     }
 
+    /// Slow-down penalties: how long each has been out and the time given up so far (time
+    /// taken minus what the stretch of track covered takes at the car's normal pace; the lap
+    /// fraction is in time, so slow corners are not counted as time given up).
+    fn update_slowdowns(&mut self) {
+        let now = self.tel.session_time;
+        let paces: Vec<f32> = (0..MAX_CARS).map(|i| self.ref_lap(i)).collect();
+        let fracs: Vec<f32> = (0..MAX_CARS).map(|i| self.lap_frac(i)).collect();
+        for (i, h) in self.hist.iter_mut().enumerate() {
+            let c = &self.tel.cars[i];
+            if c.session_flags & flags::FURLED == 0 || !c.in_world() {
+                h.slowdown_since = None;
+                h.slowdown_lost = 0.0;
+                continue;
+            }
+            if h.slowdown_since.is_none() {
+                h.slowdown_since = Some(now);
+                h.slowdown_lost = 0.0;
+            } else {
+                let (at, frac) = h.slowdown_at;
+                let dt = (now - at) as f32;
+                let mut dp = fracs[i] - frac;
+                if dp < -0.5 {
+                    dp += 1.0;
+                }
+                // Time in the pits is not slowing down on track.
+                if (0.0..0.5).contains(&dt) && (0.0..0.2).contains(&dp) && !c.on_pit_road {
+                    h.slowdown_lost = (h.slowdown_lost + dt - dp * paces[i]).max(0.0);
+                }
+            }
+            h.slowdown_at = (now, fracs[i]);
+        }
+    }
+
     /// Flags to show next to a driver's name.
     pub fn car_flags(&self, idx: usize) -> Vec<&'static str> {
         let c = &self.tel.cars[idx];
@@ -809,7 +848,8 @@ impl Engine {
             out.push("repair");
         }
         if f & flags::FURLED != 0 {
-            out.push("furled");
+            // iRacing's slow-down penalty (for cutting the track).
+            out.push("slow");
         }
         if self.tel.session_time < self.hist[idx].yellow_until {
             out.push("yellow");

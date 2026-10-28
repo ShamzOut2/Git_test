@@ -9,7 +9,7 @@ export const FLAGS: { id: string; name: string; label: string; detail: string; o
   { id: 'disqualify', name: 'Disqualified', label: 'DISQUALIFIED', detail: 'Black flag — disqualified', on: true },
   { id: 'black', name: 'Black flag', label: 'BLACK FLAG', detail: 'Serve your penalty in the pits', on: true },
   { id: 'repair', name: 'Meatball (repair)', label: 'REPAIR', detail: 'Car damaged — pit for repairs', on: true },
-  { id: 'furled', name: 'Furled black (warning)', label: 'WARNING', detail: 'Furled black flag — driving warning', on: true },
+  { id: 'furled', name: 'Slow down (furled black flag)', label: 'SLOW DOWN', detail: 'Slow-down penalty — give the time back', on: true },
   { id: 'checkered', name: 'Chequered flag', label: 'FINISH', detail: 'Chequered flag', on: true },
   { id: 'white', name: 'White flag', label: 'LAST LAP', detail: 'White flag — final lap', on: true },
   { id: 'cautionWaving', name: 'Caution (waving)', label: 'CAUTION', detail: 'Full course caution', on: true, blink: true },

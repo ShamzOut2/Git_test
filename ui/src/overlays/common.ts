@@ -85,7 +85,7 @@ const FLAG_TITLES: Record<string, string> = {
   black: 'Black flag',
   disqualify: 'Disqualified',
   repair: 'Meatball — damage, must pit',
-  furled: 'Furled black — warning',
+  slow: 'Slow-down penalty — they must give time back, so you may pass',
   blue: 'Blue flag — being lapped',
 };
 
@@ -122,12 +122,15 @@ function nameCell(c: HTMLElement, name: string, r: NameRow, s: Values) {
     marks.dataset.k = key;
     marks.replaceChildren(
       ...flags.map((f) => {
-        const m = h('span', `mk mk-${f}`);
+        // The slow-down is a word badge (SLOW), the rest small flags.
+        const m = f === 'slow' ? h('span', 'slow-tag', 'SLOW') : h('span', `mk mk-${f}`);
         m.title = FLAG_TITLES[f] ?? f;
         return m;
       }),
     );
   }
+  const slow = marks.querySelector(':scope > .slow-tag') as HTMLElement | null;
+  if (slow && r.slowdown) slow.title = `${FLAG_TITLES.slow} · ${Math.round(r.slowdown.seconds)}s so far, about ${r.slowdown.lost.toFixed(1)}s given up`;
   const penalty = s.penaltyBox !== false ? (r.penalty ?? '') : '';
   text(pen, penalty);
   if (pen.hidden !== !penalty) pen.hidden = !penalty;

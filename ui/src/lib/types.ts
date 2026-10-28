@@ -157,7 +157,7 @@ export interface Extras {
   /** Has taken the chequered flag. */
   finished: boolean;
   lapsLed: number;
-  /** Flags for this car: yellow (caused one), black, disqualify, repair (meatball), furled, blue. */
+  /** Flags for this car: yellow (caused one), black, disqualify, repair (meatball), slow (slow-down penalty), blue. */
   flags: string[];
   /** "DT", "S&G 40s", "+5s"…, and whether it was just served. */
   penalty: string | null;
@@ -167,6 +167,8 @@ export interface Extras {
   srDelta: number | null;
   points: number | null;
   seasonPoints: number | null;
+  /** Serving a slow-down penalty: for how long, and the time given up so far (estimated). */
+  slowdown: { seconds: number; lost: number } | null;
 }
 
 export interface RelRow extends Driver, Extras {
@@ -663,9 +665,23 @@ export interface Approach extends Driver, Extras {
   tireWet: boolean | null;
 }
 
+/** A car ahead serving a slow-down penalty: a chance to pass it. */
+export interface Overtake extends Driver, Extras {
+  /** Seconds and metres ahead of you. */
+  gap: number;
+  distance: number;
+  /** Their speed and yours, m/s. */
+  speed: number;
+  mySpeed: number;
+  position: number;
+  classPosition: number;
+  tireWet: boolean | null;
+}
+
 export interface Safety {
   hazards: Hazard[];
   approaching: Approach[];
+  overtakes: Overtake[];
 }
 
 export interface TopicMap {

@@ -532,7 +532,8 @@ pub struct Extras {
     /// Has taken the chequered flag.
     pub finished: bool,
     pub laps_led: i32,
-    /// Flags for this car: "yellow" (caused one), "black", "disqualify", "repair", "furled", "blue".
+    /// Flags for this car: "yellow" (caused one), "black", "disqualify", "repair", "slow"
+    /// (slow-down penalty, iRacing's furled black flag), "blue".
     pub flags: Vec<&'static str>,
     /// "DT", "S&G 40s", "+5s" ... and whether it has just been served.
     pub penalty: Option<String>,
@@ -545,6 +546,15 @@ pub struct Extras {
     /// League points for the current position and the projected championship total.
     pub points: Option<f32>,
     pub season_points: Option<f32>,
+    /// Serving a slow-down penalty: for how long, and the time given up so far (estimated).
+    pub slowdown: Option<SlowdownOut>,
+}
+
+#[derive(Serialize, Clone, Copy)]
+#[serde(rename_all = "camelCase")]
+pub struct SlowdownOut {
+    pub seconds: f32,
+    pub lost: f32,
 }
 
 pub fn extras(e: &Engine, idx: usize) -> Extras {
@@ -579,6 +589,9 @@ pub fn extras(e: &Engine, idx: usize) -> Extras {
         sr_delta: if ir_ok { e.sr_delta(idx).map(|v| round(v, 2)) } else { None },
         points,
         season_points,
+        slowdown: e.hist[idx]
+            .slowdown_since
+            .map(|since| SlowdownOut { seconds: round((e.tel.session_time - since) as f32, 1), lost: round(e.hist[idx].slowdown_lost, 1) }),
     }
 }
 
