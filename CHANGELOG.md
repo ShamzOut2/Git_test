@@ -10,7 +10,7 @@ Each version groups its changes under `### New features`, `### Improvements` and
 - **Safety alert overlay**: stays hidden until something needs your attention
   - **Yellow and meatball ahead**: a car up to 10 s ahead (you choose how far) that is stopped, slow, off track or rejoining, or carrying the meatball, shows the waving yellow or meatball flag (the same flags as in the standings) with the driver (number, country, licence, iRating), their car, position, how far ahead they are in seconds and metres, and their speed. It disappears once you have passed them
   - **Faster class behind**: a car of a faster class closing on you shows its class, car, driver, the gap in seconds and metres, how much faster a lap it is and roughly when it will reach you
-- **Delta bar overlay**: your live delta to a reference lap, with a bar, your predicted lap time and a gaining / losing arrow. Compare with:
+- **Delta bar overlay**: your live delta to a reference lap, with a bar (grows right when you are faster, left when slower), your predicted lap time and a gaining / losing arrow. Compare with:
   - your best lap this session
   - your all-time best: the fastest of the laps recorded by Apex Overlays (saved for every car and track) and your Garage 61 best
   - the fastest lap in one of your Garage 61 teams (pick the team), or in all your teams

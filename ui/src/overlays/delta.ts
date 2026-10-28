@@ -52,7 +52,7 @@ export const delta: OverlayDef = {
     { key: 'showBar', label: 'Delta bar', type: 'bool', default: true, group: 'What to show' },
     { key: 'decimals', label: 'Delta decimals', type: 'number', default: 2, min: 1, max: 3, group: 'What to show' },
     { key: 'range', label: 'Bar range', type: 'number', default: 1, min: 0.2, max: 5, step: 0.1, unit: 's', group: 'Bar', help: 'A delta this big fills half the bar' },
-    { key: 'fasterSide', label: 'Bar grows when faster to the', type: 'select', default: 'left', options: [['left', 'Left'], ['right', 'Right']], group: 'Bar' },
+    { key: 'fasterSide', label: 'Bar grows when faster to the', type: 'select', default: 'right', options: [['right', 'Right (slower to the left)'], ['left', 'Left (slower to the right)']], group: 'Bar' },
     { key: 'barHeight', label: 'Bar height', type: 'number', default: 10, min: 3, max: 40, unit: 'px', group: 'Bar' },
     { key: 'fasterColor', label: 'Faster', type: 'color', default: '#2fd36b', group: 'Colours' },
     { key: 'slowerColor', label: 'Slower', type: 'color', default: '#ff4d4d', group: 'Colours' },
@@ -149,7 +149,7 @@ export const delta: OverlayDef = {
       toggle(root, 'loss', live != null && live > 0);
       const range = s.range as number;
       const w = live == null ? 0 : (Math.min(range, Math.abs(live)) / range) * 50;
-      // Faster grows to one side (left by default), slower to the other.
+      // Faster grows to one side (right by default), slower to the other.
       const toLeft = live != null && (live < 0) !== (s.fasterSide === 'right');
       style(fill, 'width', `${w}%`);
       style(fill, 'left', toLeft ? `${50 - w}%` : '50%');
