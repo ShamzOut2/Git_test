@@ -85,6 +85,8 @@ pub struct CarHist {
     /// Estimated speed from track position, m/s.
     pub speed: f32,
     slow_since: Option<f64>,
+    /// Off track since (cleared when back on).
+    off_since: Option<f64>,
     /// Black flag seen; entered the pits while black-flagged; seconds stopped in the box.
     black: bool,
     pen_pit: bool,
@@ -93,6 +95,11 @@ pub struct CarHist {
     pub served: Option<(String, f64)>,
     pub pitted: bool,
     pub exit_completed: i32,
+    /// Slow-down penalty (iRacing's furled black flag): since when, and the time given up so
+    /// far compared with the car's normal pace. iRacing does not say how long it is.
+    pub slowdown_since: Option<f64>,
+    pub slowdown_lost: f32,
+    slowdown_at: (f64, f32),
 }
 
 /// Where a car is in its stint, for the "stint lap" column.
@@ -695,6 +702,7 @@ impl Engine {
             self.checkered_at = None;
         }
         self.update_hist();
+        self.update_slowdowns();
         self.compute_order();
         self.compute_ir();
         if self.is_race() && self.tel.session_state >= STATE_CHECKERED && self.checkered_at.is_none() {
@@ -768,13 +776,22 @@ impl Engine {
             h.speed_pct = c.pct;
         }
         let off = c.surface == surface::OFF_TRACK;
+        if off {
+            h.off_since.get_or_insert(now);
+        } else {
+            h.off_since = None;
+        }
+        // Clipping a kerb or cutting a chicane (Monza's Roggia, say) reads as off track for a
+        // moment without being an incident or a danger: it takes a while off, or being slow
+        // off the track, to cause a yellow.
+        let off_yellow = h.off_since.is_some_and(|t| now - t > OFF_YELLOW) || (off && h.speed < OFF_SLOW);
         let crawling = c.surface == surface::ON_TRACK && !c.on_pit_road && h.speed < 8.0 && running;
         if crawling {
             h.slow_since.get_or_insert(now);
         } else {
             h.slow_since = None;
         }
-        if off || h.slow_since.is_some_and(|t| now - t > 1.5) {
+        if off_yellow || h.slow_since.is_some_and(|t| now - t > 1.5) {
             h.yellow_until = now + YELLOW_LINGER;
         }
         let black = c.session_flags & flags::BLACK != 0;
@@ -795,6 +812,39 @@ impl Engine {
         h.black = black;
     }
 
+    /// Slow-down penalties: how long each has been out and the time given up so far (time
+    /// taken minus what the stretch of track covered takes at the car's normal pace; the lap
+    /// fraction is in time, so slow corners are not counted as time given up).
+    fn update_slowdowns(&mut self) {
+        let now = self.tel.session_time;
+        let paces: Vec<f32> = (0..MAX_CARS).map(|i| self.ref_lap(i)).collect();
+        let fracs: Vec<f32> = (0..MAX_CARS).map(|i| self.lap_frac(i)).collect();
+        for (i, h) in self.hist.iter_mut().enumerate() {
+            let c = &self.tel.cars[i];
+            if c.session_flags & flags::FURLED == 0 || !c.in_world() {
+                h.slowdown_since = None;
+                h.slowdown_lost = 0.0;
+                continue;
+            }
+            if h.slowdown_since.is_none() {
+                h.slowdown_since = Some(now);
+                h.slowdown_lost = 0.0;
+            } else {
+                let (at, frac) = h.slowdown_at;
+                let dt = (now - at) as f32;
+                let mut dp = fracs[i] - frac;
+                if dp < -0.5 {
+                    dp += 1.0;
+                }
+                // Time in the pits is not slowing down on track.
+                if (0.0..0.5).contains(&dt) && (0.0..0.2).contains(&dp) && !c.on_pit_road {
+                    h.slowdown_lost = (h.slowdown_lost + dt - dp * paces[i]).max(0.0);
+                }
+            }
+            h.slowdown_at = (now, fracs[i]);
+        }
+    }
+
     /// Flags to show next to a driver's name.
     pub fn car_flags(&self, idx: usize) -> Vec<&'static str> {
         let c = &self.tel.cars[idx];
@@ -809,7 +859,8 @@ impl Engine {
             out.push("repair");
         }
         if f & flags::FURLED != 0 {
-            out.push("furled");
+            // iRacing's slow-down penalty (for cutting the track).
+            out.push("slow");
         }
         if self.tel.session_time < self.hist[idx].yellow_until {
             out.push("yellow");
@@ -904,10 +955,9 @@ impl Engine {
         // Before the start the standings show the grid, including drivers still loading in.
         let pre_start = race && t.session_state < STATE_RACING && !self.grid.is_empty();
         let grid_pos = |i: usize| self.grid.iter().position(|&g| g == i).map(|p| p as i32 + 1).unwrap_or(i32::MAX);
-        let mut idxs: Vec<usize> = (0..MAX_CARS)
-            .filter(|&i| self.statics[i].as_ref().is_some_and(|s| !s.hidden))
-            .filter(|&i| t.cars[i].in_world() || self.hist[i].seen || result_pos(i) > 0 || (pre_start && self.grid.contains(&i)))
-            .collect();
+        // Every driver in the session is listed, also those in the garage or still loading in
+        // (spectators and the pace car are not drivers).
+        let mut idxs: Vec<usize> = (0..MAX_CARS).filter(|&i| self.statics[i].as_ref().is_some_and(|s| !s.hidden)).collect();
         let num = |i: usize| self.statics[i].as_ref().and_then(|s| s.number.parse::<i32>().ok()).unwrap_or(9999);
         let pos_or_max = |p: i32| if p > 0 { p } else { i32::MAX };
         if race && t.session_state == STATE_RACING {
@@ -1000,6 +1050,10 @@ fn override_country(r: &Resolver, user_id: i64) -> String {
 
 /// Penalty / flag tracking that needs history (see [`Engine::track_incidents`]).
 pub const YELLOW_LINGER: f64 = 5.0;
+/// Off track for longer than this (seconds), or slower than `OFF_SLOW` (m/s) while off,
+/// counts as causing a yellow.
+pub const OFF_YELLOW: f64 = 1.0;
+pub const OFF_SLOW: f32 = 20.0;
 
 /// iRacing's strength-of-field formula.
 pub fn sof(irs: &[i32]) -> i32 {
@@ -1059,6 +1113,22 @@ pub(crate) mod tests {
         place(&mut e, 3, 1, 0.90);
         e.tick();
         assert_eq!(e.row(3).unwrap().gap_laps, 1);
+    }
+
+    #[test]
+    fn standings_list_drivers_in_the_garage() {
+        for race in [false, true] {
+            let mut e = engine(3, race);
+            place(&mut e, 0, 3, 0.5);
+            place(&mut e, 1, 3, 0.6);
+            // Car 2 is connected but has never left the garage.
+            e.tel.cars[2] = CarTel { surface: surface::NOT_IN_WORLD, pct: -1.0, ..Default::default() };
+            e.tick();
+            let mut order: Vec<usize> = e.order.iter().map(|r| r.idx).collect();
+            order.sort();
+            assert_eq!(order, vec![0, 1, 2], "race: {race}");
+            assert_eq!(e.order.last().map(|r| r.idx), Some(2), "in the garage, listed last");
+        }
     }
 
     #[test]
@@ -1197,6 +1267,40 @@ pub(crate) mod tests {
         // "Always use" keeps the selected league whatever the session.
         e.set_config(Config { league_mode: "always".into(), ..cfg });
         assert_eq!(e.resolver.league_name(), Some("b"));
+    }
+
+    #[test]
+    fn a_quick_cut_is_not_a_yellow() {
+        let mut e = engine(2, true);
+        let mut info = e.info.clone();
+        info.track_length_km = 5.8;
+        e.set_session(info);
+        let step = |e: &mut Engine, t: f64, pct: f32, surf: i32| {
+            e.tel.session_time = t;
+            place(e, 0, 3, 0.9);
+            place(e, 1, 3, pct);
+            e.tel.cars[1].surface = surf;
+            e.tick();
+        };
+        let mut t = 0.0;
+        let mut pct = 0.1;
+        // About 58 m/s (0.0005 of a 5.8 km lap every 0.05 s).
+        let mut drive = |e: &mut Engine, secs: f64, surf: i32| {
+            let end = t + secs;
+            while t < end {
+                t += 0.05;
+                pct += 0.0005;
+                step(e, t, pct, surf);
+            }
+        };
+        drive(&mut e, 2.0, surface::ON_TRACK);
+        // Over the kerbs for half a second at speed: no yellow.
+        drive(&mut e, 0.5, surface::OFF_TRACK);
+        drive(&mut e, 0.5, surface::ON_TRACK);
+        assert!(e.car_flags(1).is_empty(), "{:?}", e.car_flags(1));
+        // Off for two seconds: a yellow.
+        drive(&mut e, 2.0, surface::OFF_TRACK);
+        assert_eq!(e.car_flags(1), vec!["yellow"]);
     }
 
     #[test]

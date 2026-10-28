@@ -25,7 +25,7 @@ function btn(t: string, fn: () => void, cls = '') {
   return b;
 }
 
-const FLAG_NAMES: Record<string, string> = { yellow: 'caused yellow', black: 'black flag', disqualify: 'DQ', repair: 'meatball', furled: 'warning', blue: 'blue flag' };
+const FLAG_NAMES: Record<string, string> = { yellow: 'caused yellow', black: 'black flag', disqualify: 'DQ', repair: 'meatball', slow: 'slow down', blue: 'blue flag' };
 
 export const raceControlPage: Page = {
   id: 'racecontrol',

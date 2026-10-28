@@ -124,6 +124,8 @@ body.preview { background: #2a2f38 repeating-conic-gradient(#323843 0 25%, #2a2f
 .body .row:nth-child(even) { background: var(--row-alt); }
 .row.head { color: var(--dim); text-transform: uppercase; }
 .row.head .cell { font-size: 0.75em; letter-spacing: 0.04em; }
+/* Column titles sit centred over their column (the name, team and car columns read from the left). */
+.row.head .cell:not(.c-name):not(.c-team):not(.c-car) { text-align: center; }
 .cell { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
 .cell.right { text-align: right; }
 .cell.center { text-align: center; }
@@ -294,6 +296,8 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .c-flag { font-size: 1.05em; line-height: 1; overflow: visible; }
 .make-logo { height: 1.15em; max-width: 100%; object-fit: contain; vertical-align: middle; }
 .make-logo.plate { background: rgba(255, 255, 255, 0.9); border-radius: 3px; padding: 0.08em 0.15em; }
+/* Without the plate, a thin light outline keeps black logos (BMW, Porsche…) readable on dark overlays. */
+.make-logo:not(.plate) { filter: drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.85)) drop-shadow(0 0 0.6px rgba(255, 255, 255, 0.6)); }
 .make-badge { display: inline-block; padding: 0 0.3em; border-radius: 3px; background: var(--subtle); color: var(--dim); font-size: 0.75em; font-weight: 700; letter-spacing: 0.03em; text-shadow: none; }
 .c-stint.outlap { color: var(--warn); font-size: 0.8em; font-weight: 700; }
 .c-stint.inpit { color: var(--pit); font-size: 0.8em; font-weight: 700; }
@@ -526,3 +530,11 @@ canvas.fill { position: absolute; inset: 0; width: 100%; height: 100%; }
 .dl-bar::after { content: ''; position: absolute; left: 50%; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--dim); }
 .dl-fill { position: absolute; top: 0; bottom: 0; background: var(--tone); transition: width 0.08s linear, left 0.08s linear; }
 .dl-ref { font-size: 0.8em; color: var(--dim); text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* SLOW: a car serving a slow-down penalty (iRacing's furled black flag). */
+.slow-tag { display: inline-block; padding: 0 0.3em; border-radius: 3px; background: #ff9f1a; color: #111; font-size: 0.72em; font-weight: 800; letter-spacing: 0.04em; line-height: 1.35; text-shadow: none; flex: none; }
+.sa-card.sa-overtake { --edge: #ff9f1a; }
+.sa-icon .sa-slow { font-size: 1.15em; padding: 0.15em 0.35em; animation: sa-blink 1s ease-in-out infinite; }
+.safety.still .sa-slow { animation: none; }
+@keyframes sa-blink { 50% { opacity: 0.55; } }
+.sa-driver .slow-tag { font-size: 0.68em; }

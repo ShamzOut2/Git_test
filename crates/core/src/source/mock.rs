@@ -178,6 +178,8 @@ struct Car {
     repair_until: f64,
     /// Black flag: Some(stop seconds), 0 = drive-through.
     penalty: Option<f64>,
+    /// Serving a slow-down (furled black flag) until this time.
+    slowdown_until: f64,
 }
 
 const CLASSES: [(&str, &str, u32, f64, f64); 3] = [
@@ -267,6 +269,7 @@ impl Mock {
                 wobble: rng.range(0.0, TAU),
                 off_until: 0.0,
                 repair_until: 0.0,
+                slowdown_until: 0.0,
                 penalty: None,
             });
         }
@@ -328,6 +331,9 @@ impl Mock {
             let mut v = self.track.vref[self.track.idx(c.dist)] / pace;
             if self.time < c.off_until {
                 v *= 0.35;
+            }
+            if self.time < c.slowdown_until {
+                v *= 0.8;
             }
 
             // Pit strategy: fuel or tyres.
@@ -420,6 +426,19 @@ impl Mock {
             let i = 1 + (self.rng.next() * (n - 1) as f64) as usize;
             if self.cars[i].penalty.is_none() && self.cars[i].pit == Pit::None {
                 self.cars[i].penalty = Some(if self.rng.next() < 0.5 { 0.0 } else { 15.0 });
+            }
+        }
+        // A slow-down for cutting the track, often for the car just ahead of you so the
+        // safety alert's overtake warning can be seen.
+        if self.rng.next() < 1.0 / (60.0 * 40.0) {
+            let me = self.cars[PLAYER].dist;
+            let ahead = (1..n).filter(|&i| i != PLAYER).min_by(|&a, &b| {
+                let d = |i: usize| (self.cars[i].dist - me).rem_euclid(len);
+                d(a).total_cmp(&d(b))
+            });
+            let i = if self.rng.next() < 0.5 { ahead.unwrap_or(1) } else { 1 + (self.rng.next() * (n - 1) as f64) as usize };
+            if i != PLAYER {
+                self.cars[i].slowdown_until = self.time + 8.0 + self.rng.next() * 8.0;
             }
         }
         if self.rng.next() < 0.0004 {
@@ -551,6 +570,7 @@ impl Mock {
             });
             ct.session_flags = (if c.penalty.is_some() { crate::model::flags::BLACK } else { 0 })
                 | (if self.time < c.repair_until { crate::model::flags::REPAIR } else { 0 })
+                | (if self.time < c.slowdown_until { crate::model::flags::FURLED } else { 0 })
                 | (if faster_behind { crate::model::flags::BLUE } else { 0 });
             ct.last_lap = c.last_lap as f32;
             ct.best_lap = c.best_lap as f32;

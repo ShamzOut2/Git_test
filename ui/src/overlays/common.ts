@@ -22,17 +22,13 @@ export function flagEmoji(code: string): string {
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 
-/**
- * Logo lookup, probed once per name: the user's images in <data dir>/logos/<name>.svg|png|webp
- * first, then (for manufacturers) the logos bundled with the app (car-logos-dataset).
- */
+/** Class logo lookup, probed once per name: the user's images in <data dir>/logos/<name>.svg|png|webp. */
 const logos = new Map<string, string | null>();
-function probeLogo(make: string, done: () => void, bundled = false) {
+function probeLogo(make: string, done: () => void) {
   const key = slug(make);
   if (logos.has(key)) return;
   logos.set(key, null);
   const urls = ['svg', 'png', 'webp'].map((e) => `/logos/${key}.${e}`);
-  if (bundled) urls.push(`/assets/makes/${key}.png`);
   const next = (i: number) => {
     if (i >= urls.length) return;
     const img = new Image();
@@ -56,17 +52,31 @@ export function classLogo(name: string, onFound: () => void): string | null {
   return logos.get(slug(key)) ?? null;
 }
 
+/** Makes whose logo could not be loaded, and when to try again. */
+const noLogo = new Map<string, number>();
+
 function makeCell(c: HTMLElement, make: string, style: string, plate = true) {
   if (!make) return text(c, '');
-  const url = style === 'logo' ? logos.get(slug(make)) : null;
-  if (style === 'logo' && !logos.has(slug(make))) probeLogo(make, () => c.replaceChildren(), true);
+  // One request finds the logo (your own image or the bundled one); if it fails the short
+  // name is shown and the logo is tried again a little later.
+  const key = slug(make);
+  const url = style === 'logo' && key && !((noLogo.get(key) ?? 0) > Date.now()) ? `/make-logo/${key}` : null;
   if (url) {
     let img = c.firstElementChild as HTMLImageElement | null;
     if (!img || img.tagName !== 'IMG') {
       img = h('img', 'make-logo');
       c.replaceChildren(img);
     }
-    if (img.getAttribute('src') !== url) img.src = url;
+    if (img.getAttribute('src') !== url) {
+      // Hidden until it has loaded, so a missing logo never flashes a broken image.
+      img.style.visibility = 'hidden';
+      img.onload = () => (img!.style.visibility = '');
+      img.onerror = () => {
+        noLogo.set(key, Date.now() + 30_000);
+        c.replaceChildren();
+      };
+      img.src = url;
+    }
     toggle(img, 'plate', plate);
     img.alt = make;
     return;
@@ -85,7 +95,7 @@ const FLAG_TITLES: Record<string, string> = {
   black: 'Black flag',
   disqualify: 'Disqualified',
   repair: 'Meatball — damage, must pit',
-  furled: 'Furled black — warning',
+  slow: 'Slow-down penalty — they must give time back, so you may pass',
   blue: 'Blue flag — being lapped',
 };
 
@@ -122,12 +132,15 @@ function nameCell(c: HTMLElement, name: string, r: NameRow, s: Values) {
     marks.dataset.k = key;
     marks.replaceChildren(
       ...flags.map((f) => {
-        const m = h('span', `mk mk-${f}`);
+        // The slow-down is a word badge (SLOW), the rest small flags.
+        const m = f === 'slow' ? h('span', 'slow-tag', 'SLOW') : h('span', `mk mk-${f}`);
         m.title = FLAG_TITLES[f] ?? f;
         return m;
       }),
     );
   }
+  const slow = marks.querySelector(':scope > .slow-tag') as HTMLElement | null;
+  if (slow && r.slowdown) slow.title = `${FLAG_TITLES.slow} · ${Math.round(r.slowdown.seconds)}s so far, about ${r.slowdown.lost.toFixed(1)}s given up`;
   const penalty = s.penaltyBox !== false ? (r.penalty ?? '') : '';
   text(pen, penalty);
   if (pen.hidden !== !penalty) pen.hidden = !penalty;
@@ -142,7 +155,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
     { id: 'flag', label: 'Nat', width: '2em', align: 'center', render: (c, r) => text(c, s.flagStyle === 'code' && r.country !== 'GLOBE' ? r.country.replace(/^GB-/, '') : flagEmoji(r.country)) },
     { id: 'name', label: 'Driver', width: 'minmax(4em, 1fr)', render: (c, r) => nameCell(c, f.name(r.name, nameStyle), r as NameRow, s) },
     { id: 'team', label: 'Team', width: 'minmax(3em, 0.8fr)', render: (c, r) => text(c, r.team === r.name ? '' : r.team) },
-    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string, s.makePlate !== false) },
+    { id: 'make', label: 'Make', width: s.makeStyle === 'full' ? '5.5em' : '3em', align: 'center', render: (c, r) => makeCell(c, r.make, s.makeStyle as string, s.makePlate === true) },
     {
       id: 'license',
       label: 'Lic',
@@ -150,7 +163,7 @@ export function driverCols<R extends Driver & Partial<Extras>>(s: Values): Col<R
       align: 'center',
       render: (c, r) => chip(c, r.license.split(' ')[0] + ' ' + (r.license.split(' ')[1] ?? '').slice(0, 3), r.licenseColor),
     },
-    { id: 'irating', label: 'iR', width: s.irGain !== false ? '5.4em' : '3.4em', align: 'right', render: (c, r) => iratingCell(c, r.irating, s.irGain !== false ? r.irDelta : null) },
+    { id: 'irating', label: 'iR', width: s.irGain !== false ? '5em' : '3.2em', align: 'center', render: (c, r) => iratingCell(c, r.irating, s.irGain !== false ? r.irDelta : null) },
     { id: 'car', label: 'Car', width: 'minmax(3em, 0.7fr)', render: (c, r) => text(c, r.car) },
     {
       id: 'class',
@@ -205,7 +218,7 @@ function signedCell(c: HTMLElement, v: number | null, digits: number) {
 /** Columns from the per-car extras (stint, ratings, points, ...). */
 export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
   return [
-    { id: 'lap', label: 'Lap', width: '2.6em', align: 'right', render: (c, r) => text(c, r.lap ? String(r.lap) : '') },
+    { id: 'lap', label: 'Lap', width: '2.6em', align: 'center', render: (c, r) => text(c, r.lap ? String(r.lap) : '') },
     {
       id: 'stint',
       label: 'Stint',
@@ -220,8 +233,8 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
     {
       id: 'bestLap',
       label: 'Best',
-      width: '4.6em',
-      align: 'right',
+      width: '4.7em',
+      align: 'center',
       render: (c, r) => {
         text(c, r.bestLap ? f.lapTime(r.bestLap) : '');
         toggle(c, 'best', s.highlightBest !== false && r.classBest);
@@ -230,8 +243,8 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
     {
       id: 'lastLap',
       label: 'Last',
-      width: '4.6em',
-      align: 'right',
+      width: '4.7em',
+      align: 'center',
       render: (c, r) => {
         text(c, r.lastLap ? f.lapTime(r.lastLap) : '');
         // Purple = fastest lap of the class, green = the driver's personal best.
@@ -239,19 +252,19 @@ export function extraCols<R extends Driver & Extras>(s: Values): Col<R>[] {
         toggle(c, 'pb', s.highlightBest !== false && r.lastIsPb && !r.classBest);
       },
     },
-    { id: 'incidents', label: 'Inc', width: '2.4em', align: 'right', render: (c, r) => text(c, r.incidents == null ? '' : `${r.incidents}x`) },
-    { id: 'srDelta', label: 'SR ±', width: '3.2em', align: 'right', render: (c, r) => signedCell(c, r.srDelta, 2) },
+    { id: 'incidents', label: 'Inc', width: '2.4em', align: 'center', render: (c, r) => text(c, r.incidents == null ? '' : `${r.incidents}x`) },
+    { id: 'srDelta', label: 'SR ±', width: '3.2em', align: 'center', render: (c, r) => signedCell(c, r.srDelta, 2) },
     {
       id: 'points',
       label: 'Pts',
       width: '2.8em',
-      align: 'right',
+      align: 'center',
       render: (c, r) => {
         text(c, r.points == null ? '' : `${s.pointsPlus ? '+' : ''}${+r.points.toFixed(1)}`);
         toggle(c, 'good', r.points != null && r.points > 0);
       },
     },
-    { id: 'seasonPoints', label: 'Champ', width: '3.2em', align: 'right', render: (c, r) => text(c, r.seasonPoints == null ? '' : String(+r.seasonPoints.toFixed(1))) },
+    { id: 'seasonPoints', label: 'Champ', width: '3.2em', align: 'center', render: (c, r) => text(c, r.seasonPoints == null ? '' : String(+r.seasonPoints.toFixed(1))) },
   ];
 }
 
@@ -267,7 +280,7 @@ export const COLUMN_STYLE_SETTINGS = [
     help: 'Logos for iRacing’s manufacturers are built in; your own images in the data folder under logos/ (e.g. porsche.png) take priority',
     group: 'Columns',
   },
-  { key: 'makePlate', label: 'Light background behind manufacturer logos', type: 'bool' as const, default: true, group: 'Columns', help: 'Keeps dark logos visible on dark overlays' },
+  { key: 'makePlate', label: 'Light background behind manufacturer logos', type: 'bool' as const, default: false, group: 'Columns', help: 'Off: logos sit on the overlay with a thin light outline so dark ones stay visible' },
   {
     key: 'classStyle',
     label: 'Class column',
