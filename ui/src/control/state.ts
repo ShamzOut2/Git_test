@@ -2,7 +2,7 @@
 // core (debounced) whenever the user edits something.
 
 import { Client } from '../lib/client';
-import type { Config, Garage61, LeagueImport, Player, Session, Standings, Status, TopicName, TrackMap, UpdateState } from '../lib/types';
+import type { Config, Garage61, Monitor, LeagueImport, Player, Session, Standings, Status, TopicName, TrackMap, UpdateState } from '../lib/types';
 
 export const state = {
   config: null as Config | null,
@@ -14,6 +14,7 @@ export const state = {
   player: null as Player | null,
   leagueImport: null as LeagueImport | null,
   update: null as UpdateState | null,
+  monitor: null as Monitor | null,
 };
 
 type Listener = (topic: TopicName) => void;
@@ -50,7 +51,7 @@ export const client = new Client((t, d) => {
 client.subscribe('config', 'status', 'session', 'garage61', 'leagueImport', 'update');
 
 /** Live data only some pages show: received only while one of them is open. */
-const PAGE_TOPICS: Record<string, TopicName[]> = { leagues: ['standings'], racecontrol: ['standings'], general: ['trackmap', 'player'] };
+const PAGE_TOPICS: Record<string, TopicName[]> = { leagues: ['standings'], racecontrol: ['standings'], general: ['trackmap', 'player', 'monitor'] };
 
 export function pageTopics(page: string) {
   const want = new Set(PAGE_TOPICS[page] ?? []);

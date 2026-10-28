@@ -4,6 +4,9 @@ The section for each version is shown in the in-app update pop-up and on the Git
 
 ## 0.5.9
 
+- General is now the first page in the settings window
+- New Monitoring section under General: live CPU and memory use of Apex Overlays and its overlay windows (with a one-minute CPU graph), your PC's CPU, data sent to the overlays, telemetry rate, engine time per update, windows open and uptime — hover any reading for what it means
+- New Performance monitor overlay: a small on-screen widget with the readings you pick and order (switch it on from Monitoring, or add it like any overlay); CPU turns amber or red above a level you choose
 - iRating pill: the gain/loss (green ▲ / red ▼) now sits inside the pill with the rating
 - League builder: "Show Flag Abbreviations" next to the drivers lists every flag code the Flag box accepts, with the flag and country name — searchable, click a row to copy the code (includes England, Scotland and Wales)
 

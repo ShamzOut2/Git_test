@@ -9,7 +9,9 @@ import { PAGES, type Page } from './control/pages';
 import { listen, pageTopics, state } from './control/state';
 import { applyUiTheme } from './lib/theme';
 
-const pages: Page[] = [PAGES[0], PAGES[1], PAGES[2], leaguesPage, raceControlPage, ...PAGES.slice(3)];
+// General first, then the overlays and everything else.
+const byId = (id: string) => PAGES.find((p) => p.id === id)!;
+const pages: Page[] = [byId('general'), byId('overlays'), byId('theme'), byId('strategy'), leaguesPage, raceControlPage, byId('garage61'), byId('streaming')];
 
 const nav = h('nav');
 const brand = h('div', 'brand');

@@ -88,6 +88,19 @@ pub struct Hub {
     pub updates_supported: AtomicBool,
     /// Latest raw session info string from the sim (downloadable for troubleshooting).
     pub session_yaml: Mutex<String>,
+    /// Running totals for the Monitoring section (see `monitor`).
+    pub stats: Stats,
+}
+
+/// Counters the monitor turns into rates.
+#[derive(Default)]
+pub struct Stats {
+    /// Bytes and messages sent to overlay windows and the settings page.
+    pub bytes_sent: std::sync::atomic::AtomicU64,
+    pub messages_sent: std::sync::atomic::AtomicU64,
+    /// Telemetry ticks processed, and the time spent on them (nanoseconds).
+    pub ticks: std::sync::atomic::AtomicU64,
+    pub tick_ns: std::sync::atomic::AtomicU64,
 }
 
 impl Default for Hub {
@@ -98,6 +111,7 @@ impl Default for Hub {
             tx: broadcast::channel(512).0,
             host_tx: broadcast::channel(64).0,
             cmd_tx: Mutex::new(None),
+            stats: Stats::default(),
             edit_mode: AtomicBool::new(false),
             visible: AtomicBool::new(true),
             connected: AtomicBool::new(false),

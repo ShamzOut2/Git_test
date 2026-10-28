@@ -5,7 +5,8 @@ import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
 import type { OverlayInstance } from '../lib/types';
 import { byKind, OVERLAYS } from '../overlays/registry';
 import { field, form } from './form';
-import { client, download, save, state, uid, upload } from './state';
+import { STATS } from '../lib/monitorStats';
+import { client, download, listen, save, state, uid, upload } from './state';
 
 export type Page = { id: string; title: string; render(el: HTMLElement): void };
 
@@ -952,6 +953,95 @@ function cornersCard(rerender: () => void): HTMLElement {
   return c;
 }
 
+/** Live readings of what Apex Overlays uses, updated in place once a second. */
+const monitorView = { tiles: new Map<string, HTMLElement>(), spark: null as SVGPolylineElement | null, cpu: [] as number[] };
+
+function drawMonitor() {
+  const m = state.monitor;
+  if (!m) return;
+  monitorView.cpu.push(m.cpu);
+  if (monitorView.cpu.length > 60) monitorView.cpu.shift();
+  for (const s of STATS) {
+    const el = monitorView.tiles.get(s.id);
+    if (!el) continue;
+    el.textContent = s.value(m);
+    const lvl = s.level?.(m, 5) ?? '';
+    el.classList.toggle('warn', lvl === 'warn');
+    el.classList.toggle('bad', lvl === 'bad');
+  }
+  // CPU over the last minute, scaled to its own peak (at least 5%).
+  const pts = monitorView.cpu;
+  const top = Math.max(5, ...pts);
+  monitorView.spark?.setAttribute('points', pts.map((v, i) => `${(i / 59) * 100},${30 - (v / top) * 28}`).join(' '));
+}
+
+listen((t) => {
+  if (t === 'monitor' && monitorView.tiles.size && document.contains([...monitorView.tiles.values()][0])) drawMonitor();
+});
+
+function monitoringCard(): HTMLElement {
+  const cfg = state.config!;
+  const c = card('Monitoring');
+  c.append(h('p', 'dim', 'What Apex Overlays uses right now: the app and all its overlay windows. Hover a reading for what it means.'));
+  const grid = h('div', 'mon-tiles');
+  monitorView.tiles.clear();
+  for (const s of STATS) {
+    const tile = h('div', 'mon-tile');
+    tile.title = s.help;
+    const v = h('div', 'mon-tile-val', '–');
+    tile.append(h('div', 'mon-tile-label', s.label), v);
+    if (s.id === 'cpu') {
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 100 30');
+      svg.setAttribute('preserveAspectRatio', 'none');
+      svg.classList.add('mon-spark');
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+      svg.append(line);
+      monitorView.spark = line;
+      tile.append(svg);
+      tile.classList.add('wide');
+    }
+    monitorView.tiles.set(s.id, v);
+    grid.append(tile);
+  }
+  // The on-screen widget: one Performance monitor overlay.
+  const widget = cfg.overlays.find((o) => o.kind === 'monitor');
+  const row = h('div', 'toolbar mon-widget');
+  const sw = h('label', 'inline');
+  const cb = h('input');
+  cb.type = 'checkbox';
+  cb.className = 'switch';
+  cb.checked = !!widget?.enabled;
+  cb.onchange = () => {
+    let o = cfg.overlays.find((x) => x.kind === 'monitor');
+    if (!o && cb.checked) {
+      const d = byKind('monitor')!;
+      o = { id: uid('monitor'), kind: 'monitor', name: '', enabled: true, x: 1680, y: 40, width: d.size[0], height: d.size[1], settings: {} };
+      cfg.overlays.push(o);
+    } else if (o) o.enabled = cb.checked;
+    save(true);
+  };
+  sw.append(cb, ' Show a performance widget on screen');
+  row.append(
+    sw,
+    button('Choose what it shows…', () => {
+      let o = cfg.overlays.find((x) => x.kind === 'monitor');
+      if (!o) {
+        const d = byKind('monitor')!;
+        o = { id: uid('monitor'), kind: 'monitor', name: '', enabled: false, x: 1680, y: 40, width: d.size[0], height: d.size[1], settings: {} };
+        cfg.overlays.push(o);
+        save(true);
+      }
+      selected = o.id;
+      ui.tab.set(o.id, 'What to show');
+      location.hash = '#overlays';
+    }),
+  );
+  c.append(grid, row);
+  drawMonitor();
+  return c;
+}
+
 const generalPage: Page = {
   id: 'general',
   title: 'General',
@@ -1034,6 +1124,7 @@ const generalPage: Page = {
           },
         ),
       ),
+      monitoringCard(),
       updatesCard(),
       cornersCard(() => this.render(el)),
       card(

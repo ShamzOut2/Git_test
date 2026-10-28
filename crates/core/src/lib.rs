@@ -13,6 +13,7 @@ pub mod iracing_api;
 pub mod league;
 pub mod lookup;
 pub mod model;
+pub mod monitor;
 pub mod net;
 pub mod server;
 pub mod source;
@@ -92,6 +93,7 @@ pub fn start(opts: Options) -> std::io::Result<App> {
         });
     })?;
 
+    monitor::spawn(hub.clone());
     let combo = Arc::new(Mutex::new(garage61::Combo::default()));
     garage61::spawn(hub.clone(), config.clone(), combo.clone(), opts.data_dir.clone());
     let track = Arc::new(Mutex::new((0i64, String::new())));
@@ -217,8 +219,11 @@ fn run(
                         (c.track_temp, c.wet) = (temp, wet);
                     }
                 }
+                let t0 = std::time::Instant::now();
                 e.tick();
                 publish(&e, &hub, &mut keys, false);
+                hub.stats.ticks.fetch_add(1, Ordering::Relaxed);
+                hub.stats.tick_ns.fetch_add(t0.elapsed().as_nanos() as u64, Ordering::Relaxed);
             }
         }
     }

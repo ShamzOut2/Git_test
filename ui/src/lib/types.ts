@@ -581,6 +581,26 @@ export interface Pit {
   sinceExit: number | null;
 }
 
+/** What Apex Overlays itself uses (the `monitor` topic, once a second). */
+export interface Monitor {
+  cpu: number;
+  cpuApp: number;
+  cpuWindows: number;
+  systemCpu: number;
+  memoryMb: number;
+  memoryAppMb: number;
+  memoryWindowsMb: number;
+  processes: number;
+  sentKbps: number;
+  messagesPerSec: number;
+  clients: number;
+  telemetryHz: number;
+  tickUs: number;
+  engineCpu: number;
+  uptime: number;
+  cores: number;
+}
+
 export interface TopicMap {
   session: Session;
   player: Player;
@@ -595,6 +615,7 @@ export interface TopicMap {
   spotter: Spotter;
   incidents: Incidents;
   pit: Pit;
+  monitor: Monitor;
   garage61: Garage61;
   status: Status;
   config: Config;
