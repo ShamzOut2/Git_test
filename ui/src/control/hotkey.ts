@@ -1,4 +1,4 @@
-// A hotkey box: click it and press a key combination to set it; Backspace clears it.
+// A hotkey box: click it to record, press a key combination and it is saved; Backspace clears it.
 // Keys are stored the way the desktop app's global shortcuts read them, e.g. "Ctrl+Shift+1".
 
 import { h, text } from '../lib/dom';
@@ -53,10 +53,13 @@ export function hotkeyInput(value: string, onChange: (v: string) => void): HTMLE
   const box = h('button', 'hotkey-box');
   const clear = h('button', 'mini subtle', '✕');
   clear.title = 'Remove this hotkey';
+  const saved = h('span', 'hotkey-saved', 'Saved ✓');
+  box.title = 'Click, then press the keys you want';
   let current = value;
+  let flash = 0;
   const show = (msg?: string) => {
     box.classList.toggle('unset', !current && !msg);
-    text(box, msg ?? (current.replace(/^(CmdOrCtrl|CommandOrControl)\+/i, 'Ctrl+') || 'Not set'));
+    text(box, msg ?? (current.replace(/^(CmdOrCtrl|CommandOrControl)\+/i, 'Ctrl+') || 'Click to record'));
     clear.hidden = !current;
   };
   const set = (v: string) => {
@@ -65,11 +68,15 @@ export function hotkeyInput(value: string, onChange: (v: string) => void): HTMLE
     box.classList.remove('listening');
     box.blur();
     show();
+    saved.textContent = v ? 'Saved ✓' : 'Cleared';
+    saved.classList.add('on');
+    clearTimeout(flash);
+    flash = window.setTimeout(() => saved.classList.remove('on'), 1400);
   };
   box.onclick = (e) => {
     e.preventDefault();
     box.classList.add('listening');
-    show('Press keys… (Esc cancels)');
+    show('Recording… press keys');
   };
   box.onblur = () => {
     box.classList.remove('listening');
@@ -97,6 +104,6 @@ export function hotkeyInput(value: string, onChange: (v: string) => void): HTMLE
     set('');
   };
   show();
-  wrap.append(box, clear);
+  wrap.append(saved, box, clear);
   return wrap;
 }
