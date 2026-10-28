@@ -18,6 +18,7 @@ use tauri_plugin_global_shortcut::{GlobalShortcutExt, ShortcutState};
 
 const SETTINGS: &str = "settings";
 const UPDATE_PROMPT: &str = "update-prompt";
+const CLOSE_PROMPT: &str = "close-prompt";
 const PREFIX: &str = "ov-";
 
 /// Pending (position, size) of an overlay window, in logical pixels.
@@ -96,6 +97,31 @@ fn show_update_prompt(app: &AppHandle) {
         .center()
         .focused(true)
         .build();
+}
+
+/// "Close the overlays too, or keep them running?" — asked when the settings window closes.
+fn show_close_prompt(app: &AppHandle) {
+    if let Some(w) = app.get_webview_window(CLOSE_PROMPT) {
+        let _ = w.show();
+        let _ = w.set_focus();
+        return;
+    }
+    let url = format!("{}?prompt=close", app.state::<Core>().url).parse().expect("valid url");
+    let _ = WebviewWindowBuilder::new(app, CLOSE_PROMPT, WebviewUrl::External(url))
+        .title("Close Apex Overlays")
+        .inner_size(460.0, 250.0)
+        .resizable(false)
+        .minimizable(false)
+        .maximizable(false)
+        .always_on_top(true)
+        .center()
+        .focused(true)
+        .build();
+}
+
+fn quit_all(app: &AppHandle) {
+    flush_geometry(app);
+    app.exit(0);
 }
 
 /// Make the set of overlay windows match the config.
@@ -254,8 +280,20 @@ fn handle_host_event(app: &AppHandle, ev: HostEvent) {
             tauri::async_runtime::spawn(async move { check_update(app, false).await });
         }
         HostEvent::ClosePrompt => {
-            if let Some(w) = app.get_webview_window(UPDATE_PROMPT) {
+            for label in [UPDATE_PROMPT, CLOSE_PROMPT] {
+                if let Some(w) = app.get_webview_window(label) {
+                    let _ = w.close();
+                }
+            }
+        }
+        HostEvent::CloseApp { quit: everything } => {
+            if let Some(w) = app.get_webview_window(CLOSE_PROMPT) {
                 let _ = w.close();
+            }
+            if everything {
+                quit_all(app);
+            } else if let Some(w) = app.get_webview_window(SETTINGS) {
+                let _ = w.hide();
             }
         }
         HostEvent::InstallUpdate => {
@@ -398,10 +436,7 @@ fn tray(app: &AppHandle) -> tauri::Result<()> {
             "settings" => show_settings(app),
             "edit" => hub.set_edit_mode(!hub.edit_mode.load(Ordering::Relaxed)),
             "visible" => hub.set_visible(!hub.visible.load(Ordering::Relaxed)),
-            "quit" => {
-                flush_geometry(app);
-                app.exit(0);
-            }
+            "quit" => quit_all(app),
             _ => {}
         }
     });
@@ -484,9 +519,15 @@ fn main() {
             let label = window.label().to_string();
             match event {
                 WindowEvent::CloseRequested { api, .. } if label == SETTINGS => {
-                    // Closing settings keeps the overlays running in the tray.
+                    // Ask whether the overlays should close too (unless the answer was remembered).
                     api.prevent_close();
-                    let _ = window.hide();
+                    match app.state::<Core>().config.read(|c| c.close_action.clone()).as_str() {
+                        "quit" => quit_all(app),
+                        "keep" => {
+                            let _ = window.hide();
+                        }
+                        _ => show_close_prompt(app),
+                    }
                 }
                 WindowEvent::Moved(p) if label.starts_with(PREFIX) => {
                     let s = window.scale_factor().unwrap_or(1.0);

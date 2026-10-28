@@ -196,6 +196,12 @@ enum ClientMsg {
         days: Option<u32>,
     },
     ClosePrompt,
+    /// Closing the settings window: quit everything or keep the overlays; optionally remembered.
+    CloseApp {
+        quit: bool,
+        #[serde(default)]
+        remember: bool,
+    },
     /// Jump the iRacing replay to this moment (only works while a replay is playing).
     Replay {
         session_num: i32,
@@ -325,6 +331,12 @@ fn handle(s: &AppState, m: ClientMsg, subs: &mut HashSet<String>, send_now: &mut
             s.hub.host(HostEvent::ClosePrompt);
         }
         ClientMsg::ClosePrompt => s.hub.host(HostEvent::ClosePrompt),
+        ClientMsg::CloseApp { quit, remember } => {
+            if remember {
+                s.config.update(|c| c.close_action = if quit { "quit" } else { "keep" }.into());
+            }
+            s.hub.host(HostEvent::CloseApp { quit });
+        }
         ClientMsg::InstallUpdate => s.hub.host(HostEvent::InstallUpdate),
     }
 }

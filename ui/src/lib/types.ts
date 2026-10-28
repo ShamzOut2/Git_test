@@ -503,6 +503,8 @@ export interface Config {
   trackOutline: 'iracing' | 'recorded';
   /** 'balanced': timing tables a few times a second; 'full': everything 60 times a second. */
   updateRate: 'balanced' | 'full';
+  /** Closing the settings window: ask, close everything, or keep the overlays running. */
+  closeAction: 'ask' | 'quit' | 'keep';
 }
 
 export interface Penalty {

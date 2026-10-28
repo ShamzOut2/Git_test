@@ -2,6 +2,10 @@
 
 The section for each version is shown in the in-app update pop-up and on the GitHub release.
 
+## 0.5.8
+
+- Closing the settings window now asks whether to close the overlays too or keep them running (from the tray icon), with "don't ask again"; the choice can be changed under General → When I close this window
+
 ## 0.5.7
 
 - Shared track map library: tracks other drivers have recorded get their outline straight away, no clean lap needed (Road Atlanta, Brands Hatch, Virginia International Raceway and Charlotte Motor Speedway to start with). Your own recording always takes priority

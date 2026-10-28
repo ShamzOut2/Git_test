@@ -35,6 +35,11 @@ pub enum HostEvent {
     InstallUpdate,
     /// Close the update pop-up window.
     ClosePrompt,
+    /// Answer from the "close Apex Overlays?" pop-up: quit everything, or keep the overlays
+    /// running and just hide the settings window.
+    CloseApp {
+        quit: bool,
+    },
     /// An overlay wants mouse clicks (true) or to be click-through again (false).
     Interactive {
         id: String,
