@@ -197,6 +197,11 @@ export interface StandRow extends Driver, Extras {
   gapLaps: number;
   interval: number | null;
   intervalLaps: number;
+  /** Gap and interval overall (to P1 and the car ahead), for a single overall list. */
+  gapOverall: number | null;
+  gapOverallLaps: number;
+  intervalOverall: number | null;
+  intervalOverallLaps: number;
   isClassBest: boolean;
   laps: number;
   onPitRoad: boolean;

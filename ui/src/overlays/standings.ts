@@ -86,6 +86,7 @@ export const standings: OverlayDef = {
   create(root, ctx) {
     const s = ctx.settings;
     const dec = s.gapDecimals as number;
+    const overall = s.mode === 'overall';
     const header = sessionHeader(s, 'Standings', () => ctx.units);
     const body = h('div', 'sections');
     root.append(header.el, body);
@@ -106,8 +107,22 @@ export const standings: OverlayDef = {
           toggle(c, 'bad', g < 0);
         },
       },
-      { id: 'gap', label: 'Gap', width: '3.8em', align: 'center', render: (c, r) => text(c, r.classPosition === 1 ? 'Leader' : f.gap(r.gap, r.gapLaps, dec)) },
-      { id: 'interval', label: 'Int', width: '3.6em', align: 'center', render: (c, r) => text(c, r.classPosition === 1 ? '' : f.gap(r.interval, r.intervalLaps, dec)) },
+      // In one overall list there is a single leader (overall P1) and gaps are overall.
+      {
+        id: 'gap',
+        label: 'Gap',
+        width: '3.8em',
+        align: 'center',
+        render: (c, r) =>
+          text(c, overall ? (r.position === 1 ? 'Leader' : f.gap(r.gapOverall, r.gapOverallLaps, dec)) : r.classPosition === 1 ? 'Leader' : f.gap(r.gap, r.gapLaps, dec)),
+      },
+      {
+        id: 'interval',
+        label: 'Int',
+        width: '3.6em',
+        align: 'center',
+        render: (c, r) => text(c, overall ? (r.position === 1 ? '' : f.gap(r.intervalOverall, r.intervalOverallLaps, dec)) : r.classPosition === 1 ? '' : f.gap(r.interval, r.intervalLaps, dec)),
+      },
       { id: 'laps', label: 'Laps', width: '2.6em', align: 'center', render: (c, r) => text(c, String(r.laps)) },
       { id: 'pits', label: 'Stops', width: '2.8em', align: 'center', render: (c, r) => text(c, r.pitStops ? String(r.pitStops) : '') },
       { id: 'tire', label: 'Tyre', width: '2.4em', align: 'center', render: (c, r) => tireCell(c, r.tireWet) },
@@ -167,7 +182,8 @@ export const standings: OverlayDef = {
           const sec = sections[i];
           text(sec.name, c.name);
           const redo = () => (key = '');
-          const wanted = s.classLogo !== 'off';
+          // The single overall list has no class badge: its header just says Overall.
+          const wanted = s.classLogo !== 'off' && c.id !== 'overall';
           const url = wanted ? (classLogo(c.name, redo) ?? classBadge(c.name, c.id, c.color, c.rows.map((r) => r.car), s.classBadgeColor as string, redo)) : null;
           if (url && sec.logo.getAttribute('src') !== url) sec.logo.src = url;
           if (sec.logo.hidden !== !url) sec.logo.hidden = !url;
