@@ -15,6 +15,7 @@ pub mod lookup;
 pub mod model;
 pub mod monitor;
 pub mod net;
+pub mod safety;
 pub mod server;
 pub mod source;
 pub mod svgmap;

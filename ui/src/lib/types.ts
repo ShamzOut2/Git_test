@@ -621,6 +621,39 @@ export interface SavedLayout {
   sessions: string[];
 }
 
+/** A car ahead causing a yellow or carrying the meatball (see crates/core/src/safety.rs). */
+export interface Hazard extends Driver {
+  flag: 'yellow' | 'repair';
+  reason: 'stopped' | 'slow' | 'offTrack' | 'rejoining' | 'damaged';
+  /** Seconds and metres ahead of you. */
+  gap: number;
+  distance: number;
+  /** m/s */
+  speed: number;
+  position: number;
+  classPosition: number;
+  incidents: number | null;
+}
+
+/** A car of a faster class behind you. */
+export interface Approach extends Driver {
+  /** Seconds and metres behind you. */
+  gap: number;
+  distance: number;
+  /** Seconds a lap faster than you. */
+  fasterBy: number;
+  /** Seconds until they reach you. */
+  catchIn: number | null;
+  speed: number;
+  position: number;
+  classPosition: number;
+}
+
+export interface Safety {
+  hazards: Hazard[];
+  approaching: Approach[];
+}
+
 export interface TopicMap {
   session: Session;
   player: Player;
@@ -635,6 +668,7 @@ export interface TopicMap {
   spotter: Spotter;
   incidents: Incidents;
   pit: Pit;
+  safety: Safety;
   monitor: Monitor;
   garage61: Garage61;
   status: Status;

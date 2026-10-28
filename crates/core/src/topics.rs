@@ -21,10 +21,11 @@ pub enum Topic {
     Spotter,
     Incidents,
     Pit,
+    Safety,
 }
 
 impl Topic {
-    pub const ALL: [Topic; 13] = [
+    pub const ALL: [Topic; 14] = [
         Topic::Session,
         Topic::Player,
         Topic::Cars,
@@ -38,6 +39,7 @@ impl Topic {
         Topic::Spotter,
         Topic::Incidents,
         Topic::Pit,
+        Topic::Safety,
     ];
 
     pub fn name(self) -> &'static str {
@@ -55,6 +57,7 @@ impl Topic {
             Topic::Spotter => "spotter",
             Topic::Incidents => "incidents",
             Topic::Pit => "pit",
+            Topic::Safety => "safety",
         }
     }
 
@@ -65,7 +68,7 @@ impl Topic {
         match self {
             Topic::Player | Topic::Cars | Topic::Spotter => 1,
             Topic::Pit => 2,
-            Topic::Relative => 3,
+            Topic::Relative | Topic::Safety => 3,
             Topic::Standings | Topic::Battle => 6,
             Topic::Session | Topic::Fuel | Topic::Tyres | Topic::Incidents => 15,
             // Only re-sent when they change (see `publish`).
@@ -101,6 +104,7 @@ impl Topic {
             Topic::Spotter => serde_json::to_string(&spotter(e)),
             Topic::Incidents => serde_json::to_string(&incidents_out(e)),
             Topic::Pit => serde_json::to_string(&e.pit_out),
+            Topic::Safety => serde_json::to_string(&crate::safety::build(e)),
         };
         r.unwrap_or_else(|_| "null".into())
     }
@@ -463,7 +467,7 @@ pub struct DriverOut<'a> {
     pub is_focus: bool,
 }
 
-fn driver<'a>(e: &Engine, s: &'a Static) -> DriverOut<'a> {
+pub fn driver<'a>(e: &Engine, s: &'a Static) -> DriverOut<'a> {
     DriverOut {
         idx: s.idx,
         number: &s.number,

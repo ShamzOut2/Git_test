@@ -1326,7 +1326,7 @@ const generalPage: Page = {
                 ['balanced', 'Balanced (recommended)'],
                 ['full', 'Every tick (60/s, more CPU)'],
               ],
-              help: 'Balanced: inputs, track map and spotter 60/s; relative 20/s; standings and battle 10/s; the rest a few times a second.',
+              help: 'Balanced: inputs, track map and spotter 60/s; relative and safety alert 20/s; standings and battle 10/s; the rest a few times a second.',
               group: 'Performance',
             },
             {
