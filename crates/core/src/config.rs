@@ -47,6 +47,9 @@ pub struct Config {
     /// How often live data is sent to overlays: "balanced" (timing tables a few times a
     /// second, driving aids every tick) or "full" (everything every tick, as before 0.5.6).
     pub update_rate: String,
+    /// Closing the settings window: "ask", "quit" (overlays close too) or "keep" (overlays
+    /// keep running, the app stays in the tray).
+    pub close_action: String,
     /// "Remind me later" / "skip this version" for the update pop-up.
     pub update_postpone: Option<UpdatePostpone>,
 }
@@ -136,6 +139,7 @@ impl Default for Config {
             update_postpone: None,
             track_outline: "iracing".into(),
             update_rate: "balanced".into(),
+            close_action: "ask".into(),
         }
     }
 }

@@ -19,7 +19,6 @@ const COLS = [
   { id: 'car', label: 'Car' },
   { id: 'license', label: 'Licence — LIC' },
   { id: 'irating', label: 'iRating — IR' },
-  { id: 'irDelta', label: 'iRating gain/loss (est.) — IR ±' },
   { id: 'srDelta', label: 'Safety rating gain/loss (est.) — SR ±' },
   { id: 'incidents', label: 'Incidents — INC' },
   { id: 'lap', label: 'Current lap — LAP' },

@@ -4,6 +4,7 @@ import { h, text } from './lib/dom';
 import { leaguesPage } from './control/leagues';
 import { raceControlPage } from './control/racecontrol';
 import { renderUpdatePrompt } from './control/updatePrompt';
+import { renderClosePrompt } from './control/closePrompt';
 import { PAGES, type Page } from './control/pages';
 import { listen, pageTopics, state } from './control/state';
 import { applyUiTheme } from './lib/theme';
@@ -25,8 +26,9 @@ for (const p of pages) {
 }
 nav.append(conn);
 document.body.append(nav, main);
-// The desktop app opens this page as a small "update available" window.
-const promptMode = new URLSearchParams(location.search).get('prompt') === 'update';
+// The desktop app opens this page as a small "update available" or "close?" window.
+const promptKind = new URLSearchParams(location.search).get('prompt');
+const promptMode = promptKind === 'update' || promptKind === 'close';
 if (promptMode) {
   nav.hidden = true;
   document.body.classList.add('prompt');
@@ -40,6 +42,7 @@ function render() {
     return;
   }
   applyUiTheme(state.config.theme, document.documentElement);
+  if (promptKind === 'close') return renderClosePrompt(main);
   if (promptMode) return renderUpdatePrompt(main);
   const p = current();
   pageTopics(p.id);
@@ -77,7 +80,7 @@ listen((t) => {
   if (t === 'garage61' && current().id === 'garage61') render();
   if (t === 'leagueImport' && current().id === 'leagues') render();
   if (t === 'trackmap' && current().id === 'general') render();
-  if (t === 'update' && (promptMode || current().id === 'general')) render();
+  if (t === 'update' && (promptKind === 'update' || (!promptMode && current().id === 'general'))) render();
   // Race control lists live flags: refresh every couple of seconds unless the user is typing.
   if (t === 'standings' && current().id === 'racecontrol' && Date.now() - lastLive > 2000 && !(document.activeElement instanceof HTMLInputElement)) {
     lastLive = Date.now();
