@@ -18,10 +18,6 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    env:
-      # Apex Overlays' Garage 61 client ID (for "Log in with Garage 61"), from the repository
-      # variable G61_CLIENT_ID once Garage 61 has registered the app. Not a secret.
-      APEX_G61_CLIENT_ID: ${{ vars.G61_CLIENT_ID }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

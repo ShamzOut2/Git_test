@@ -54,7 +54,6 @@ dependencies = [
  "apex-irsdk",
  "axum",
  "base64 0.22.1",
- "getrandom 0.2.17",
  "log",
  "native-tls",
  "rust-embed",

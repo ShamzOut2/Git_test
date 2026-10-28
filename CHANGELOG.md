@@ -8,7 +8,6 @@ Each version groups its changes under `### New features`, `### Improvements` and
 
 ### New features
 - **Remove Driver Class in Name** (League builder → Drivers): for leagues that put the class in front of names, such as “(P) Max Power” or “(PA) Max Power”. Tick it and the brackets and what is in them come out, the space in front goes, and the display name is filled with the driver's full name, so the overlays show “Max Power”. A nickname of the driver's own is kept (without a tag), drivers added later are cleaned up too, and drivers not on the roster show without the tag as well
-- **Log in with Garage 61** (Settings → Garage 61): sign in with your Garage 61 account instead of pasting a token. Your browser opens Garage 61's sign-in page and comes back to the app; the login renews itself and is stored apart from your settings (never exported or shown). A personal access token still works from Advanced until the app is registered with Garage 61
 
 ### Fixes
 - Standings as a single overall list: only overall P1 is the leader. Gap and interval are measured to the overall leader and the car ahead overall (they were per class, so every class leader showed "Leader"), and the list's header says Overall instead of showing a class badge

@@ -15,7 +15,6 @@ axum = { version = "0.8", default-features = false, features = ["http1", "json",
 rust-embed = "8"
 sha2 = "0.10"
 base64 = "0.22"
-getrandom = "0.2"
 sysinfo = { version = "0.39.6", default-features = false, features = ["system"] }
 
 # Windows uses the OS TLS stack (SChannel): smaller binary, system certificates, no C toolchain.

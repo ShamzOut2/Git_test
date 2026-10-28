@@ -1,4 +1,4 @@
-import { h, text } from '../lib/dom';
+import { h } from '../lib/dom';
 import * as f from '../lib/format';
 import { commonFor, merge, type SettingDef } from '../lib/settings';
 import { applyUiTheme, PRESETS, THEME } from '../lib/theme';
@@ -822,43 +822,7 @@ const garage61Page: Page = {
   render(el) {
     const g = state.config!.garage61;
     const status = state.garage61;
-    const STATUS: Record<string, string> = { disabled: 'Off', noToken: 'Not logged in', waiting: 'Waiting', loading: 'Loading…', ok: 'Connected', unmapped: 'Not on Garage 61', error: 'Error' };
-    const statusLine = h(
-      'p',
-      `status-line s-${status?.status ?? 'disabled'}`,
-      status ? `${STATUS[status.status] ?? status.status}${status.message ? ' — ' + status.message : ''}${status.user ? ` (signed in as ${status.user})` : ''}` : 'Off',
-    );
-    // Logging in: the browser opens at Garage 61's sign-in page and comes back to the app.
-    const login = status?.login;
-    const account = h('div', 'g61-login');
-    if (login?.loggedIn) {
-      account.append(
-        h('span', 'g61-who', `Logged in to Garage 61${login.account ? ` as ${login.account}` : ''}`),
-        button('Log out', () => {
-          if (confirm('Log out of Garage 61? Apex Overlays stops pulling your Garage 61 laps until you log in again.')) client.send({ op: 'garage61Logout' });
-        }),
-      );
-    } else {
-      const go = button(
-        'Log in with Garage 61',
-        () => {
-          client.send({ op: 'garage61Login' });
-          text(hint, 'Your browser opens Garage 61: sign in there and allow Apex Overlays, then come back here.');
-        },
-        'primary',
-      );
-      go.disabled = login?.available === false;
-      const hint = h(
-        'span',
-        'dim small',
-        login?.available === false
-          ? 'Logging in needs Apex Overlays to be registered with Garage 61, which is in progress. Until then, a personal access token can be used under Advanced below.'
-          : login?.via === 'token'
-            ? 'Using the personal access token from Advanced. Log in to use your account instead.'
-            : 'Sign in with your Garage 61 account to pull your laps, your teams and their reference laps.',
-      );
-      account.append(go, hint);
-    }
+    const statusLine = h('p', `status-line s-${status?.status ?? 'disabled'}`, status ? `${status.status}${status.message ? ' — ' + status.message : ''}${status.user ? ` (signed in as ${status.user})` : ''}` : 'disabled');
     const token = h('input');
     token.type = 'password';
     token.placeholder = g.token === '__keep__' ? 'Token saved — paste a new one to replace' : 'Paste your personal access token';
@@ -868,35 +832,15 @@ const garage61Page: Page = {
       save(true);
     };
     const tokRow = h('label', 'field');
-    tokRow.append(h('span', 'field-label', 'Personal access token'), token);
-    const advanced = h('details', 'g61-advanced');
-    advanced.append(
-      h('summary', '', 'Advanced'),
-      h('p', 'dim small', 'A personal access token (garage61.net → Developer → My applications, with the “driving data” permission) is used only while you are not logged in.'),
-      tokRow,
-      form(
-        [
-          { key: 'clientId', label: 'Client ID', type: 'text', default: '', placeholder: 'Built into the app', help: 'Only needed to use another registered Garage 61 application' },
-          { key: 'authUrl', label: 'Sign-in address', type: 'text', default: 'https://garage61.net/app/account/oauth' },
-          { key: 'tokenUrl', label: 'Token address', type: 'text', default: 'https://garage61.net/api/oauth/token' },
-          { key: 'scope', label: 'Permissions asked for', type: 'text', default: 'driving_data' },
-        ],
-        g as unknown as Record<string, unknown>,
-        (k, v) => {
-          (g as unknown as Record<string, unknown>)[k] = v;
-          save();
-        },
-      ),
-    );
+    tokRow.append(h('span', 'field-label', 'Access token'), token);
     el.replaceChildren(
       card(
         'Garage 61',
         h(
           'p',
           'dim',
-          'Shows a live delta to your Garage 61 personal best (or your team’s best lap), sector by sector, plus your personal best and your teams’ leaderboard for the car and track you are driving, and gives the delta bar its Garage 61 reference laps.',
+          'Shows a live delta to your Garage 61 personal best (or your team’s best lap), sector by sector, plus your personal best and your teams’ leaderboard for the car and track you are driving. Create a personal access token on garage61.net (Developer → My applications) with the “driving data” permission.',
         ),
-        account,
         form(
           [
             { key: 'enabled', label: 'Enable integration', type: 'bool', default: false },
@@ -943,6 +887,7 @@ const garage61Page: Page = {
             save();
           },
         ),
+        tokRow,
         statusLine,
         ...(status?.status === 'ok'
           ? [
@@ -957,7 +902,6 @@ const garage61Page: Page = {
             ]
           : []),
         h('p', 'dim small', 'Remember to enable the “Garage 61” overlay on the Overlays page.'),
-        advanced,
       ),
     );
   },

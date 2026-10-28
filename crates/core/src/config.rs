@@ -453,12 +453,6 @@ pub struct Garage61Config {
     /// the same dry / wet track.
     pub match_conditions: bool,
     pub temp_range: f32,
-    /// Logging in from the app (OAuth): client ID (blank = the one built into the release),
-    /// Garage 61's sign-in and token addresses, and the permissions asked for.
-    pub client_id: String,
-    pub auth_url: String,
-    pub token_url: String,
-    pub scope: String,
 }
 
 impl Default for Garage61Config {
@@ -472,10 +466,6 @@ impl Default for Garage61Config {
             reference: "personal".into(),
             match_conditions: false,
             temp_range: 6.0,
-            client_id: String::new(),
-            auth_url: "https://garage61.net/app/account/oauth".into(),
-            token_url: "https://garage61.net/api/oauth/token".into(),
-            scope: "driving_data".into(),
         }
     }
 }

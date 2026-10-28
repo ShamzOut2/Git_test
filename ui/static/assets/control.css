@@ -258,9 +258,3 @@ button.chip-toggle.on { color: #fff; background: var(--accent); border-color: va
 .menu-pop.wide { min-width: 460px; }
 .layout-item.active { box-shadow: inset 3px 0 var(--accent); }
 .layout-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-
-/* Garage 61 login */
-.g61-login { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: 10px 0 14px; }
-.g61-who { font-weight: 600; }
-.g61-advanced { margin-top: 12px; }
-.g61-advanced summary { cursor: pointer; color: var(--dim); }
